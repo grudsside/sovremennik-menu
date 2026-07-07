@@ -1,0 +1,24 @@
+{
+  "section": "bar",
+  "category": "Холодный кофе",
+  "title": "Название позиции",
+  "price": "___ ₽",
+  "volume": "___ мл",
+  "time": "",
+  "kbju": {
+    "calories": "",
+    "protein": "",
+    "fat": "",
+    "carbs": ""
+  },
+  "description": "Краткое описание позиции.",
+  "descriptionCollapsed": false,
+  "ingredients": [
+    "Ингредиент 1",
+    "Ингредиент 2"
+  ],
+  "image": "assets/images/bar/file-name.jpg",
+  "isArchive": false,
+  "note": "",
+  "tags": []
+}
