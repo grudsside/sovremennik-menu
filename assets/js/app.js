@@ -43,7 +43,7 @@ function renderSubmitPanel(doc){ return `<div class="submit-panel"><label class=
 function renderChecklistCard(doc) { const search=[doc.title,doc.description,...(doc.sections||[]).flatMap(s=>(s.rows||[]).map(rowSearch))].join(' ').toLowerCase(); const count=(doc.sections||[]).reduce((a,s)=>a+(s.rows||[]).length,0); return `<article class="doc-card" data-checklist-id="${esc(doc.id)}" data-search="${esc(search)}"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${count} задач</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a></div><details class="doc-details"><summary>Открыть чек-лист</summary>${(doc.sections||[]).map(renderChecklistSection).join('')}${renderSubmitPanel(doc)}</details></div></article>`; }
 function renderChecklists() { const docs=state.menu.checklists||[]; return `<section class="top-panel ${state.activeTop==='checklists'?'active':''}" id="top-checklists"><div class="section-heading"><p>Рабочие документы</p><h2>Чек-листы</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по чек-листам и задачам" type="search"><button class="clear-btn" type="button">Сбросить</button></div></div><div class="doc-grid">${docs.map(renderChecklistCard).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function renderRevisions(){ return `<section class="top-panel ${state.activeTop==='revisions'?'active':''}" id="top-revisions"><div class="section-heading"><p>Рабочая форма</p><h2>Ревизии</h2></div><div class="revision-card"><div class="card-head"><h3>Ежедневная ревизия кофе</h3><span class="source-badge">Кофе</span></div><p class="description">Заполните данные по зерну в конце смены или в установленное время. После отправки запись уйдет в общий раздел «Контроль → Ревизии» и в Google Таблицу.</p><form class="revision-form" id="coffee-revision-form"><div class="form-grid"><label class="employee-field">Имя сотрудника<input name="employeeName" type="text" placeholder="Например, Анна" autocomplete="name" required></label><label class="employee-field">Вес бункера, кг<input name="hopperWeight" type="number" min="0" step="0.001" placeholder="Например, 1.250" required></label><label class="employee-field">Вскрыто пачек, шт.<input name="openedPacks" type="number" min="0" step="1" placeholder="Например, 3" required></label></div><button class="submit-revision" type="submit">Отправить ревизию</button><p class="submit-status revision-status" aria-live="polite"></p></form></div></section>`; }
+function renderRevisions(){ const today=new Date().toISOString().slice(0,10); return `<section class="top-panel ${state.activeTop==='revisions'?'active':''}" id="top-revisions"><div class="section-heading"><p>Рабочая форма</p><h2>Ревизии</h2></div><div class="revision-card"><div class="card-head"><h3>Ежедневная ревизия кофе</h3><span class="source-badge">Кофе</span></div><p class="description">Заполните данные по зерну за конкретную дату. Дата нужна, чтобы данные сотрудника и ручные данные по списаниям/iiko попадали в одну колонку.</p><form class="revision-form" id="coffee-revision-form"><div class="form-grid"><label class="employee-field">Дата ревизии<input name="revisionDate" type="date" value="${today}" required></label><label class="employee-field">Имя сотрудника<input name="employeeName" type="text" placeholder="Например, Анна" autocomplete="name" required></label><label class="employee-field">Вес бункера, кг<input name="hopperWeight" type="number" min="0" step="0.001" placeholder="Например, 1.250" required></label><label class="employee-field">Вскрыто пачек, шт.<input name="openedPacks" type="number" min="0" step="1" placeholder="Например, 3" required></label></div><button class="submit-revision" type="submit">Отправить ревизию</button><p class="submit-status revision-status" aria-live="polite"></p></form></div></section>`; }
 
 function getLocalControlRecords(){ try { return JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || '[]'); } catch(e){ return []; } }
 function setLocalControlRecords(records){ localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(records)); }
@@ -53,8 +53,24 @@ function getLocalRevisionRecords(){ try { return JSON.parse(localStorage.getItem
 function setLocalRevisionRecords(records){ localStorage.setItem(REVISION_STORAGE_KEY, JSON.stringify(records)); }
 function getRevisionRecords(){ return Array.isArray(state.revisionRecords) ? state.revisionRecords : getLocalRevisionRecords(); }
 function saveLocalRevisionRecord(record){ const records=getLocalRevisionRecords(); records.unshift(record); setLocalRevisionRecords(records); }
-function formatDateTime(iso){ try { return new Date(iso).toLocaleString('ru-RU'); } catch(e){ return iso; } }
-function formatDateOnly(iso){ try { return new Date(iso).toLocaleDateString('ru-RU'); } catch(e){ return iso; } }
+function formatDateTime(iso){ const d=new Date(iso); return !Number.isNaN(d.getTime()) ? d.toLocaleString('ru-RU') : (iso || ''); }
+function formatDateOnly(iso){ const d=new Date(iso); return !Number.isNaN(d.getTime()) ? d.toLocaleDateString('ru-RU') : (iso || ''); }
+function normalizeDateKey(value){
+  if(!value) return '';
+  const s=String(value).trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m=s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const d=new Date(s);
+  if(!Number.isNaN(d.getTime())) return d.toISOString().slice(0,10);
+  return s;
+}
+function displayDateFromKey(key){
+  const m=String(key||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : (key || '');
+}
+function valuePresent(value){ return value !== undefined && value !== null && String(value).trim() !== ''; }
 function safeParseJson(value, fallback){ try { return typeof value === 'string' ? JSON.parse(value) : (value ?? fallback); } catch(e){ return fallback; } }
 function normalizeRemoteRecord(row){
   const tasks = safeParseJson(row.details, []);
@@ -63,9 +79,11 @@ function normalizeRemoteRecord(row){
 }
 function normalizeRevisionRecord(row){
   const createdAt = row.createdAt || row.created_at || row.created || new Date().toISOString();
+  const dateKey = normalizeDateKey(row.dateKey || row.revisionDate || row.date || createdAt);
   return {
-    id: row.id || `${row.date || ''}-${Math.random().toString(16).slice(2)}`,
-    date: row.date || formatDateOnly(createdAt),
+    id: row.id || `coffee-${dateKey || Math.random().toString(16).slice(2)}`,
+    dateKey,
+    date: row.date || displayDateFromKey(dateKey) || formatDateOnly(createdAt),
     employeeName: row.employeeName || row.employee || '',
     hopperWeight: row.hopperWeight ?? row.weight ?? '',
     openedPacks: row.openedPacks ?? row.packs ?? '',
@@ -79,6 +97,21 @@ function normalizeRevisionRecord(row){
     createdAt
   };
 }
+function mergeRevisionRecordsByDate(records){
+  const map=new Map();
+  const fields=['employeeName','hopperWeight','openedPacks','writeOffs','iikoSales','difference','losses','checked','cleanHopperWeight','totalCoffeeUsage'];
+  for(const raw of records||[]){
+    const r=normalizeRevisionRecord(raw);
+    const key=r.dateKey || normalizeDateKey(r.date) || normalizeDateKey(r.createdAt);
+    if(!key) continue;
+    if(!map.has(key)) map.set(key,{ id:`coffee-${key}`, dateKey:key, date:displayDateFromKey(key), createdAt:r.createdAt });
+    const current=map.get(key);
+    for(const field of fields){ if(valuePresent(r[field])) current[field]=r[field]; }
+    if(valuePresent(r.createdAt)) current.createdAt=r.createdAt;
+  }
+  return Array.from(map.values()).sort((a,b)=>String(a.dateKey).localeCompare(String(b.dateKey)));
+}
+
 function fetchFromSheets(view){
   if(!GOOGLE_SCRIPT_URL) return Promise.resolve([]);
   return new Promise((resolve, reject)=>{
@@ -101,7 +134,7 @@ async function loadControlRecords(){
 }
 async function loadRevisionRecords(){
   state.revisionLoading = true; state.revisionError = ''; refreshControl();
-  try { const records = (await fetchFromSheets('coffeeRevision')).map(normalizeRevisionRecord); state.revisionRecords = records; setLocalRevisionRecords(records); }
+  try { const records = mergeRevisionRecordsByDate(await fetchFromSheets('coffeeRevision')); state.revisionRecords = records; setLocalRevisionRecords(records); }
   catch(error) { console.warn(error); state.revisionError = error.message || 'Не удалось загрузить ревизии из Google Sheets.'; state.revisionRecords = getLocalRevisionRecords(); }
   finally { state.revisionLoading = false; refreshControl(); }
 }
@@ -118,7 +151,7 @@ function renderRevisionRecordsTable(){
   const records=getRevisionRecords();
   if(state.revisionLoading) return `<div class="empty-control"><h3>Загружаю данные ревизий…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
   if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных ревизий</h3><p>После отправки формы «Ревизия кофе» запись появится здесь и в листе «Ревизия Кофе».</p>${state.revisionError?`<p class="control-error">${esc(state.revisionError)}</p>`:''}</div>`;
-  const sorted=[...records].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const sorted=mergeRevisionRecordsByDate(records).sort((a,b)=>String(a.dateKey||'').localeCompare(String(b.dateKey||'')));
   const cols=sorted.slice(-14);
   const rows=[
     ['Значение на весах (кг.)', r=>r.hopperWeight],
@@ -133,11 +166,11 @@ function renderRevisionRecordsTable(){
     ['Общий расход кофе', r=>r.totalCoffeeUsage],
     ['Дата и время заполнения', r=>formatDateTime(r.createdAt)]
   ];
-  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Показатель</th>${cols.map(r=>`<th>${esc(r.date || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Показатель</th>${cols.map(r=>`<th>${esc(r.date || displayDateFromKey(r.dateKey) || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function renderRevisionManualForm(){
   const today=new Date().toISOString().slice(0,10);
-  return `<details class="revision-manual"><summary>Внести списания и продажи вручную</summary><form class="revision-form" id="revision-manual-form"><div class="form-grid"><label class="employee-field">Дата<input name="revisionDate" type="date" value="${today}" required></label><label class="employee-field">Списания, кг<input name="writeOffs" type="number" min="0" step="0.001" placeholder="Например, 0.180"></label><label class="employee-field">Продажи в iiko, кг<input name="iikoSales" type="number" min="0" step="0.001" placeholder="Например, 4.140"></label><label class="employee-field">Проверено<input name="checked" type="text" placeholder="Например, управляющий"></label></div><button class="submit-revision submit-revision-manual" type="submit">Сохранить данные</button><p class="submit-status revision-manual-status" aria-live="polite"></p></form></details>`;
+  return `<details class="revision-manual"><summary>Внести списания и продажи вручную</summary><form class="revision-form" id="revision-manual-form"><div class="form-grid"><label class="employee-field">Дата ревизии<input name="revisionDate" type="date" value="${today}" required></label><label class="employee-field">Списания, кг<input name="writeOffs" type="number" min="0" step="0.001" placeholder="Например, 0.180"></label><label class="employee-field">Продажи в iiko, кг<input name="iikoSales" type="number" min="0" step="0.001" placeholder="Например, 4.140"></label><label class="employee-field">Проверено<input name="checked" type="text" placeholder="Например, управляющий"></label></div><button class="submit-revision submit-revision-manual" type="submit">Сохранить данные</button><p class="submit-status revision-manual-status" aria-live="polite"></p></form></details>`;
 }
 function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств. Ревизии в эту таблицу не попадают.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе. Данные берутся из листа «Ревизия Кофе».</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div></section>`; }
 function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); }
@@ -159,14 +192,16 @@ async function submitChecklist(docId){
 async function submitCoffeeRevision(event){
   event.preventDefault();
   const form=event.currentTarget; const status=form.querySelector('.revision-status');
+  const revisionDate=(form.elements.revisionDate.value||'').trim();
   const employeeName=(form.elements.employeeName.value||'').trim();
   const hopperWeight=(form.elements.hopperWeight.value||'').trim();
   const openedPacks=(form.elements.openedPacks.value||'').trim();
-  if(!employeeName || hopperWeight==='' || openedPacks===''){ if(status){status.textContent='Заполните имя, вес бункера и количество вскрытых пачек.'; status.className='submit-status error';} return; }
-  const record={ id:`rev-${Date.now()}-${Math.random().toString(16).slice(2)}`, employeeName, hopperWeight, openedPacks, createdAt:new Date().toISOString(), date: new Date().toLocaleDateString('ru-RU') };
-  const payload={ payloadType:'coffeeRevision', targetSheet:'coffeeRevision', employeeName, hopperWeight, openedPacks };
+  if(!revisionDate || !employeeName || hopperWeight==='' || openedPacks===''){ if(status){status.textContent='Заполните дату, имя, вес бункера и количество вскрытых пачек.'; status.className='submit-status error';} return; }
+  const dateKey=normalizeDateKey(revisionDate);
+  const record={ id:`rev-${Date.now()}-${Math.random().toString(16).slice(2)}`, dateKey, date:displayDateFromKey(dateKey), employeeName, hopperWeight, openedPacks, createdAt:new Date().toISOString() };
+  const payload={ payloadType:'coffeeRevision', targetSheet:'coffeeRevision', revisionDate: dateKey, employeeName, hopperWeight, openedPacks };
   if(status){status.textContent='Отправляю ревизию…'; status.className='submit-status';}
-  try { await sendPayloadToSheets(payload); saveLocalRevisionRecord(record); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Ревизия отправлена'); form.reset(); }
+  try { await sendPayloadToSheets(payload); saveLocalRevisionRecord(record); setLocalRevisionRecords(mergeRevisionRecordsByDate(getLocalRevisionRecords())); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Ревизия отправлена'); form.reset(); form.elements.revisionDate.value=new Date().toISOString().slice(0,10); }
   catch(error) { console.error(error); saveLocalRevisionRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Ревизия сохранена локально, но отправка в Google Sheets не подтверждена.'); }
 }
 async function submitRevisionManual(event){
@@ -178,13 +213,13 @@ async function submitRevisionManual(event){
   const checked=(form.elements.checked.value||'').trim();
   if(!revisionDate){ if(status){status.textContent='Выберите дату.'; status.className='submit-status error';} return; }
   if(writeOffs==='' && iikoSales==='' && checked===''){ if(status){status.textContent='Заполните хотя бы списания, продажи или поле проверки.'; status.className='submit-status error';} return; }
-  const payload={ payloadType:'coffeeRevisionManual', targetSheet:'coffeeRevision', revisionDate, writeOffs, iikoSales, checked };
+  const payload={ payloadType:'coffeeRevisionManual', targetSheet:'coffeeRevision', revisionDate: normalizeDateKey(revisionDate), writeOffs, iikoSales, checked };
   if(status){status.textContent='Сохраняю данные…'; status.className='submit-status';}
   try { await sendPayloadToSheets(payload); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Данные ревизии сохранены'); await loadRevisionRecords(); }
   catch(error) { console.error(error); if(status){status.textContent='Не удалось подтвердить отправку. Проверьте подключение.'; status.className='submit-status error';} alert('Данные не удалось отправить в Google Sheets.'); }
 }
 function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const {done,total}=recordDoneTotal(r); const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); downloadCsv('control_checklists.csv', rows); }
-function exportRevisionCsv(){ const rows=[['Дата','Дата и время','Сотрудник','Вес бункера, кг','Вскрыто пачек, шт.','Списания, кг','Продажи iiko','Разница','Потери','Проверено']]; getRevisionRecords().forEach(r=>rows.push([r.date||formatDateOnly(r.createdAt), formatDateTime(r.createdAt), r.employeeName||'', r.hopperWeight||'', r.openedPacks||'', r.writeOffs||'', r.iikoSales||'', r.difference||'', r.losses||'', r.checked||''])); downloadCsv('coffee_revisions.csv', rows); }
+function exportRevisionCsv(){ const rows=[['Дата','Дата и время','Сотрудник','Вес бункера, кг','Вскрыто пачек, шт.','Списания, кг','Продажи iiko','Разница','Потери','Проверено']]; getRevisionRecords().forEach(r=>rows.push([r.date||displayDateFromKey(r.dateKey)||formatDateOnly(r.createdAt), formatDateTime(r.createdAt), r.employeeName||'', r.hopperWeight||'', r.openedPacks||'', r.writeOffs||'', r.iikoSales||'', r.difference||'', r.losses||'', r.checked||''])); downloadCsv('coffee_revisions.csv', rows); }
 function downloadCsv(filename, rows){ const csv=rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(';')).join('\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
 
 function techSearch(card) { return [card.title, card.category, card.source, card.technology, card.output, ...(card.ingredients||[]).map(i=>`${i.name} ${i.amount}`)].join(' ').toLowerCase(); }
