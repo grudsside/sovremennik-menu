@@ -1,10 +1,1 @@
-ВАЖНО: загружайте в GitHub не ZIP и не папку целиком, а содержимое папки.
-
-В корне репозитория должны лежать:
-- index.html
-- assets/
-- data/
-- README.md
-- .nojekyll
-
-После загрузки проверьте Settings → Pages: Source = Deploy from a branch, Branch = main, Folder = / root.
+Распакуйте архив и загрузите содержимое папки в корень репозитория GitHub Pages. Перед проверкой ревизий обновите Apps Script кодом из google_apps_script_code.js.

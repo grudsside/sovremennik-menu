@@ -1,5 +1,6 @@
-const state = { menu: null, activeTop: 'home', activeMethod: 'bar' };
+const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, controlLoading: false, revisionLoading: false, controlError: '', revisionError: '' };
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
+const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV1';
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
 
 function esc(value) { return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
@@ -24,7 +25,7 @@ function renderTheoryTopPanel() { const lessons=state.menu.lessons||[]; const gr
 function renderMethodPanel(tab) { const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 function renderHomeCard(icon,title,text,target){ return `<article class="home-card"><div><div class="home-icon">${esc(icon)}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div><button type="button" data-top-jump="${esc(target)}">Открыть</button></article>`; }
-function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${renderHomeCard('М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method')}${renderHomeCard('Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory')}${renderHomeCard('✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists')}${renderHomeCard('ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards')}${renderHomeCard('К','Контроль','Журнал отправленных чек-листов открытия и закрытия смены со всех устройств.','control')}</div></section>`; }
+function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${renderHomeCard('М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method')}${renderHomeCard('Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory')}${renderHomeCard('✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists')}${renderHomeCard('Р','Ревизии','Ежедневная ревизия кофе: вес бункера, вскрытые пачки и ответственный сотрудник.','revisions')}${renderHomeCard('ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards')}${renderHomeCard('К','Контроль','Общий журнал чек-листов и ревизий, отправленных сотрудниками со всех устройств.','control')}</div></section>`; }
 function renderMethod() { const tabs=state.menu.site.methodTabs||[]; if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
 
 function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
@@ -36,138 +37,145 @@ function renderChecklistSection(section) {
   }
   return `<div class="doc-section"><h4>${esc(section.title)}</h4>${rows.map((r,i)=>`<label class="check-row checkable-row"><input class="task-checkbox" type="checkbox" data-task="${esc(checklistRowLabel(r))}"><span class="custom-check"></span><span class="check-text">${esc(r.task||'')}</span>${r.responsible?`<span class="responsible">${esc(r.responsible)}</span>`:''}</label>`).join('')}</div>`;
 }
-function renderSubmitPanel(doc){ if(!doc.requiresSubmit) return ''; return `<div class="submit-panel"><label class="employee-field">Имя сотрудника<input class="employee-name" type="text" placeholder="Например, Анна" autocomplete="name"></label><button class="submit-checklist" type="button" data-checklist-id="${esc(doc.id)}">Отправить</button><p class="submit-status" aria-live="polite"></p></div>`; }
-function renderChecklistCard(doc) { const search=[doc.title,doc.description,...(doc.sections||[]).flatMap(s=>(s.rows||[]).map(rowSearch))].join(' ').toLowerCase(); const count=(doc.sections||[]).reduce((a,s)=>a+(s.rows||[]).length,0); return `<article class="doc-card" data-checklist-id="${esc(doc.id)}" data-search="${esc(search)}"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${count} задач</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a></div><details class="doc-details" open><summary>Открыть чек-лист</summary>${(doc.sections||[]).map(renderChecklistSection).join('')}${renderSubmitPanel(doc)}</details></div></article>`; }
+function renderSubmitPanel(doc){ return `<div class="submit-panel"><label class="employee-field">Имя сотрудника<input class="employee-name" type="text" placeholder="Например, Анна" autocomplete="name"></label><button class="submit-checklist" type="button" data-checklist-id="${esc(doc.id)}">Отправить</button><p class="submit-status" aria-live="polite"></p></div>`; }
+function renderChecklistCard(doc) { const search=[doc.title,doc.description,...(doc.sections||[]).flatMap(s=>(s.rows||[]).map(rowSearch))].join(' ').toLowerCase(); const count=(doc.sections||[]).reduce((a,s)=>a+(s.rows||[]).length,0); return `<article class="doc-card" data-checklist-id="${esc(doc.id)}" data-search="${esc(search)}"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${count} задач</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a></div><details class="doc-details"><summary>Открыть чек-лист</summary>${(doc.sections||[]).map(renderChecklistSection).join('')}${renderSubmitPanel(doc)}</details></div></article>`; }
 function renderChecklists() { const docs=state.menu.checklists||[]; return `<section class="top-panel ${state.activeTop==='checklists'?'active':''}" id="top-checklists"><div class="section-heading"><p>Рабочие документы</p><h2>Чек-листы</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по чек-листам и задачам" type="search"><button class="clear-btn" type="button">Сбросить</button></div></div><div class="doc-grid">${docs.map(renderChecklistCard).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
+function renderRevisions(){ return `<section class="top-panel ${state.activeTop==='revisions'?'active':''}" id="top-revisions"><div class="section-heading"><p>Рабочая форма</p><h2>Ревизии</h2></div><div class="revision-card"><div class="card-head"><h3>Ежедневная ревизия кофе</h3><span class="source-badge">Кофе</span></div><p class="description">Заполните данные по зерну в конце смены или в установленное время. После отправки запись уйдет в общий раздел «Контроль → Ревизии» и в Google Таблицу.</p><form class="revision-form" id="coffee-revision-form"><div class="form-grid"><label class="employee-field">Имя сотрудника<input name="employeeName" type="text" placeholder="Например, Анна" autocomplete="name" required></label><label class="employee-field">Вес бункера, кг<input name="hopperWeight" type="number" min="0" step="0.001" placeholder="Например, 1.250" required></label><label class="employee-field">Вскрыто пачек, шт.<input name="openedPacks" type="number" min="0" step="1" placeholder="Например, 3" required></label></div><button class="submit-revision" type="submit">Отправить ревизию</button><p class="submit-status revision-status" aria-live="polite"></p></form></div></section>`; }
 
 function getLocalControlRecords(){ try { return JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || '[]'); } catch(e){ return []; } }
 function setLocalControlRecords(records){ localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(records)); }
 function getControlRecords(){ return Array.isArray(state.controlRecords) ? state.controlRecords : getLocalControlRecords(); }
 function saveLocalControlRecord(record){ const records=getLocalControlRecords(); records.unshift(record); setLocalControlRecords(records); }
+function getLocalRevisionRecords(){ try { return JSON.parse(localStorage.getItem(REVISION_STORAGE_KEY) || '[]'); } catch(e){ return []; } }
+function setLocalRevisionRecords(records){ localStorage.setItem(REVISION_STORAGE_KEY, JSON.stringify(records)); }
+function getRevisionRecords(){ return Array.isArray(state.revisionRecords) ? state.revisionRecords : getLocalRevisionRecords(); }
+function saveLocalRevisionRecord(record){ const records=getLocalRevisionRecords(); records.unshift(record); setLocalRevisionRecords(records); }
 function formatDateTime(iso){ try { return new Date(iso).toLocaleString('ru-RU'); } catch(e){ return iso; } }
+function formatDateOnly(iso){ try { return new Date(iso).toLocaleDateString('ru-RU'); } catch(e){ return iso; } }
 function safeParseJson(value, fallback){ try { return typeof value === 'string' ? JSON.parse(value) : (value ?? fallback); } catch(e){ return fallback; } }
 function normalizeRemoteRecord(row){
   const tasks = safeParseJson(row.details, []);
-  const createdAt = row.createdAt || row.created_at || new Date().toISOString();
+  const createdAt = row.createdAt || row.created_at || row.created || new Date().toISOString();
+  return { id: row.id || `${row.date || ''}-${row.time || ''}-${Math.random().toString(16).slice(2)}`, checklistId: row.checklistId || '', checklistTitle: row.checklistType || row.checklistTitle || '', employeeName: row.employeeName || row.employee || '', createdAt, date: row.date || '', time: row.time || '', tasks: Array.isArray(tasks) ? tasks.map(t=>({ text: t.text || t.task || 'Пункт чек-листа', checked: Boolean(t.checked) })) : [], completed: Number(row.completed || 0), total: Number(row.total || 0), percent: row.percent || '' };
+}
+function normalizeRevisionRecord(row){
+  const createdAt = row.createdAt || row.created_at || row.created || new Date().toISOString();
   return {
-    id: row.id || `${row.date || ''}-${row.time || ''}-${Math.random().toString(16).slice(2)}`,
-    checklistId: row.checklistId || '',
-    checklistTitle: row.checklistType || row.checklistTitle || '',
-    employeeName: row.employeeName || '',
-    createdAt,
-    date: row.date || '',
-    time: row.time || '',
-    tasks: Array.isArray(tasks) ? tasks.map(t=>({ text: t.text || t.task || 'Пункт чек-листа', checked: Boolean(t.checked) })) : [],
-    completed: Number(row.completed || 0),
-    total: Number(row.total || 0),
-    percent: row.percent || ''
+    id: row.id || `${row.date || ''}-${Math.random().toString(16).slice(2)}`,
+    date: row.date || formatDateOnly(createdAt),
+    employeeName: row.employeeName || row.employee || '',
+    hopperWeight: row.hopperWeight ?? row.weight ?? '',
+    openedPacks: row.openedPacks ?? row.packs ?? '',
+    writeOffs: row.writeOffs || '',
+    iikoSales: row.iikoSales || '',
+    difference: row.difference || '',
+    losses: row.losses || '',
+    checked: row.checked || '',
+    cleanHopperWeight: row.cleanHopperWeight || '',
+    totalCoffeeUsage: row.totalCoffeeUsage || '',
+    createdAt
   };
 }
-function fetchControlRecordsFromSheets(){
+function fetchFromSheets(view){
   if(!GOOGLE_SCRIPT_URL) return Promise.resolve([]);
   return new Promise((resolve, reject)=>{
-    const callbackName = `sovremennikControlCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const callbackName = `sovremennikCallback_${view}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const script = document.createElement('script');
     const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
-    const timer = setTimeout(()=>{
-      cleanup();
-      reject(new Error('Не удалось получить данные контроля: превышено время ожидания.'));
-    }, 12000);
-    function cleanup(){
-      clearTimeout(timer);
-      delete window[callbackName];
-      script.remove();
-    }
-    window[callbackName] = (response)=>{
-      cleanup();
-      if(response && response.ok){
-        resolve((response.rows || []).map(normalizeRemoteRecord));
-      } else {
-        reject(new Error(response?.error || 'Google Sheets вернул ошибку.'));
-      }
-    };
-    script.onerror = ()=>{
-      cleanup();
-      reject(new Error('Не удалось подключиться к Google Sheets.'));
-    };
-    script.src = `${GOOGLE_SCRIPT_URL}${sep}callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+    const timer = setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить данные: превышено время ожидания.')); }, 12000);
+    function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
+    window[callbackName] = (response)=>{ cleanup(); if(response && response.ok){ resolve(response.rows || []); } else { reject(new Error(response?.error || 'Google Sheets вернул ошибку.')); } };
+    script.onerror = ()=>{ cleanup(); reject(new Error('Не удалось подключиться к Google Sheets.')); };
+    script.src = `${GOOGLE_SCRIPT_URL}${sep}view=${encodeURIComponent(view)}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
     document.body.appendChild(script);
   });
 }
 async function loadControlRecords(){
-  state.controlLoading = true;
-  state.controlError = '';
-  refreshControl();
-  try {
-    const records = await fetchControlRecordsFromSheets();
-    state.controlRecords = records;
-    setLocalControlRecords(records);
-  } catch(error) {
-    console.warn(error);
-    state.controlError = error.message || 'Не удалось загрузить данные из Google Sheets.';
-    state.controlRecords = getLocalControlRecords();
-  } finally {
-    state.controlLoading = false;
-    refreshControl();
-  }
+  state.controlLoading = true; state.controlError = ''; refreshControl();
+  try { const records = (await fetchFromSheets('checklists')).map(normalizeRemoteRecord); state.controlRecords = records; setLocalControlRecords(records); }
+  catch(error) { console.warn(error); state.controlError = error.message || 'Не удалось загрузить данные из Google Sheets.'; state.controlRecords = getLocalControlRecords(); }
+  finally { state.controlLoading = false; refreshControl(); }
 }
-function sendChecklistToSheets(payload){
-  const body = new URLSearchParams({ payload: JSON.stringify(payload) });
-  return fetch(GOOGLE_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body
-  });
+async function loadRevisionRecords(){
+  state.revisionLoading = true; state.revisionError = ''; refreshControl();
+  try { const records = (await fetchFromSheets('coffeeRevision')).map(normalizeRevisionRecord); state.revisionRecords = records; setLocalRevisionRecords(records); }
+  catch(error) { console.warn(error); state.revisionError = error.message || 'Не удалось загрузить ревизии из Google Sheets.'; state.revisionRecords = getLocalRevisionRecords(); }
+  finally { state.revisionLoading = false; refreshControl(); }
 }
+function sendPayloadToSheets(payload){ const body = new URLSearchParams({ payload: JSON.stringify(payload) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
 function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<details class="control-details"><summary>Показать заполненный чек-лист</summary><ul>${tasks.map(t=>`<li class="${t.checked?'done':'not-done'}"><span>${t.checked?'✓':'—'}</span>${esc(t.text)}</li>`).join('')}</ul></details>`; }
 function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
 function renderControlRecordsTable(){
   const records=getControlRecords();
-  if(state.controlLoading) return `<div class="empty-control"><h3>Загружаю данные контроля…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
-  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки чек-листа открытия или закрытия запись появится здесь. Данные берутся из общей Google Таблицы.</p>${state.controlError?`<p class="control-error">${esc(state.controlError)}</p>`:''}</div>`;
+  if(state.controlLoading) return `<div class="empty-control"><h3>Загружаю данные чек-листов…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
+  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки любого чек-листа запись появится здесь. Данные берутся из общей Google Таблицы.</p>${state.controlError?`<p class="control-error">${esc(state.controlError)}</p>`:''}</div>`;
   return `<div class="control-table-wrap">${state.controlError?`<p class="control-error">${esc(state.controlError)} Показана локальная резервная копия.</p>`:''}<table class="control-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Чек-лист</th><th>Выполнено</th><th>Детали</th></tr></thead><tbody>${records.map(r=>{const {done,total}=recordDoneTotal(r); return `<tr><td>${esc(formatDateTime(r.createdAt))}</td><td>${esc(r.employeeName||'')}</td><td>${esc(r.checklistTitle||'')}</td><td>${done}/${total}</td><td>${renderRecordDetails(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
 }
-function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="control-note"><p>Здесь отображаются отправленные чек-листы открытия и закрытия смены из общей Google Таблицы. Данные доступны со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></section>`; }
-function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); }
+function renderRevisionRecordsTable(){
+  const records=getRevisionRecords();
+  if(state.revisionLoading) return `<div class="empty-control"><h3>Загружаю данные ревизий…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
+  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных ревизий</h3><p>После отправки формы «Ревизия кофе» запись появится здесь и в листе «Ревизия Кофе».</p>${state.revisionError?`<p class="control-error">${esc(state.revisionError)}</p>`:''}</div>`;
+  const sorted=[...records].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  const cols=sorted.slice(-14);
+  const rows=[
+    ['Значение на весах (кг.)', r=>r.hopperWeight],
+    ['Вскрыто пачек (шт.)', r=>r.openedPacks],
+    ['Списания (кг.)', r=>r.writeOffs],
+    ['Продажи в iiko', r=>r.iikoSales],
+    ['Разница', r=>r.difference],
+    ['Потери', r=>r.losses],
+    ['Ответственный', r=>r.employeeName],
+    ['Проверено', r=>r.checked],
+    ['Чистый вес кофе в бункере', r=>r.cleanHopperWeight],
+    ['Общий расход кофе', r=>r.totalCoffeeUsage],
+    ['Дата и время заполнения', r=>formatDateTime(r.createdAt)]
+  ];
+  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Показатель</th>${cols.map(r=>`<th>${esc(r.date || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе. Таблица повторяет формат: даты по колонкам, показатели по строкам.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div><div id="revision-records">${renderRevisionRecordsTable()}</div></div></section>`; }
+function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); }
+function setControlTab(target){ state.activeControl=target; document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target)); document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`)); if(target==='checklists') loadControlRecords(); if(target==='revisions') loadRevisionRecords(); }
 async function submitChecklist(docId){
   const doc=(state.menu.checklists||[]).find(d=>d.id===docId);
   const card=Array.from(document.querySelectorAll('.doc-card')).find(el=>el.dataset.checklistId===docId);
   if(!doc||!card) return;
-  const nameInput=card.querySelector('.employee-name');
-  const status=card.querySelector('.submit-status');
-  const employeeName=(nameInput?.value||'').trim();
+  const nameInput=card.querySelector('.employee-name'); const status=card.querySelector('.submit-status'); const employeeName=(nameInput?.value||'').trim();
   if(!employeeName){ if(status){status.textContent='Введите имя сотрудника перед отправкой.'; status.className='submit-status error';} nameInput?.focus(); return; }
   const inputs=Array.from(card.querySelectorAll('.task-checkbox'));
   const tasks=inputs.map(input=>({ text: input.dataset.task || input.closest('label')?.innerText?.trim() || 'Пункт чек-листа', checked: input.checked }));
   const record={ id:`${Date.now()}-${Math.random().toString(16).slice(2)}`, checklistId:doc.id, checklistTitle:doc.title, employeeName, createdAt:new Date().toISOString(), tasks };
-  const payload={ checklistType: doc.title, employeeName, items: tasks };
-  if(status){status.textContent='Отправляю чек-лист в Google Sheets…'; status.className='submit-status';}
-  try {
-    await sendChecklistToSheets(payload);
-    saveLocalControlRecord(record);
-    if(status){status.textContent='Чек-лист отправлен. Запись сохранится в общей таблице и появится в разделе «Контроль».'; status.className='submit-status success';}
-    setTop('control');
-    setTimeout(()=>loadControlRecords(), 1200);
-  } catch(error) {
-    console.error(error);
-    saveLocalControlRecord(record);
-    if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';}
-    setTop('control');
-    refreshControl();
-  }
+  const payload={ payloadType:'checklist', checklistType: doc.title, employeeName, items: tasks };
+  if(status){status.textContent='Отправляю чек-лист…'; status.className='submit-status';}
+  try { await sendPayloadToSheets(payload); saveLocalControlRecord(record); if(status){status.textContent='Чек-лист отправлен.'; status.className='submit-status success';} alert('Отлично! Чек-Лист отправлен'); inputs.forEach(input=>input.checked=false); if(nameInput) nameInput.value=''; }
+  catch(error) { console.error(error); saveLocalControlRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Чек-лист сохранен локально, но отправка в Google Sheets не подтверждена.'); }
 }
-function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const {done,total}=recordDoneTotal(r); const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); const csv=rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(';')).join('\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='control_checklists.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+async function submitCoffeeRevision(event){
+  event.preventDefault();
+  const form=event.currentTarget; const status=form.querySelector('.revision-status');
+  const employeeName=(form.elements.employeeName.value||'').trim();
+  const hopperWeight=(form.elements.hopperWeight.value||'').trim();
+  const openedPacks=(form.elements.openedPacks.value||'').trim();
+  if(!employeeName || hopperWeight==='' || openedPacks===''){ if(status){status.textContent='Заполните имя, вес бункера и количество вскрытых пачек.'; status.className='submit-status error';} return; }
+  const record={ id:`rev-${Date.now()}-${Math.random().toString(16).slice(2)}`, employeeName, hopperWeight, openedPacks, createdAt:new Date().toISOString(), date: new Date().toLocaleDateString('ru-RU') };
+  const payload={ payloadType:'coffeeRevision', employeeName, hopperWeight, openedPacks };
+  if(status){status.textContent='Отправляю ревизию…'; status.className='submit-status';}
+  try { await sendPayloadToSheets(payload); saveLocalRevisionRecord(record); if(status){status.textContent='Ревизия отправлена.'; status.className='submit-status success';} alert('Отлично! Ревизия отправлена'); form.reset(); }
+  catch(error) { console.error(error); saveLocalRevisionRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Ревизия сохранена локально, но отправка в Google Sheets не подтверждена.'); }
+}
+function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const {done,total}=recordDoneTotal(r); const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); downloadCsv('control_checklists.csv', rows); }
+function exportRevisionCsv(){ const rows=[['Дата','Дата и время','Сотрудник','Вес бункера, кг','Вскрыто пачек, шт.']]; getRevisionRecords().forEach(r=>rows.push([r.date||formatDateOnly(r.createdAt), formatDateTime(r.createdAt), r.employeeName||'', r.hopperWeight||'', r.openedPacks||''])); downloadCsv('coffee_revisions.csv', rows); }
+function downloadCsv(filename, rows){ const csv=rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(';')).join('\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
 
 function techSearch(card) { return [card.title, card.category, card.source, card.technology, card.output, ...(card.ingredients||[]).map(i=>`${i.name} ${i.amount}`)].join(' ').toLowerCase(); }
 function renderTechCard(card) { return `<article class="tech-card" data-search="${esc(techSearch(card))}"><div class="tech-content"><div class="card-head"><h3>${esc(card.title)}</h3><span class="source-badge">${esc(card.source)}</span></div><div class="tech-meta"><span>${esc(card.category||'Без раздела')}</span>${card.output?`<span>Выход: ${esc(card.output)}</span>`:''}</div>${card.technology?`<p class="description">${esc(card.technology)}</p>`:''}<details class="tech-details"><summary>Ингредиенты</summary><div class="lesson-table-wrap"><table class="ingredient-table"><thead><tr><th>Ингредиент</th><th>Кол-во</th></tr></thead><tbody>${(card.ingredients||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.amount||'')}</td></tr>`).join('')}</tbody></table></div></details></div></article>`; }
 function renderTechDocument(doc) { const groups=categoryGroups(doc.cards||[]); return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(renderTechCard).join('')}</div></section>`).join('')}</section>`; }
 function renderTechCards() { const docs=state.menu.techCards||[]; return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function renderApp() { const {site}=state.menu; if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id; document.title=`${site.title} — база сотрудников`; document.querySelector('.brand').textContent=site.title; document.querySelector('.kicker').textContent=site.subtitle; document.querySelector('.muted').textContent=site.description; document.querySelector('.main-tabs').innerHTML=(site.mainTabs||[]).map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); document.querySelector('#panels').innerHTML=renderHome()+renderMethod()+renderTheoryTopPanel()+renderChecklists()+renderTechCards()+renderControl(); bindEvents(); }
-function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); if(target==='control') loadControlRecords(); }
+function renderApp() { const {site}=state.menu; if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id; document.title=`${site.title} — база сотрудников`; document.querySelector('.brand').textContent=site.title; document.querySelector('.kicker').textContent=site.subtitle; document.querySelector('.muted').textContent=site.description; document.querySelector('.main-tabs').innerHTML=(site.mainTabs||[]).map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); document.querySelector('#panels').innerHTML=renderHome()+renderMethod()+renderTheoryTopPanel()+renderChecklists()+renderRevisions()+renderTechCards()+renderControl(); bindEvents(); }
+function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); if(target==='control'){ loadControlRecords(); loadRevisionRecords(); } }
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
-function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-theory'),'.lesson-card'); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId))); document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv); document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords); }
+function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget))); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-theory'),'.lesson-card'); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId))); document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision); document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv); document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords); document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv); document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords); }
 function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
 async function loadMenu() { const embedded=readEmbeddedMenu(); if(location.protocol==='file:' && embedded) return embedded; try { const res=await fetch('data/menu.json',{cache:'no-cache'}); if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`); return await res.json(); } catch(error) { console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error); if(embedded) return embedded; throw error; } }
 async function init() { try { state.menu=await loadMenu(); const hash=location.hash.replace('#',''); if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top)) state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; } else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash)) { state.activeTop=hash; } renderApp(); } catch(error) { document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error); } }
