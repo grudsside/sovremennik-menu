@@ -1,0 +1,35 @@
+{
+  "id": "new-lesson",
+  "section": "theory",
+  "category": "Новый раздел",
+  "title": "Название обучения",
+  "duration": "15 минут",
+  "level": "для сотрудников",
+  "image": "assets/images/theory/example.svg",
+  "summary": "Краткое описание обучения.",
+  "tags": [
+    "тег"
+  ],
+  "blocks": [
+    {
+      "type": "lead",
+      "text": "Вводный текст обучения."
+    },
+    {
+      "type": "steps",
+      "title": "Порядок действий",
+      "items": [
+        "Шаг 1",
+        "Шаг 2"
+      ]
+    },
+    {
+      "type": "checklist",
+      "title": "Чек-лист",
+      "items": [
+        "Пункт 1",
+        "Пункт 2"
+      ]
+    }
+  ]
+}

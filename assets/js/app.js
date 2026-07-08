@@ -1,7 +1,8 @@
-const state = { menu: null, activeTab: 'bar' };
+
+const state = { menu: null, activeTab: 'theory' };
 
 function esc(value) {
-  return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 }
 
 function slugify(text) {
@@ -15,6 +16,18 @@ function kbjuText(kbju = {}) {
 
 function itemSearchText(item) {
   return [item.title, item.category, item.price, item.volume, item.description, item.note, ...(item.ingredients || [])].join(' ').toLowerCase();
+}
+
+function lessonSearchText(lesson) {
+  const blockText = (lesson.blocks || []).map(block => {
+    if (block.text) return block.text;
+    if (block.caption) return block.caption;
+    if (block.items) return block.items.join(' ');
+    if (block.cards) return block.cards.map(c => `${c.title} ${c.text}`).join(' ');
+    if (block.rows) return block.rows.flat().join(' ');
+    return '';
+  }).join(' ');
+  return [lesson.title, lesson.category, lesson.summary, lesson.level, lesson.duration, ...(lesson.tags || []), blockText].join(' ').toLowerCase();
 }
 
 function categoryGroups(items) {
@@ -82,7 +95,55 @@ function renderCard(item) {
   </article>`;
 }
 
+function renderLessonBlock(block) {
+  if (block.type === 'lead') return `<p class="lesson-lead">${esc(block.text)}</p>`;
+  if (block.type === 'image') return `<figure class="lesson-figure"><img src="${esc(block.src)}" alt="${esc(block.title || '')}" loading="lazy"><figcaption><b>${esc(block.title || '')}</b>${block.caption ? `<span>${esc(block.caption)}</span>` : ''}</figcaption></figure>`;
+  if (block.type === 'cards') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><div class="mini-card-grid">${(block.cards || []).map(card => `<div class="mini-card"><h5>${esc(card.title)}</h5><p>${esc(card.text)}</p></div>`).join('')}</div></section>`;
+  if (block.type === 'steps') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><ol class="lesson-list">${(block.items || []).map(i => `<li>${esc(i)}</li>`).join('')}</ol></section>`;
+  if (block.type === 'checklist') return `<section class="lesson-block checklist"><h4>${esc(block.title || '')}</h4><ul class="lesson-checklist">${(block.items || []).map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>`;
+  if (block.type === 'callout') return `<aside class="lesson-callout"><h4>${esc(block.title || 'Важно')}</h4><p>${esc(block.text)}</p></aside>`;
+  if (block.type === 'table') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><div class="lesson-table-wrap"><table class="lesson-table"><thead><tr>${(block.headers || []).map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${(block.rows || []).map(row => `<tr>${row.map(cell => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+  return '';
+}
+
+function renderLessonCard(lesson) {
+  const tags = (lesson.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+  const blocks = (lesson.blocks || []).map(renderLessonBlock).join('');
+  return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}">
+    <div class="lesson-cover">${lesson.image ? `<img src="${esc(lesson.image)}" alt="${esc(lesson.title)}" loading="lazy">` : ''}</div>
+    <div class="lesson-content">
+      <div class="tag-row">${tags}</div>
+      <div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category || 'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div>
+      <p class="lesson-summary">${esc(lesson.summary || '')}</p>
+      <div class="facts lesson-facts">
+        <div class="fact"><span>Время</span><b>${esc(lesson.duration || 'уточнить')}</b></div>
+        <div class="fact"><span>Уровень</span><b>${esc(lesson.level || 'для сотрудников')}</b></div>
+      </div>
+      <details class="lesson-details">
+        <summary>Открыть обучение</summary>
+        <div class="lesson-body">${blocks}</div>
+      </details>
+    </div>
+  </article>`;
+}
+
+function renderTheoryPanel(tab) {
+  const lessons = state.menu.lessons || [];
+  const groups = categoryGroups(lessons);
+  const nav = groups.map(group => `<a class="nav-pill" href="#theory-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join('');
+  const sections = groups.map(group => `<section class="lesson-section" id="theory-${slugify(group.category)}"><div class="section-heading"><p>Обучение</p><h2>${esc(group.category)}</h2></div><div class="lesson-grid">${group.items.map(renderLessonCard).join('')}</div></section>`).join('');
+  return `<section class="tab-panel ${tab.id === state.activeTab ? 'active' : ''}" id="panel-${tab.id}">
+    <div class="toolbar" aria-label="Навигация: ${esc(tab.title)}">
+      <div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder || 'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div>
+      <nav class="nav">${nav}</nav>
+    </div>
+    <main>${sections}</main>
+    <div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>
+  </section>`;
+}
+
 function renderPanel(tab) {
+  if (tab.id === 'theory') return renderTheoryPanel(tab);
   const allItems = state.menu.items.filter(item => item.section === tab.id);
   const groups = categoryGroups(allItems);
   const nav = groups.map(group => `<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join('');
@@ -120,12 +181,12 @@ function bindEvents() {
   document.querySelectorAll('.tab-panel').forEach(panel => {
     const input = panel.querySelector('.search');
     const clear = panel.querySelector('.clear-btn');
-    const cards = Array.from(panel.querySelectorAll('.product-card'));
+    const searchableCards = Array.from(panel.querySelectorAll('.product-card, .lesson-card'));
     const empty = panel.querySelector('.empty-state');
     const filter = () => {
       const q = (input.value || '').trim().toLowerCase();
       let visible = 0;
-      cards.forEach(card => {
+      searchableCards.forEach(card => {
         const ok = !q || (card.dataset.search || card.textContent).toLowerCase().includes(q);
         card.classList.toggle('hidden', !ok);
         if (ok) visible += 1;
@@ -150,8 +211,6 @@ function readEmbeddedMenu() {
 
 async function loadMenu() {
   const embedded = readEmbeddedMenu();
-  // При открытии файла напрямую с компьютера браузер часто блокирует fetch к data/menu.json.
-  // Поэтому для локального просмотра используем встроенную копию данных.
   if (location.protocol === 'file:' && embedded) return embedded;
 
   try {
