@@ -27,7 +27,7 @@ function lessonSearchText(lesson) {
     if (block.rows) return block.rows.flat().join(' ');
     return '';
   }).join(' ');
-  return [lesson.title, lesson.category, lesson.summary, lesson.level, lesson.duration, ...(lesson.tags || []), blockText].join(' ').toLowerCase();
+  return [lesson.title, lesson.category, lesson.summary, lesson.level, lesson.duration, blockText].join(' ').toLowerCase();
 }
 
 function categoryGroups(items) {
@@ -107,12 +107,9 @@ function renderLessonBlock(block) {
 }
 
 function renderLessonCard(lesson) {
-  const tags = (lesson.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
   const blocks = (lesson.blocks || []).map(renderLessonBlock).join('');
   return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}">
-    <div class="lesson-cover">${lesson.image ? `<img src="${esc(lesson.image)}" alt="${esc(lesson.title)}" loading="lazy">` : ''}</div>
     <div class="lesson-content">
-      <div class="tag-row">${tags}</div>
       <div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category || 'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div>
       <p class="lesson-summary">${esc(lesson.summary || '')}</p>
       <div class="facts lesson-facts">
