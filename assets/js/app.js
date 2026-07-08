@@ -1,5 +1,6 @@
 const state = { menu: null, activeTop: 'home', activeMethod: 'bar' };
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
 
 function esc(value) { return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
 function slugify(text) { const map={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}; return String(text).toLowerCase().split('').map(ch=>map[ch]??ch).join('').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
@@ -23,7 +24,7 @@ function renderTheoryTopPanel() { const lessons=state.menu.lessons||[]; const gr
 function renderMethodPanel(tab) { const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 function renderHomeCard(icon,title,text,target){ return `<article class="home-card"><div><div class="home-icon">${esc(icon)}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div><button type="button" data-top-jump="${esc(target)}">Открыть</button></article>`; }
-function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${renderHomeCard('М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method')}${renderHomeCard('Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory')}${renderHomeCard('✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists')}${renderHomeCard('ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards')}${renderHomeCard('К','Контроль','Журнал отправленных чек-листов открытия и закрытия смены на этом устройстве.','control')}</div></section>`; }
+function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${renderHomeCard('М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method')}${renderHomeCard('Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory')}${renderHomeCard('✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists')}${renderHomeCard('ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards')}${renderHomeCard('К','Контроль','Журнал отправленных чек-листов открытия и закрытия смены со всех устройств.','control')}</div></section>`; }
 function renderMethod() { const tabs=state.menu.site.methodTabs||[]; if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
 
 function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
@@ -39,16 +40,124 @@ function renderSubmitPanel(doc){ if(!doc.requiresSubmit) return ''; return `<div
 function renderChecklistCard(doc) { const search=[doc.title,doc.description,...(doc.sections||[]).flatMap(s=>(s.rows||[]).map(rowSearch))].join(' ').toLowerCase(); const count=(doc.sections||[]).reduce((a,s)=>a+(s.rows||[]).length,0); return `<article class="doc-card" data-checklist-id="${esc(doc.id)}" data-search="${esc(search)}"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${count} задач</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a></div><details class="doc-details" open><summary>Открыть чек-лист</summary>${(doc.sections||[]).map(renderChecklistSection).join('')}${renderSubmitPanel(doc)}</details></div></article>`; }
 function renderChecklists() { const docs=state.menu.checklists||[]; return `<section class="top-panel ${state.activeTop==='checklists'?'active':''}" id="top-checklists"><div class="section-heading"><p>Рабочие документы</p><h2>Чек-листы</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по чек-листам и задачам" type="search"><button class="clear-btn" type="button">Сбросить</button></div></div><div class="doc-grid">${docs.map(renderChecklistCard).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function getControlRecords(){ try { return JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || '[]'); } catch(e){ return []; } }
-function setControlRecords(records){ localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(records)); }
-function saveControlRecord(record){ const records=getControlRecords(); records.unshift(record); setControlRecords(records); }
+
+function getLocalControlRecords(){ try { return JSON.parse(localStorage.getItem(CONTROL_STORAGE_KEY) || '[]'); } catch(e){ return []; } }
+function setLocalControlRecords(records){ localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify(records)); }
+function getControlRecords(){ return Array.isArray(state.controlRecords) ? state.controlRecords : getLocalControlRecords(); }
+function saveLocalControlRecord(record){ const records=getLocalControlRecords(); records.unshift(record); setLocalControlRecords(records); }
 function formatDateTime(iso){ try { return new Date(iso).toLocaleString('ru-RU'); } catch(e){ return iso; } }
+function safeParseJson(value, fallback){ try { return typeof value === 'string' ? JSON.parse(value) : (value ?? fallback); } catch(e){ return fallback; } }
+function normalizeRemoteRecord(row){
+  const tasks = safeParseJson(row.details, []);
+  const createdAt = row.createdAt || row.created_at || new Date().toISOString();
+  return {
+    id: row.id || `${row.date || ''}-${row.time || ''}-${Math.random().toString(16).slice(2)}`,
+    checklistId: row.checklistId || '',
+    checklistTitle: row.checklistType || row.checklistTitle || '',
+    employeeName: row.employeeName || '',
+    createdAt,
+    date: row.date || '',
+    time: row.time || '',
+    tasks: Array.isArray(tasks) ? tasks.map(t=>({ text: t.text || t.task || 'Пункт чек-листа', checked: Boolean(t.checked) })) : [],
+    completed: Number(row.completed || 0),
+    total: Number(row.total || 0),
+    percent: row.percent || ''
+  };
+}
+function fetchControlRecordsFromSheets(){
+  if(!GOOGLE_SCRIPT_URL) return Promise.resolve([]);
+  return new Promise((resolve, reject)=>{
+    const callbackName = `sovremennikControlCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const script = document.createElement('script');
+    const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
+    const timer = setTimeout(()=>{
+      cleanup();
+      reject(new Error('Не удалось получить данные контроля: превышено время ожидания.'));
+    }, 12000);
+    function cleanup(){
+      clearTimeout(timer);
+      delete window[callbackName];
+      script.remove();
+    }
+    window[callbackName] = (response)=>{
+      cleanup();
+      if(response && response.ok){
+        resolve((response.rows || []).map(normalizeRemoteRecord));
+      } else {
+        reject(new Error(response?.error || 'Google Sheets вернул ошибку.'));
+      }
+    };
+    script.onerror = ()=>{
+      cleanup();
+      reject(new Error('Не удалось подключиться к Google Sheets.'));
+    };
+    script.src = `${GOOGLE_SCRIPT_URL}${sep}callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
+async function loadControlRecords(){
+  state.controlLoading = true;
+  state.controlError = '';
+  refreshControl();
+  try {
+    const records = await fetchControlRecordsFromSheets();
+    state.controlRecords = records;
+    setLocalControlRecords(records);
+  } catch(error) {
+    console.warn(error);
+    state.controlError = error.message || 'Не удалось загрузить данные из Google Sheets.';
+    state.controlRecords = getLocalControlRecords();
+  } finally {
+    state.controlLoading = false;
+    refreshControl();
+  }
+}
+function sendChecklistToSheets(payload){
+  const body = new URLSearchParams({ payload: JSON.stringify(payload) });
+  return fetch(GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body
+  });
+}
 function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<details class="control-details"><summary>Показать заполненный чек-лист</summary><ul>${tasks.map(t=>`<li class="${t.checked?'done':'not-done'}"><span>${t.checked?'✓':'—'}</span>${esc(t.text)}</li>`).join('')}</ul></details>`; }
-function renderControlRecordsTable(){ const records=getControlRecords(); if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки чек-листа открытия или закрытия запись появится здесь.</p></div>`; return `<div class="control-table-wrap"><table class="control-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Чек-лист</th><th>Выполнено</th><th>Детали</th></tr></thead><tbody>${records.map(r=>{const total=(r.tasks||[]).length; const done=(r.tasks||[]).filter(t=>t.checked).length; return `<tr><td>${esc(formatDateTime(r.createdAt))}</td><td>${esc(r.employeeName||'')}</td><td>${esc(r.checklistTitle||'')}</td><td>${done}/${total}</td><td>${renderRecordDetails(r)}</td></tr>`;}).join('')}</tbody></table></div>`; }
-function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="control-note"><p>Здесь отображаются отправленные чек-листы открытия и закрытия смены. В текущей версии GitHub Pages данные сохраняются в браузере этого устройства.</p><button type="button" class="download-control-csv">Скачать CSV</button></div><div id="control-records">${renderControlRecordsTable()}</div></section>`; }
+function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
+function renderControlRecordsTable(){
+  const records=getControlRecords();
+  if(state.controlLoading) return `<div class="empty-control"><h3>Загружаю данные контроля…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
+  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки чек-листа открытия или закрытия запись появится здесь. Данные берутся из общей Google Таблицы.</p>${state.controlError?`<p class="control-error">${esc(state.controlError)}</p>`:''}</div>`;
+  return `<div class="control-table-wrap">${state.controlError?`<p class="control-error">${esc(state.controlError)} Показана локальная резервная копия.</p>`:''}<table class="control-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Чек-лист</th><th>Выполнено</th><th>Детали</th></tr></thead><tbody>${records.map(r=>{const {done,total}=recordDoneTotal(r); return `<tr><td>${esc(formatDateTime(r.createdAt))}</td><td>${esc(r.employeeName||'')}</td><td>${esc(r.checklistTitle||'')}</td><td>${done}/${total}</td><td>${renderRecordDetails(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="control-note"><p>Здесь отображаются отправленные чек-листы открытия и закрытия смены из общей Google Таблицы. Данные доступны со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></section>`; }
 function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); }
-function submitChecklist(docId){ const doc=(state.menu.checklists||[]).find(d=>d.id===docId); const card=Array.from(document.querySelectorAll('.doc-card')).find(el=>el.dataset.checklistId===docId); if(!doc||!card) return; const nameInput=card.querySelector('.employee-name'); const status=card.querySelector('.submit-status'); const employeeName=(nameInput?.value||'').trim(); if(!employeeName){ if(status){status.textContent='Введите имя сотрудника перед отправкой.'; status.className='submit-status error';} nameInput?.focus(); return; } const inputs=Array.from(card.querySelectorAll('.task-checkbox')); const tasks=inputs.map(input=>({ text: input.dataset.task || input.closest('label')?.innerText?.trim() || 'Пункт чек-листа', checked: input.checked })); const record={ id:`${Date.now()}-${Math.random().toString(16).slice(2)}`, checklistId:doc.id, checklistTitle:doc.title, employeeName, createdAt:new Date().toISOString(), tasks }; saveControlRecord(record); if(status){status.textContent='Чек-лист отправлен и сохранен в разделе «Контроль».'; status.className='submit-status success';} setTop('control'); refreshControl(); }
-function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const total=(r.tasks||[]).length; const done=(r.tasks||[]).filter(t=>t.checked).length; const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); const csv=rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(';')).join('\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='control_checklists.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+async function submitChecklist(docId){
+  const doc=(state.menu.checklists||[]).find(d=>d.id===docId);
+  const card=Array.from(document.querySelectorAll('.doc-card')).find(el=>el.dataset.checklistId===docId);
+  if(!doc||!card) return;
+  const nameInput=card.querySelector('.employee-name');
+  const status=card.querySelector('.submit-status');
+  const employeeName=(nameInput?.value||'').trim();
+  if(!employeeName){ if(status){status.textContent='Введите имя сотрудника перед отправкой.'; status.className='submit-status error';} nameInput?.focus(); return; }
+  const inputs=Array.from(card.querySelectorAll('.task-checkbox'));
+  const tasks=inputs.map(input=>({ text: input.dataset.task || input.closest('label')?.innerText?.trim() || 'Пункт чек-листа', checked: input.checked }));
+  const record={ id:`${Date.now()}-${Math.random().toString(16).slice(2)}`, checklistId:doc.id, checklistTitle:doc.title, employeeName, createdAt:new Date().toISOString(), tasks };
+  const payload={ checklistType: doc.title, employeeName, items: tasks };
+  if(status){status.textContent='Отправляю чек-лист в Google Sheets…'; status.className='submit-status';}
+  try {
+    await sendChecklistToSheets(payload);
+    saveLocalControlRecord(record);
+    if(status){status.textContent='Чек-лист отправлен. Запись сохранится в общей таблице и появится в разделе «Контроль».'; status.className='submit-status success';}
+    setTop('control');
+    setTimeout(()=>loadControlRecords(), 1200);
+  } catch(error) {
+    console.error(error);
+    saveLocalControlRecord(record);
+    if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';}
+    setTop('control');
+    refreshControl();
+  }
+}
+function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const {done,total}=recordDoneTotal(r); const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); const csv=rows.map(row=>row.map(cell=>`"${String(cell).replace(/"/g,'""')}"`).join(';')).join('\n'); const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='control_checklists.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
 
 function techSearch(card) { return [card.title, card.category, card.source, card.technology, card.output, ...(card.ingredients||[]).map(i=>`${i.name} ${i.amount}`)].join(' ').toLowerCase(); }
 function renderTechCard(card) { return `<article class="tech-card" data-search="${esc(techSearch(card))}"><div class="tech-content"><div class="card-head"><h3>${esc(card.title)}</h3><span class="source-badge">${esc(card.source)}</span></div><div class="tech-meta"><span>${esc(card.category||'Без раздела')}</span>${card.output?`<span>Выход: ${esc(card.output)}</span>`:''}</div>${card.technology?`<p class="description">${esc(card.technology)}</p>`:''}<details class="tech-details"><summary>Ингредиенты</summary><div class="lesson-table-wrap"><table class="ingredient-table"><thead><tr><th>Ингредиент</th><th>Кол-во</th></tr></thead><tbody>${(card.ingredients||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.amount||'')}</td></tr>`).join('')}</tbody></table></div></details></div></article>`; }
@@ -56,9 +165,9 @@ function renderTechDocument(doc) { const groups=categoryGroups(doc.cards||[]); r
 function renderTechCards() { const docs=state.menu.techCards||[]; return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 function renderApp() { const {site}=state.menu; if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id; document.title=`${site.title} — база сотрудников`; document.querySelector('.brand').textContent=site.title; document.querySelector('.kicker').textContent=site.subtitle; document.querySelector('.muted').textContent=site.description; document.querySelector('.main-tabs').innerHTML=(site.mainTabs||[]).map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); document.querySelector('#panels').innerHTML=renderHome()+renderMethod()+renderTheoryTopPanel()+renderChecklists()+renderTechCards()+renderControl(); bindEvents(); }
-function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); if(target==='control') refreshControl(); }
+function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); if(target==='control') loadControlRecords(); }
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
-function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-theory'),'.lesson-card'); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId))); document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv); }
+function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-theory'),'.lesson-card'); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId))); document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv); document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords); }
 function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
 async function loadMenu() { const embedded=readEmbeddedMenu(); if(location.protocol==='file:' && embedded) return embedded; try { const res=await fetch('data/menu.json',{cache:'no-cache'}); if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`); return await res.json(); } catch(error) { console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error); if(embedded) return embedded; throw error; } }
 async function init() { try { state.menu=await loadMenu(); const hash=location.hash.replace('#',''); if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top)) state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; } else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash)) { state.activeTop=hash; } renderApp(); } catch(error) { document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error); } }
