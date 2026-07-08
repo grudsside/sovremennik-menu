@@ -1,236 +1,45 @@
 
-const state = { menu: null, activeTab: 'theory' };
+const state = { menu: null, activeTop: 'home', activeMethod: 'theory' };
 
-function esc(value) {
-  return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-}
+function esc(value) { return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+function slugify(text) { const map={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}; return String(text).toLowerCase().split('').map(ch=>map[ch]??ch).join('').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+function kbjuText(kbju={}) { return `Ккал: ${kbju.calories || '____'} · Б: ${kbju.protein || '____'} · Ж: ${kbju.fat || '____'} · У: ${kbju.carbs || '____'}`; }
+function itemSearchText(item) { return [item.title,item.category,item.price,item.volume,item.description,item.note,...(item.ingredients||[])].join(' ').toLowerCase(); }
+function lessonSearchText(lesson) { const blockText=(lesson.blocks||[]).map(block=>{ if(block.text) return block.text; if(block.caption) return block.caption; if(block.items) return block.items.join(' '); if(block.cards) return block.cards.map(c=>`${c.title} ${c.text}`).join(' '); if(block.rows) return block.rows.flat().join(' '); return ''; }).join(' '); return [lesson.title,lesson.category,lesson.summary,lesson.level,lesson.duration,blockText].join(' ').toLowerCase(); }
+function categoryGroups(items) { const map=new Map(); for(const item of items){const cat=item.category||'Без раздела'; if(!map.has(cat)) map.set(cat,[]); map.get(cat).push(item);} return Array.from(map.entries()).map(([category,items])=>({category,items})); }
 
-function slugify(text) {
-  const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
-  return String(text).toLowerCase().split('').map(ch => map[ch] ?? ch).join('').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
+function renderPhoto(item) { if(item.image) return `<div class="photo-frame has-image"><img src="${esc(item.image)}" alt="${esc(item.title)}" loading="lazy"></div>`; return `<div class="photo-frame"><div><div class="photo-icon">+</div><div class="photo-text">место для фото</div></div></div>`; }
+function renderDescription(item) { if(!item.description) return ''; if(item.descriptionCollapsed) return `<details class="description-block"><summary>Описание</summary><p>${esc(item.description)}</p></details>`; return `<p class="description">${esc(item.description)}</p>`; }
+function renderFacts(item) { const facts=[]; if(item.volume) facts.push(['Объем',item.volume]); if(item.category && item.section!=='bar') facts.push(['Раздел',item.category]); facts.push(['Время приготовления',item.time||'__________']); return `<div class="facts">${facts.map(([l,v])=>`<div class="fact"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>`; }
+function renderIngredients(item) { const ingredients=item.ingredients&&item.ingredients.length?item.ingredients:['Состав уточнить']; return `<div class="ingredients"><h4>Состав</h4><ul>${ingredients.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`; }
+function renderTags(item) { const tags=[...(item.tags||[])]; if(item.isArchive&&!tags.some(t=>t.toLowerCase().includes('архив'))) tags.push('архив'); if(!tags.length) return ''; return `<div class="tag-row">${tags.map(t=>`<span class="tag ${t.toLowerCase().includes('архив')?'archive':''}">${esc(t)}</span>`).join('')}</div>`; }
+function renderNote(item) { if(!item.note) return ''; return `<details class="note"><summary>На заметку</summary><p>${esc(item.note)}</p></details>`; }
+function renderCard(item) { return `<article class="product-card" data-search="${esc(itemSearchText(item))}">${renderPhoto(item)}<div class="card-body">${renderTags(item)}<div class="card-head"><h3>${esc(item.title)}</h3>${item.price?`<span class="price-badge">${esc(item.price)}</span>`:''}</div>${renderDescription(item)}${renderFacts(item)}<div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>${renderIngredients(item)}${renderNote(item)}</div></article>`; }
 
-function kbjuText(kbju = {}) {
-  return `Ккал: ${kbju.calories || '____'} · Б: ${kbju.protein || '____'} · Ж: ${kbju.fat || '____'} · У: ${kbju.carbs || '____'}`;
-}
+function renderLessonBlock(block) { if(block.type==='lead') return `<p class="lesson-lead">${esc(block.text)}</p>`; if(block.type==='cards') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><div class="mini-card-grid">${(block.cards||[]).map(card=>`<div class="mini-card"><h5>${esc(card.title)}</h5><p>${esc(card.text)}</p></div>`).join('')}</div></section>`; if(block.type==='steps') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><ol class="lesson-list">${(block.items||[]).map(i=>`<li>${esc(i)}</li>`).join('')}</ol></section>`; if(block.type==='checklist') return `<section class="lesson-block checklist"><h4>${esc(block.title||'')}</h4><ul class="lesson-checklist">${(block.items||[]).map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`; if(block.type==='callout') return `<aside class="lesson-callout"><h4>${esc(block.title||'Важно')}</h4><p>${esc(block.text)}</p></aside>`; if(block.type==='table') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><div class="lesson-table-wrap"><table class="lesson-table"><thead><tr>${(block.headers||[]).map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${(block.rows||[]).map(row=>`<tr>${row.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`; return ''; }
+function renderLessonCard(lesson) { const blocks=(lesson.blocks||[]).map(renderLessonBlock).join(''); return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}"><div class="lesson-content"><div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category||'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div><p class="lesson-summary">${esc(lesson.summary||'')}</p><div class="facts lesson-facts"><div class="fact"><span>Время</span><b>${esc(lesson.duration||'уточнить')}</b></div><div class="fact"><span>Уровень</span><b>${esc(lesson.level||'для сотрудников')}</b></div></div><details class="lesson-details"><summary>Открыть обучение</summary><div class="lesson-body">${blocks}</div></details></div></article>`; }
 
-function itemSearchText(item) {
-  return [item.title, item.category, item.price, item.volume, item.description, item.note, ...(item.ingredients || [])].join(' ').toLowerCase();
-}
+function renderTheoryPanel(tab) { const lessons=state.menu.lessons||[]; const groups=categoryGroups(lessons); const nav=groups.map(group=>`<a class="nav-pill" href="#theory-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="lesson-section" id="theory-${slugify(group.category)}"><div class="section-heading"><p>Обучение</p><h2>${esc(group.category)}</h2></div><div class="lesson-grid">${group.items.map(renderLessonCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
+function renderMethodPanel(tab) { if(tab.id==='theory') return renderTheoryPanel(tab); const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function lessonSearchText(lesson) {
-  const blockText = (lesson.blocks || []).map(block => {
-    if (block.text) return block.text;
-    if (block.caption) return block.caption;
-    if (block.items) return block.items.join(' ');
-    if (block.cards) return block.cards.map(c => `${c.title} ${c.text}`).join(' ');
-    if (block.rows) return block.rows.flat().join(' ');
-    return '';
-  }).join(' ');
-  return [lesson.title, lesson.category, lesson.summary, lesson.level, lesson.duration, blockText].join(' ').toLowerCase();
-}
+function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid"><article class="home-card"><div><div class="home-icon">М</div><h2>Методичка</h2><p>Теория, карточки напитков, кухня, десерты и архив. Основной раздел для обучения и повторения меню.</p></div><button type="button" data-top-jump="method">Открыть методичку</button></article><article class="home-card"><div><div class="home-icon">✓</div><h2>Чек-листы</h2><p>Открытие и закрытие смены, заготовки, генеральная уборка. Рабочие списки задач для сотрудников.</p></div><button type="button" data-top-jump="checklists">Открыть чек-листы</button></article><article class="home-card"><div><div class="home-icon">ТК</div><h2>Тех. карты</h2><p>Технологические карты напитков и заготовок: состав, граммовки, технология приготовления и исходные файлы.</p></div><button type="button" data-top-jump="techcards">Открыть тех. карты</button></article></div></section>`; }
+function renderMethod() { const tabs=state.menu.site.methodTabs||[]; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
 
-function categoryGroups(items) {
-  const map = new Map();
-  for (const item of items) {
-    const cat = item.category || 'Без раздела';
-    if (!map.has(cat)) map.set(cat, []);
-    map.get(cat).push(item);
-  }
-  return Array.from(map.entries()).map(([category, items]) => ({ category, items }));
-}
+function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
+function renderChecklistSection(section) { if(section.type==='minlist') { return `<div class="doc-section"><h4>${esc(section.title)}</h4><div class="min-list">${(section.rows||[]).map(r=>`<div class="min-row"><span>${esc(r.task)}</span><span>${esc(r.min||'')}</span></div>`).join('')}</div></div>`; } return `<div class="doc-section"><h4>${esc(section.title)}</h4>${(section.rows||[]).map((r,i)=>`<div class="check-row"><div class="check-box"></div><div class="check-text">${esc(r.task||'')}</div></div>`).join('')}</div>`; }
+function renderChecklistCard(doc) { const search=[doc.title,doc.description,doc.sourceFile,...(doc.sections||[]).flatMap(s=>(s.rows||[]).map(rowSearch))].join(' ').toLowerCase(); return `<article class="doc-card" data-search="${esc(search)}"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.sections||[]).reduce((a,s)=>a+(s.rows||[]).length,0)} задач</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div><details class="doc-details" open><summary>Открыть чек-лист</summary>${(doc.sections||[]).map(renderChecklistSection).join('')}</details></div></article>`; }
+function renderChecklists() { const docs=state.menu.checklists||[]; return `<section class="top-panel ${state.activeTop==='checklists'?'active':''}" id="top-checklists"><div class="section-heading"><p>Рабочие документы</p><h2>Чек-листы</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по чек-листам и задачам" type="search"><button class="clear-btn" type="button">Сбросить</button></div></div><div class="doc-grid">${docs.map(renderChecklistCard).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function renderPhoto(item) {
-  if (item.image) {
-    return `<div class="photo-frame has-image"><img src="${esc(item.image)}" alt="${esc(item.title)}" loading="lazy"></div>`;
-  }
-  return `<div class="photo-frame" aria-label="Место для фото"><div class="photo-icon">+</div><div class="photo-text">место для фото</div></div>`;
-}
+function techSearch(card) { return [card.title, card.category, card.source, card.technology, card.output, ...(card.ingredients||[]).map(i=>`${i.name} ${i.amount}`)].join(' ').toLowerCase(); }
+function renderTechCard(card) { return `<article class="tech-card" data-search="${esc(techSearch(card))}"><div class="tech-content"><div class="card-head"><h3>${esc(card.title)}</h3><span class="source-badge">${esc(card.source)}</span></div><div class="tech-meta"><span>${esc(card.category||'Без раздела')}</span>${card.output?`<span>Выход: ${esc(card.output)}</span>`:''}</div>${card.technology?`<p class="description">${esc(card.technology)}</p>`:''}<details class="tech-details"><summary>Ингредиенты</summary><div class="lesson-table-wrap"><table class="ingredient-table"><thead><tr><th>Ингредиент</th><th>Кол-во</th></tr></thead><tbody>${(card.ingredients||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.amount||'')}</td></tr>`).join('')}</tbody></table></div></details></div></article>`; }
+function renderTechDocument(doc) { const groups=categoryGroups(doc.cards||[]); return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(renderTechCard).join('')}</div></section>`).join('')}</section>`; }
+function renderTechCards() { const docs=state.menu.techCards||[]; return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function renderDescription(item) {
-  if (!item.description) return '';
-  if (item.descriptionCollapsed) {
-    return `<details class="description-block"><summary>Описание</summary><p>${esc(item.description)}</p></details>`;
-  }
-  return `<p class="description">${esc(item.description)}</p>`;
-}
-
-function renderFacts(item) {
-  const facts = [];
-  if (item.volume) facts.push(['Объем', item.volume]);
-  if (item.category && item.section !== 'bar') facts.push(['Раздел', item.category]);
-  facts.push(['Время приготовления', item.time || '__________']);
-  return `<div class="facts">${facts.map(([label, value]) => `<div class="fact"><span>${esc(label)}</span><b>${esc(value)}</b></div>`).join('')}</div>`;
-}
-
-function renderIngredients(item) {
-  const ingredients = item.ingredients && item.ingredients.length ? item.ingredients : ['Состав уточнить'];
-  return `<div class="ingredients"><h4>Состав</h4><ul>${ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>`;
-}
-
-function renderTags(item) {
-  const tags = [...(item.tags || [])];
-  if (item.isArchive && !tags.some(t => t.toLowerCase().includes('архив'))) tags.push('архив');
-  if (!tags.length) return '';
-  return `<div class="tag-row">${tags.map(t => `<span class="tag ${t.toLowerCase().includes('архив') ? 'archive' : ''}">${esc(t)}</span>`).join('')}</div>`;
-}
-
-function renderNote(item) {
-  if (!item.note) return '';
-  return `<details class="note"><summary>На заметку</summary><p>${esc(item.note)}</p></details>`;
-}
-
-function renderCard(item) {
-  return `<article class="product-card" data-search="${esc(itemSearchText(item))}">
-    ${renderPhoto(item)}
-    <div class="card-body">
-      ${renderTags(item)}
-      <div class="card-head"><h3>${esc(item.title)}</h3>${item.price ? `<span class="price-badge">${esc(item.price)}</span>` : ''}</div>
-      ${renderDescription(item)}
-      ${renderFacts(item)}
-      <div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>
-      ${renderIngredients(item)}
-      ${renderNote(item)}
-    </div>
-  </article>`;
-}
-
-function renderLessonBlock(block) {
-  if (block.type === 'lead') return `<p class="lesson-lead">${esc(block.text)}</p>`;
-  if (block.type === 'image') return `<figure class="lesson-figure"><img src="${esc(block.src)}" alt="${esc(block.title || '')}" loading="lazy"><figcaption><b>${esc(block.title || '')}</b>${block.caption ? `<span>${esc(block.caption)}</span>` : ''}</figcaption></figure>`;
-  if (block.type === 'cards') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><div class="mini-card-grid">${(block.cards || []).map(card => `<div class="mini-card"><h5>${esc(card.title)}</h5><p>${esc(card.text)}</p></div>`).join('')}</div></section>`;
-  if (block.type === 'steps') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><ol class="lesson-list">${(block.items || []).map(i => `<li>${esc(i)}</li>`).join('')}</ol></section>`;
-  if (block.type === 'checklist') return `<section class="lesson-block checklist"><h4>${esc(block.title || '')}</h4><ul class="lesson-checklist">${(block.items || []).map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>`;
-  if (block.type === 'callout') return `<aside class="lesson-callout"><h4>${esc(block.title || 'Важно')}</h4><p>${esc(block.text)}</p></aside>`;
-  if (block.type === 'table') return `<section class="lesson-block"><h4>${esc(block.title || '')}</h4><div class="lesson-table-wrap"><table class="lesson-table"><thead><tr>${(block.headers || []).map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${(block.rows || []).map(row => `<tr>${row.map(cell => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`;
-  return '';
-}
-
-function renderLessonCard(lesson) {
-  const blocks = (lesson.blocks || []).map(renderLessonBlock).join('');
-  return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}">
-    <div class="lesson-content">
-      <div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category || 'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div>
-      <p class="lesson-summary">${esc(lesson.summary || '')}</p>
-      <div class="facts lesson-facts">
-        <div class="fact"><span>Время</span><b>${esc(lesson.duration || 'уточнить')}</b></div>
-        <div class="fact"><span>Уровень</span><b>${esc(lesson.level || 'для сотрудников')}</b></div>
-      </div>
-      <details class="lesson-details">
-        <summary>Открыть обучение</summary>
-        <div class="lesson-body">${blocks}</div>
-      </details>
-    </div>
-  </article>`;
-}
-
-function renderTheoryPanel(tab) {
-  const lessons = state.menu.lessons || [];
-  const groups = categoryGroups(lessons);
-  const nav = groups.map(group => `<a class="nav-pill" href="#theory-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join('');
-  const sections = groups.map(group => `<section class="lesson-section" id="theory-${slugify(group.category)}"><div class="section-heading"><p>Обучение</p><h2>${esc(group.category)}</h2></div><div class="lesson-grid">${group.items.map(renderLessonCard).join('')}</div></section>`).join('');
-  return `<section class="tab-panel ${tab.id === state.activeTab ? 'active' : ''}" id="panel-${tab.id}">
-    <div class="toolbar" aria-label="Навигация: ${esc(tab.title)}">
-      <div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder || 'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div>
-      <nav class="nav">${nav}</nav>
-    </div>
-    <main>${sections}</main>
-    <div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>
-  </section>`;
-}
-
-function renderPanel(tab) {
-  if (tab.id === 'theory') return renderTheoryPanel(tab);
-  const allItems = state.menu.items.filter(item => item.section === tab.id);
-  const groups = categoryGroups(allItems);
-  const nav = groups.map(group => `<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join('');
-  const sections = groups.map(group => `<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join('');
-  return `<section class="tab-panel ${tab.id === state.activeTab ? 'active' : ''}" id="panel-${tab.id}">
-    <div class="toolbar" aria-label="Навигация: ${esc(tab.title)}">
-      <div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder || 'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div>
-      <nav class="nav">${nav}</nav>
-    </div>
-    <main>${sections}</main>
-    <div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>
-  </section>`;
-}
-
-function renderApp() {
-  const { site } = state.menu;
-  document.title = `${site.title} — методичка`;
-  document.querySelector('.brand').textContent = site.title;
-  document.querySelector('.kicker').textContent = site.subtitle;
-  document.querySelector('.muted').textContent = site.description;
-  document.querySelector('.main-tabs').innerHTML = site.tabs.map(tab => `<button class="main-tab ${tab.id === state.activeTab ? 'active' : ''}" data-tab-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
-  document.querySelector('#panels').innerHTML = site.tabs.map(renderPanel).join('');
-  bindEvents();
-}
-
-function bindEvents() {
-  document.querySelectorAll('.main-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.activeTab = btn.dataset.tabTarget;
-      document.querySelectorAll('.main-tab').forEach(b => b.classList.toggle('active', b === btn));
-      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${state.activeTab}`));
-      history.replaceState(null, '', `#${state.activeTab}`);
-    });
-  });
-  document.querySelectorAll('.tab-panel').forEach(panel => {
-    const input = panel.querySelector('.search');
-    const clear = panel.querySelector('.clear-btn');
-    const searchableCards = Array.from(panel.querySelectorAll('.product-card, .lesson-card'));
-    const empty = panel.querySelector('.empty-state');
-    const filter = () => {
-      const q = (input.value || '').trim().toLowerCase();
-      let visible = 0;
-      searchableCards.forEach(card => {
-        const ok = !q || (card.dataset.search || card.textContent).toLowerCase().includes(q);
-        card.classList.toggle('hidden', !ok);
-        if (ok) visible += 1;
-      });
-      empty.classList.toggle('show', visible === 0);
-    };
-    input.addEventListener('input', filter);
-    clear.addEventListener('click', () => { input.value = ''; filter(); input.focus(); });
-  });
-}
-
-function readEmbeddedMenu() {
-  const el = document.getElementById('menu-data');
-  if (!el) return null;
-  try {
-    return JSON.parse(el.textContent);
-  } catch (error) {
-    console.error('Не удалось прочитать встроенные данные menu-data', error);
-    return null;
-  }
-}
-
-async function loadMenu() {
-  const embedded = readEmbeddedMenu();
-  if (location.protocol === 'file:' && embedded) return embedded;
-
-  try {
-    const res = await fetch('data/menu.json', { cache: 'no-cache' });
-    if (!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error);
-    if (embedded) return embedded;
-    throw error;
-  }
-}
-
-async function init() {
-  try {
-    state.menu = await loadMenu();
-    const hash = location.hash.replace('#', '');
-    if (state.menu.site.tabs.some(t => t.id === hash)) state.activeTab = hash;
-    renderApp();
-  } catch (error) {
-    document.querySelector('#panels').innerHTML = `<div class="error">Сайт загружен, но не удалось прочитать данные меню. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>, либо загрузите всю папку сайта на GitHub Pages. Детали: ${esc(error.message)}</div>`;
-    console.error(error);
-  }
-}
-
+function renderApp() { const {site}=state.menu; document.title=`${site.title} — база сотрудников`; document.querySelector('.brand').textContent=site.title; document.querySelector('.kicker').textContent=site.subtitle; document.querySelector('.muted').textContent=site.description; document.querySelector('.main-tabs').innerHTML=(site.mainTabs||[]).map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); document.querySelector('#panels').innerHTML=renderHome()+renderMethod()+renderChecklists()+renderTechCards(); bindEvents(); }
+function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); }
+function bindSearch(panel, selector) { const input=panel.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
+function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); }
+function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
+async function loadMenu() { const embedded=readEmbeddedMenu(); if(location.protocol==='file:' && embedded) return embedded; try { const res=await fetch('data/menu.json',{cache:'no-cache'}); if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`); return await res.json(); } catch(error) { console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error); if(embedded) return embedded; throw error; } }
+async function init() { try { state.menu=await loadMenu(); const hash=location.hash.replace('#',''); if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top)) state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; } else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash)) { state.activeTop=hash; } renderApp(); } catch(error) { document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error); } }
 init();
