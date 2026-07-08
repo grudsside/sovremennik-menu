@@ -118,3 +118,39 @@ tr:last-child td { border-bottom:0; }
 .error { margin: 20px 0; padding: 20px; background: #fff4e8; border: 1px solid #e5c8ac; border-radius: 20px; }
 @media (max-width: 920px) { .home-grid, .cards-grid, .tech-grid { grid-template-columns: 1fr; } .product-card { grid-template-columns: 130px 1fr; } .mini-card-grid, .min-list { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .page { width: min(100% - 18px, 1240px); padding-top: 10px; } .hero { padding: 24px 18px; border-radius: 24px; } .main-tabs { border-radius: 24px; } .main-tab { flex: 1 1 44%; } .product-card { grid-template-columns: 1fr; } .photo-frame { height: 190px; } .search-row, .tech-toolbar { grid-template-columns: 1fr; display:grid; } .clear-btn { padding: 12px; } .facts { grid-template-columns: 1fr; } .card-body, .lesson-content, .doc-content, .tech-content { padding: 16px; } }
+
+/* Обновления: теория на главной, интерактивные чек-листы и контроль */
+.home-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.checkable-row { cursor: pointer; align-items: flex-start; }
+.checkable-row input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+.custom-check { flex: 0 0 24px; width: 24px; height: 24px; border: 2px solid var(--olive); border-radius: 8px; background: #fffdf7; display: inline-grid; place-items: center; margin-top: 1px; }
+.checkable-row input[type="checkbox"]:checked + .custom-check { background: var(--olive-dark); border-color: var(--olive-dark); }
+.checkable-row input[type="checkbox"]:checked + .custom-check::after { content: "✓"; color: #fff; font-weight: 900; line-height: 1; }
+.checkable-row input[type="checkbox"]:checked ~ .check-text,
+.checkable-row input[type="checkbox"]:checked ~ .min-task { text-decoration: line-through; color: var(--muted); }
+.check-row { grid-template-columns: 24px 1fr auto; align-items: flex-start; }
+.min-row.checkable-row { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; justify-content: initial; }
+.min-task { line-height: 1.35; }
+.min-value { font-weight: 900; color: var(--olive-dark); white-space: nowrap; }
+.responsible { color: var(--muted); font-size: 13px; }
+.submit-panel { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #f7f3e6; display: grid; gap: 12px; }
+.employee-field { display: grid; gap: 7px; font-weight: 900; color: var(--olive-dark); }
+.employee-field input { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: #fff; outline: none; }
+.employee-field input:focus { border-color: var(--olive); box-shadow: 0 0 0 4px rgba(124,139,83,.14); }
+.submit-checklist, .download-control-csv { border: 0; border-radius: 999px; background: var(--olive-dark); color: #fff; padding: 12px 16px; font-weight: 900; cursor: pointer; justify-self: start; }
+.submit-status { margin: 0; color: var(--muted); }
+.submit-status.error { color: var(--danger); font-weight: 900; }
+.submit-status.success { color: var(--olive-dark); font-weight: 900; }
+.control-note { border: 1px solid var(--line); border-radius: 20px; background: rgba(255,253,247,.76); padding: 16px; margin: 16px 0; display: flex; justify-content: space-between; gap: 14px; align-items: center; flex-wrap: wrap; }
+.control-note p { margin: 0; color: var(--muted); line-height: 1.5; max-width: 760px; }
+.control-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 20px; background: #fffdf7; box-shadow: 0 12px 34px rgba(83,89,60,.08); }
+.control-table th, .control-table td { vertical-align: top; }
+.control-details summary { white-space: nowrap; }
+.control-details ul { margin: 10px 0 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.control-details li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; color: var(--muted); }
+.control-details li.done { color: var(--olive-dark); }
+.control-details li.not-done { color: var(--danger); }
+.empty-control { border: 1px dashed var(--line); border-radius: 22px; padding: 28px; background: #fffaf0; color: var(--muted); }
+.empty-control h3 { margin: 0 0 8px; color: var(--olive-dark); }
+.empty-control p { margin: 0; }
+@media (max-width: 620px) { .check-row, .min-row.checkable-row { grid-template-columns: 24px 1fr; } .min-value, .responsible { grid-column: 2; } }
