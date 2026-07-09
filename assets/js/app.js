@@ -75,6 +75,9 @@ function valuePresent(value){ return value !== undefined && value !== null && St
 function numberValue(value){ if(value === undefined || value === null || String(value).trim() === '') return null; const n=Number(String(value).replace(',', '.').replace(/[^0-9.\-]/g,'')); return Number.isFinite(n) ? n : null; }
 function round3(value){ return Math.round(value * 1000) / 1000; }
 function round4(value){ return Math.round(value * 10000) / 10000; }
+function round2(value){ return Math.round(value * 100) / 100; }
+function formatPercent(value){ if(value === undefined || value === null || String(value).trim() === '') return ''; const n = numberValue(value); if(n === null) return String(value); return `${round2(n)}%`; }
+function revisionValueClass(label, value){ if(label !== 'Разница' && label !== 'Потери') return ''; const n = numberValue(value); if(n === null) return ''; return n >= 0 ? ' revision-positive' : ' revision-negative'; }
 function safeParseJson(value, fallback){ try { return typeof value === 'string' ? JSON.parse(value) : (value ?? fallback); } catch(e){ return fallback; } }
 function normalizeRemoteRecord(row){
   const tasks = safeParseJson(row.details, []);
@@ -132,8 +135,8 @@ function enrichRevisionCalculations(records){
     if(usage!==null && sales!==null && writeOffs!==null) difference=round3(sales - writeOffs - usage);
     item.difference = difference===null ? '' : String(difference);
     let losses=null;
-    if(difference!==null && sales!==null && sales!==0) losses=round4(difference / sales);
-    item.losses = losses===null ? '' : String(losses);
+    if(difference!==null && sales!==null && sales!==0) losses=round2((difference / sales) * 100);
+    item.losses = losses===null ? '' : `${losses}%`;
     if(clean!==null) previousClean=clean;
     return item;
   });
@@ -193,7 +196,7 @@ function renderRevisionRecordsTable(){
     ['Общий расход кофе', r=>r.totalCoffeeUsage],
     ['Дата и время заполнения', r=>formatDateTime(r.createdAt)]
   ];
-  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Дата ревизии</th>${cols.map(r=>`<th>${esc(r.date || displayDateFromKey(r.dateKey) || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Дата ревизии</th>${cols.map(r=>`<th>${esc(r.date || displayDateFromKey(r.dateKey) || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>{ const value=getter(r) || '—'; return `<td class="${revisionValueClass(label, value).trim()}">${esc(value)}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function renderRevisionManualForm(){
   const today=new Date().toISOString().slice(0,10);
