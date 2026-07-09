@@ -1,8 +1,77 @@
-const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, controlLoading: false, revisionLoading: false, controlError: '', revisionError: '' };
+const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, employees: null, employeesLoading: false, employeesError: '', controlLoading: false, revisionLoading: false, controlError: '', revisionError: '', auth: null };
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV1';
+const AUTH_STORAGE_KEY = 'sovremennikAuthV1';
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
 const HOPPER_TARE_KG = 0.847;
+
+
+
+const ROLE_LABELS = { admin: 'Администратор', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'бариста': 'Бариста', 'официант': 'Официант' };
+const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
+const ACCESS_BY_ROLE = {
+  admin: ['home','method','theory','checklists','revisions','techcards','employees','control'],
+  barista: ['home','method','theory','checklists','revisions','techcards'],
+  waiter: ['home','method','theory']
+};
+function normalizeRole(role){ return ROLE_ALIASES[String(role || '').trim().toLowerCase()] || String(role || '').trim().toLowerCase(); }
+function roleLabel(role){ const normalized=normalizeRole(role); return ROLE_LABELS[normalized] || ROLE_LABELS[role] || role || '—'; }
+function currentUser(){ return state.auth?.user || null; }
+function currentUserName(){ return currentUser()?.name || ''; }
+function getAuthToken(){ return state.auth?.token || ''; }
+function isAuthenticated(){ return Boolean(getAuthToken() && currentUser()); }
+function isAdmin(){ return normalizeRole(currentUser()?.role) === 'admin'; }
+function saveAuth(auth){ state.auth=auth; localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth)); }
+function readSavedAuth(){ try { const saved=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null'); return saved && saved.token && saved.user ? saved : null; } catch(e){ return null; } }
+function clearAuth(){ state.auth=null; localStorage.removeItem(AUTH_STORAGE_KEY); }
+function hasAccess(target){ if(target==='home') return true; const role=normalizeRole(currentUser()?.role); return (ACCESS_BY_ROLE[role] || []).includes(target); }
+function allMainTabs(){ const tabs=[...(state.menu?.site?.mainTabs || [])]; if(!tabs.some(t=>t.id==='employees')){ const controlIndex=tabs.findIndex(t=>t.id==='control'); tabs.splice(controlIndex>=0?controlIndex:tabs.length, 0, {id:'employees', title:'Сотрудники'}); } return tabs; }
+function allowedMainTabs(){ return allMainTabs().filter(tab=>hasAccess(tab.id)); }
+function ensureAllowedTop(){ const allowed=allowedMainTabs().map(t=>t.id); if(!allowed.includes(state.activeTop)) state.activeTop = allowed.includes('home') ? 'home' : (allowed[0] || 'home'); }
+function showLogin(){
+  document.body.classList.add('login-mode');
+  document.title='Современник — вход';
+  document.querySelector('.brand').textContent='Современник';
+  document.querySelector('.kicker').textContent='Вход в сервис';
+  document.querySelector('.muted').textContent='Введите логин и пароль, чтобы открыть рабочие разделы.';
+  const userPanel=document.querySelector('#user-panel'); if(userPanel) userPanel.innerHTML='';
+  document.querySelector('.main-tabs').innerHTML='';
+  document.querySelector('#panels').innerHTML=`<section class="login-card"><h2>Вход для сотрудников</h2><p>После входа откроются разделы согласно вашей роли.</p><form class="login-form" id="login-form"><label>Логин<input name="login" type="text" autocomplete="username" required></label><label>Пароль<input name="password" type="password" autocomplete="current-password" required></label><button class="login-submit" type="submit">Войти</button><p class="login-error" id="login-error" aria-live="polite"></p></form><div class="login-note">Самостоятельная регистрация отключена. Новые аккаунты добавляет администратор в разделе «Сотрудники».</div></section>`;
+  document.querySelector('#login-form')?.addEventListener('submit', handleLogin);
+}
+function fetchJsonp(params){
+  if(!GOOGLE_SCRIPT_URL) return Promise.reject(new Error('Не указана ссылка Google Apps Script.'));
+  return new Promise((resolve, reject)=>{
+    const callbackName=`sovAuth_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const script=document.createElement('script');
+    const allParams={...params, callback: callbackName, _: Date.now()};
+    const query=Object.entries(allParams).filter(([,v])=>v!==undefined && v!==null).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+    const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
+    const timer=setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить ответ от сервера.')); }, 12000);
+    function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
+    window[callbackName]=(response)=>{ cleanup(); if(response && response.ok) resolve(response); else reject(new Error(response?.error || 'Сервер вернул ошибку.')); };
+    script.onerror=()=>{ cleanup(); reject(new Error('Не удалось подключиться к Google Apps Script.')); };
+    script.src=`${GOOGLE_SCRIPT_URL}${sep}${query}`;
+    document.body.appendChild(script);
+  });
+}
+async function handleLogin(event){
+  event.preventDefault();
+  const form=event.currentTarget;
+  const errorEl=document.querySelector('#login-error');
+  const login=(form.elements.login.value||'').trim();
+  const password=(form.elements.password.value||'').trim();
+  if(errorEl) errorEl.textContent='Проверяю данные…';
+  try {
+    const response=await fetchJsonp({ action:'login', login, password });
+    saveAuth({ token: response.token, user: response.user });
+    state.activeTop='home';
+    renderApp();
+  } catch(error){
+    if(errorEl) errorEl.textContent=error.message || 'Не удалось войти.';
+  }
+}
+function handleLogout(){ clearAuth(); state.controlRecords=null; state.revisionRecords=null; state.employees=null; showLogin(); }
 
 function esc(value) { return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
 function slugify(text) { const map={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}; return String(text).toLowerCase().split('').map(ch=>map[ch]??ch).join('').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
@@ -28,7 +97,18 @@ function renderTheoryTopPanel() { const lessons=state.menu.lessons||[]; const gr
 function renderMethodPanel(tab) { const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 function renderHomeCard(icon,title,text,target){ return `<article class="home-card"><div><div class="home-icon">${esc(icon)}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div><button type="button" data-top-jump="${esc(target)}">Открыть</button></article>`; }
-function renderHome() { return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${renderHomeCard('М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method')}${renderHomeCard('Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory')}${renderHomeCard('✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists')}${renderHomeCard('Р','Ревизии','Ежедневная ревизия кофе: вес бункера, вскрытые пачки и ответственный сотрудник.','revisions')}${renderHomeCard('ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards')}${renderHomeCard('К','Контроль','Общий журнал чек-листов и ревизий, отправленных сотрудниками со всех устройств.','control')}</div></section>`; }
+function renderHome(){
+  const cards=[
+    ['М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method'],
+    ['Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory'],
+    ['✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists'],
+    ['Р','Ревизии','Ежедневная ревизия кофе: вес бункера, вскрытые пачки и ответственный сотрудник.','revisions'],
+    ['ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards'],
+    ['С','Сотрудники','Аккаунты сотрудников, роли, логины и пароли. Доступно администратору.','employees'],
+    ['К','Контроль','Общий журнал чек-листов и ревизий, отправленных сотрудниками со всех устройств.','control']
+  ].filter(([, , , target])=>hasAccess(target));
+  return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${cards.map(c=>renderHomeCard(...c)).join('')}</div></section>`;
+}
 function renderMethod() { const tabs=state.menu.site.methodTabs||[]; if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
 
 function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
@@ -152,7 +232,8 @@ function fetchFromSheets(view){
     function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
     window[callbackName] = (response)=>{ cleanup(); if(response && response.ok){ resolve(response.rows || []); } else { reject(new Error(response?.error || 'Google Sheets вернул ошибку.')); } };
     script.onerror = ()=>{ cleanup(); reject(new Error('Не удалось подключиться к Google Sheets.')); };
-    script.src = `${GOOGLE_SCRIPT_URL}${sep}view=${encodeURIComponent(view)}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+    const tokenParam = getAuthToken() ? `&authToken=${encodeURIComponent(getAuthToken())}` : '';
+    script.src = `${GOOGLE_SCRIPT_URL}${sep}view=${encodeURIComponent(view)}&callback=${encodeURIComponent(callbackName)}${tokenParam}&_=${Date.now()}`;
     document.body.appendChild(script);
   });
 }
@@ -168,7 +249,7 @@ async function loadRevisionRecords(){
   catch(error) { console.warn(error); state.revisionError = error.message || 'Не удалось загрузить ревизии из Google Sheets.'; state.revisionRecords = getLocalRevisionRecords(); }
   finally { state.revisionLoading = false; refreshControl(); }
 }
-function sendPayloadToSheets(payload){ const body = new URLSearchParams({ payload: JSON.stringify(payload) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
+function sendPayloadToSheets(payload){ const withAuth={...payload, authToken:getAuthToken()}; const body = new URLSearchParams({ payload: JSON.stringify(withAuth) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
 function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<details class="control-details"><summary>Показать заполненный чек-лист</summary><ul>${tasks.map(t=>`<li class="${t.checked?'done':'not-done'}"><span>${t.checked?'✓':'—'}</span>${esc(t.text)}</li>`).join('')}</ul></details>`; }
 function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
 function renderControlRecordsTable(){
@@ -257,11 +338,108 @@ function renderTechCard(card) { return `<article class="tech-card" data-search="
 function renderTechDocument(doc) { const groups=categoryGroups(doc.cards||[]); return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(renderTechCard).join('')}</div></section>`).join('')}</section>`; }
 function renderTechCards() { const docs=state.menu.techCards||[]; return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
-function renderApp() { const {site}=state.menu; if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id; document.title=`${site.title} — база сотрудников`; document.querySelector('.brand').textContent=site.title; document.querySelector('.kicker').textContent=site.subtitle; document.querySelector('.muted').textContent=site.description; document.querySelector('.main-tabs').innerHTML=(site.mainTabs||[]).map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); document.querySelector('#panels').innerHTML=renderHome()+renderMethod()+renderTheoryTopPanel()+renderChecklists()+renderRevisions()+renderTechCards()+renderControl(); bindEvents(); }
-function setTop(target) { state.activeTop=target; document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target)); document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`)); history.replaceState(null,'',`#${target}`); window.scrollTo({top:0,behavior:'smooth'}); if(target==='control'){ loadControlRecords(); loadRevisionRecords(); } }
+
+
+function normalizeEmployee(row){ return { id: row.id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
+async function loadEmployees(){
+  if(!isAdmin()) return;
+  state.employeesLoading=true; state.employeesError=''; refreshEmployees();
+  try { state.employees=(await fetchFromSheets('employees')).map(normalizeEmployee); }
+  catch(error){ console.warn(error); state.employeesError=error.message || 'Не удалось загрузить сотрудников.'; state.employees=state.employees || []; }
+  finally { state.employeesLoading=false; refreshEmployees(); }
+}
+function renderEmployeesTable(){
+  if(!isAdmin()) return `<div class="empty-control"><h3>Нет доступа</h3><p>Раздел доступен только администратору.</p></div>`;
+  if(state.employeesLoading) return `<div class="empty-control"><h3>Загружаю сотрудников…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
+  const rows=state.employees || [];
+  if(!rows.length) return `<div class="empty-control"><h3>Список пока пуст</h3><p>После обновления Google Apps Script здесь появится стартовый аккаунт администратора.</p>${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}</div>`;
+  return `<div class="employee-table-wrap">${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}<table class="employee-table"><thead><tr><th>Имя</th><th>Роль</th><th>Логин</th><th>Пароль</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.name)}</td><td><span class="role-badge">${esc(roleLabel(e.role))}</span></td><td>${esc(e.login)}</td><td class="password-cell">${esc(e.password)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderEmployees(){
+  return `<section class="top-panel ${state.activeTop==='employees'?'active':''}" id="top-employees"><div class="section-heading"><p>Администрирование</p><h2>Сотрудники</h2></div><div class="employees-grid"><div class="employee-list-card"><div class="card-head"><h3>Список сотрудников</h3><span class="source-badge">аккаунты</span></div><div id="employees-table">${renderEmployeesTable()}</div></div><div class="employee-form-card"><div class="card-head"><h3>Добавить нового сотрудника</h3><span class="source-badge">admin</span></div><form class="employee-form" id="employee-form"><label>Имя<input name="name" type="text" placeholder="Например, Анна" required></label><label>Роль<select name="role" required><option value="barista">Бариста</option><option value="waiter">Официант</option><option value="admin">Администратор</option></select></label><label>Логин<input name="login" type="text" placeholder="anna" required></label><label>Пароль<input name="password" type="text" placeholder="например 1234" required></label><button class="employee-submit" type="submit">Добавить сотрудника</button><p class="submit-status employee-status" aria-live="polite"></p></form></div></div></section>`;
+}
+function refreshEmployees(){ const el=document.querySelector('#employees-table'); if(el) el.innerHTML=renderEmployeesTable(); }
+async function submitEmployeeForm(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Добавлять сотрудников может только администратор.');
+  const form=event.currentTarget; const status=form.querySelector('.employee-status');
+  const employee={ name:(form.elements.name.value||'').trim(), role:normalizeRole(form.elements.role.value), login:(form.elements.login.value||'').trim(), password:(form.elements.password.value||'').trim() };
+  if(!employee.name || !employee.login || !employee.password){ if(status){status.textContent='Заполните все поля.'; status.className='submit-status error';} return; }
+  if(status){ status.textContent='Сохраняю сотрудника…'; status.className='submit-status'; }
+  try { await sendPayloadToSheets({ payloadType:'employeeAdd', employee }); if(status){ status.textContent=''; } alert('Сотрудник добавлен'); form.reset(); await loadEmployees(); }
+  catch(error){ console.error(error); if(status){ status.textContent='Не удалось отправить данные.'; status.className='submit-status error'; } }
+}
+
+function renderApp(){
+  if(!isAuthenticated()) return showLogin();
+  document.body.classList.remove('login-mode');
+  const {site}=state.menu;
+  ensureAllowedTop();
+  if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id;
+  document.title=`${site.title} — база сотрудников`;
+  document.querySelector('.brand').textContent=site.title;
+  document.querySelector('.kicker').textContent=site.subtitle;
+  document.querySelector('.muted').textContent=site.description;
+  const user=currentUser();
+  const userPanel=document.querySelector('#user-panel');
+  if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
+  const tabs=allowedMainTabs();
+  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
+  document.querySelector('#panels').innerHTML=
+    renderHome()+
+    (hasAccess('method')?renderMethod():'')+
+    (hasAccess('theory')?renderTheoryTopPanel():'')+
+    (hasAccess('checklists')?renderChecklists():'')+
+    (hasAccess('revisions')?renderRevisions():'')+
+    (hasAccess('techcards')?renderTechCards():'')+
+    (hasAccess('employees')?renderEmployees():'')+
+    (hasAccess('control')?renderControl():'');
+  bindEvents();
+  if(state.activeTop==='employees' && !state.employees) loadEmployees();
+  if(state.activeTop==='control'){ loadControlRecords(); loadRevisionRecords(); }
+}
+function setTop(target){
+  if(!hasAccess(target)) target='home';
+  state.activeTop=target;
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target));
+  document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`));
+  history.replaceState(null,'',`#${target}`);
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(target==='control'){ loadControlRecords(); loadRevisionRecords(); }
+  if(target==='employees') loadEmployees();
+}
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
-function bindEvents() { document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget))); document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump))); document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); }); document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget))); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card')); bindSearch(document.querySelector('#top-theory'),'.lesson-card'); bindSearch(document.querySelector('#top-checklists'),'.doc-card'); bindSearch(document.querySelector('#top-techcards'),'.tech-card'); document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId))); document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision); document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual); document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv); document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords); document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv); document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords); }
+function bindEvents(){
+  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
+  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
+  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
+  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
+  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
+  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
+  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
+  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
+  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
+  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
+  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
+  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
+  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
+  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
+  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
+  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
+}
 function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
 async function loadMenu() { const embedded=readEmbeddedMenu(); if(location.protocol==='file:' && embedded) return embedded; try { const res=await fetch('data/menu.json',{cache:'no-cache'}); if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`); return await res.json(); } catch(error) { console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error); if(embedded) return embedded; throw error; } }
-async function init() { try { state.menu=await loadMenu(); const hash=location.hash.replace('#',''); if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top)) state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; } else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash)) { state.activeTop=hash; } renderApp(); } catch(error) { document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error); } }
+async function init(){
+  try {
+    state.menu=await loadMenu();
+    state.auth=readSavedAuth();
+    const hash=location.hash.replace('#','');
+    if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top) || top==='employees') state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; }
+    else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash) || hash==='employees') { state.activeTop=hash; }
+    renderApp();
+  } catch(error) {
+    document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error);
+  }
+}
 init();
