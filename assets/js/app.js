@@ -367,22 +367,41 @@ function renderTechCards() { const docs=state.menu.techCards||[]; return `<secti
 
 
 function normalizeEmployee(row){ return { id: row.id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
+function dedupeEmployees(rows){
+  const map=new Map();
+  (rows||[]).forEach(row=>{
+    const e=normalizeEmployee(row);
+    const key=(e.login||'').trim().toLowerCase();
+    if(!key) return;
+    if(!map.has(key)) map.set(key,e);
+  });
+  return Array.from(map.values());
+}
 async function loadEmployees(){
   if(!isAdmin()) return;
   state.employeesLoading=true; state.employeesError=''; refreshEmployees();
-  try { state.employees=(await fetchFromSheets('employees')).map(normalizeEmployee); }
+  try { state.employees=dedupeEmployees(await fetchFromSheets('employees')); }
   catch(error){ console.warn(error); state.employeesError=error.message || 'Не удалось загрузить сотрудников.'; state.employees=state.employees || []; }
   finally { state.employeesLoading=false; refreshEmployees(); }
+}
+function canDeleteEmployee(e){
+  if(!isAdmin()) return false;
+  const login=(e.login||'').trim().toLowerCase();
+  const current=(currentUser()?.login||'').trim().toLowerCase();
+  if(login && login===current) return false;
+  if(login===BUILTIN_ADMIN.login) return false;
+  return Boolean(login);
 }
 function renderEmployeesTable(){
   if(!isAdmin()) return `<div class="empty-control"><h3>Нет доступа</h3><p>Раздел доступен только администратору.</p></div>`;
   if(state.employeesLoading) return `<div class="empty-control"><h3>Загружаю сотрудников…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
-  const rows=state.employees || [];
+  const rows=dedupeEmployees(state.employees || []);
   if(!rows.length) return `<div class="empty-control"><h3>Список пока пуст</h3><p>После обновления Google Apps Script здесь появится стартовый аккаунт администратора.</p>${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}</div>`;
-  return `<div class="employee-table-wrap">${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}<table class="employee-table"><thead><tr><th>Имя</th><th>Роль</th><th>Логин</th><th>Пароль</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.name)}</td><td><span class="role-badge">${esc(roleLabel(e.role))}</span></td><td>${esc(e.login)}</td><td class="password-cell">${esc(e.password)}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="employee-table-wrap">${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}<table class="employee-table"><thead><tr><th>Имя</th><th>Роль</th><th>Логин</th><th>Пароль</th><th>Действие</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.name)}</td><td><span class="role-badge">${esc(roleLabel(e.role))}</span></td><td>${esc(e.login)}</td><td class="password-cell">${esc(e.password)}</td><td>${canDeleteEmployee(e)?`<button class="employee-delete" type="button" data-employee-delete="${esc(e.login)}">Удалить</button>`:`<span class="muted-action">—</span>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function renderEmployees(){
-  return `<section class="top-panel ${state.activeTop==='employees'?'active':''}" id="top-employees"><div class="section-heading"><p>Администрирование</p><h2>Сотрудники</h2></div><div class="employees-grid"><div class="employee-list-card"><div class="card-head"><h3>Список сотрудников</h3><span class="source-badge">аккаунты</span></div><div id="employees-table">${renderEmployeesTable()}</div></div><div class="employee-form-card"><div class="card-head"><h3>Добавить нового сотрудника</h3><span class="source-badge">admin</span></div><form class="employee-form" id="employee-form"><label>Имя<input name="name" type="text" placeholder="Например, Анна" required></label><label>Роль<select name="role" required><option value="barista">Бариста</option><option value="waiter">Официант</option><option value="admin">Администратор</option></select></label><label>Логин<input name="login" type="text" placeholder="anna" required></label><label>Пароль<input name="password" type="text" placeholder="например 1234" required></label><button class="employee-submit" type="submit">Добавить сотрудника</button><p class="submit-status employee-status" aria-live="polite"></p></form></div></div></section>`;
+  if(!isAdmin()) return '';
+  return `<section class="top-panel ${state.activeTop==='employees'?'active':''}" id="top-employees"><div class="section-heading"><p>Администрирование</p><h2>Сотрудники</h2></div><div class="employees-grid"><div class="employee-list-card"><div class="card-head"><h3>Список сотрудников</h3><span class="source-badge">аккаунты</span></div><p class="description">Это база аккаунтов сотрудников. Входы в систему здесь не фиксируются, каждый логин отображается один раз.</p><div id="employees-table">${renderEmployeesTable()}</div></div><div class="employee-form-card"><div class="card-head"><h3>Добавить нового сотрудника</h3><span class="source-badge">admin</span></div><form class="employee-form" id="employee-form"><label>Имя<input name="name" type="text" placeholder="Например, Анна" required></label><label>Роль<select name="role" required><option value="barista">Бариста</option><option value="waiter">Официант</option><option value="admin">Администратор</option></select></label><label>Логин<input name="login" type="text" placeholder="anna" required></label><label>Пароль<input name="password" type="text" placeholder="например 1234" required></label><button class="employee-submit" type="submit">Добавить сотрудника</button><p class="submit-status employee-status" aria-live="polite"></p></form></div></div></section>`;
 }
 function refreshEmployees(){ const el=document.querySelector('#employees-table'); if(el) el.innerHTML=renderEmployeesTable(); }
 async function submitEmployeeForm(event){
@@ -394,6 +413,15 @@ async function submitEmployeeForm(event){
   if(status){ status.textContent='Сохраняю сотрудника…'; status.className='submit-status'; }
   try { await sendPayloadToSheets({ payloadType:'employeeAdd', employee }); if(status){ status.textContent=''; } alert('Сотрудник добавлен'); form.reset(); await loadEmployees(); }
   catch(error){ console.error(error); if(status){ status.textContent='Не удалось отправить данные.'; status.className='submit-status error'; } }
+}
+async function deleteEmployee(login){
+  if(!isAdmin()) return alert('Удалять сотрудников может только администратор.');
+  const normalized=(login||'').trim();
+  if(!normalized) return;
+  if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');
+  if(!confirm(`Удалить аккаунт «${normalized}»?`)) return;
+  try { await sendPayloadToSheets({ payloadType:'employeeDelete', login: normalized }); alert('Аккаунт удален'); await loadEmployees(); }
+  catch(error){ console.error(error); alert('Не удалось удалить аккаунт. Проверьте Google Apps Script.'); }
 }
 
 function renderApp(){
@@ -449,6 +477,7 @@ function bindEvents(){
   document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
   document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
   document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
   document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
   document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
   document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);

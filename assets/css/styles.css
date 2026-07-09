@@ -206,3 +206,15 @@ tr:last-child td { border-bottom:0; }
 .role-badge { display:inline-flex; align-items:center; border-radius:999px; padding:6px 10px; background:#edf0df; color:var(--olive-dark); font-size:13px; font-weight:900; white-space:nowrap; }
 .password-cell { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 @media (max-width: 920px) { .employees-grid { grid-template-columns: 1fr; } }
+
+.employee-delete{
+  border:1px solid #c78f8f;
+  background:#fff4f1;
+  color:#8a2f2f;
+  border-radius:999px;
+  padding:8px 12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.employee-delete:hover{background:#ffe7df;}
+.muted-action{color:#9a907d;font-weight:700;}
