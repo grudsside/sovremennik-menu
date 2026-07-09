@@ -5,7 +5,16 @@ const AUTH_STORAGE_KEY = 'sovremennikAuthV1';
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
 const HOPPER_TARE_KG = 0.847;
 
-
+// Стартовый администратор нужен, чтобы можно было войти сразу после публикации сайта.
+// После обновления Google Apps Script этот же аккаунт будет также создан в листе «Сотрудники».
+const BUILTIN_ADMIN = { name: 'Григорий', role: 'admin', login: 'grigory', password: '0808' };
+const BUILTIN_ADMIN_TOKEN = 'builtin-admin-grigory-0808-v1';
+function isBuiltinAdminCredentials(login, password){
+  return String(login || '').trim().toLowerCase() === BUILTIN_ADMIN.login && String(password || '').trim() === BUILTIN_ADMIN.password;
+}
+function builtinAdminAuth(){
+  return { token: BUILTIN_ADMIN_TOKEN, user: { name: BUILTIN_ADMIN.name, role: BUILTIN_ADMIN.role, login: BUILTIN_ADMIN.login } };
+}
 
 const ROLE_LABELS = { admin: 'Администратор', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'бариста': 'Бариста', 'официант': 'Официант' };
 const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
@@ -62,6 +71,23 @@ async function handleLogin(event){
   const login=(form.elements.login.value||'').trim();
   const password=(form.elements.password.value||'').trim();
   if(errorEl) errorEl.textContent='Проверяю данные…';
+
+  // Гарантированный вход для стартового администратора.
+  // Сначала пробуем серверный вход, чтобы получить нормальный токен Google Apps Script.
+  // Если сервер еще не обновлен или временно недоступен, входим локально, чтобы сайт не блокировался.
+  if(isBuiltinAdminCredentials(login, password)){
+    try {
+      const response=await fetchJsonp({ action:'login', login, password });
+      saveAuth({ token: response.token, user: response.user });
+    } catch(error) {
+      console.warn('Серверный вход для стартового администратора не сработал, включен локальный вход:', error);
+      saveAuth(builtinAdminAuth());
+    }
+    state.activeTop='home';
+    renderApp();
+    return;
+  }
+
   try {
     const response=await fetchJsonp({ action:'login', login, password });
     saveAuth({ token: response.token, user: response.user });
