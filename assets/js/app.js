@@ -2,6 +2,7 @@ const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeContro
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV1';
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
+const HOPPER_TARE_KG = 0.847;
 
 function esc(value) { return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
 function slugify(text) { const map={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}; return String(text).toLowerCase().split('').map(ch=>map[ch]??ch).join('').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
@@ -71,6 +72,9 @@ function displayDateFromKey(key){
   return m ? `${m[3]}.${m[2]}.${m[1]}` : (key || '');
 }
 function valuePresent(value){ return value !== undefined && value !== null && String(value).trim() !== ''; }
+function numberValue(value){ if(value === undefined || value === null || String(value).trim() === '') return null; const n=Number(String(value).replace(',', '.').replace(/[^0-9.\-]/g,'')); return Number.isFinite(n) ? n : null; }
+function round3(value){ return Math.round(value * 1000) / 1000; }
+function round4(value){ return Math.round(value * 10000) / 10000; }
 function safeParseJson(value, fallback){ try { return typeof value === 'string' ? JSON.parse(value) : (value ?? fallback); } catch(e){ return fallback; } }
 function normalizeRemoteRecord(row){
   const tasks = safeParseJson(row.details, []);
@@ -109,7 +113,30 @@ function mergeRevisionRecordsByDate(records){
     for(const field of fields){ if(valuePresent(r[field])) current[field]=r[field]; }
     if(valuePresent(r.createdAt)) current.createdAt=r.createdAt;
   }
-  return Array.from(map.values()).sort((a,b)=>String(a.dateKey).localeCompare(String(b.dateKey)));
+  return enrichRevisionCalculations(Array.from(map.values()).sort((a,b)=>String(a.dateKey).localeCompare(String(b.dateKey))));
+}
+function enrichRevisionCalculations(records){
+  let previousClean = null;
+  return (records||[]).map(r=>{
+    const item={...r};
+    const scale=numberValue(item.hopperWeight);
+    const opened=numberValue(item.openedPacks);
+    const writeOffs=numberValue(item.writeOffs);
+    const sales=numberValue(item.iikoSales);
+    const clean=scale===null ? numberValue(item.cleanHopperWeight) : round3(Math.max(0, scale - HOPPER_TARE_KG));
+    if(clean!==null) item.cleanHopperWeight=String(clean);
+    let usage=null;
+    if(previousClean!==null && opened!==null && clean!==null) usage=round3(previousClean + opened - clean);
+    item.totalCoffeeUsage = usage===null ? '' : String(usage);
+    let difference=null;
+    if(usage!==null && sales!==null && writeOffs!==null) difference=round3(sales - writeOffs - usage);
+    item.difference = difference===null ? '' : String(difference);
+    let losses=null;
+    if(difference!==null && sales!==null && sales!==0) losses=round4(difference / sales);
+    item.losses = losses===null ? '' : String(losses);
+    if(clean!==null) previousClean=clean;
+    return item;
+  });
 }
 
 function fetchFromSheets(view){
@@ -166,13 +193,13 @@ function renderRevisionRecordsTable(){
     ['Общий расход кофе', r=>r.totalCoffeeUsage],
     ['Дата и время заполнения', r=>formatDateTime(r.createdAt)]
   ];
-  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Показатель</th>${cols.map(r=>`<th>${esc(r.date || displayDateFromKey(r.dateKey) || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="control-table-wrap">${state.revisionError?`<p class="control-error">${esc(state.revisionError)} Показана локальная резервная копия.</p>`:''}<table class="control-table revision-pivot"><thead><tr><th>Дата ревизии</th>${cols.map(r=>`<th>${esc(r.date || displayDateFromKey(r.dateKey) || formatDateOnly(r.createdAt))}</th>`).join('')}</tr></thead><tbody>${rows.map(([label,getter])=>`<tr><th>${esc(label)}</th>${cols.map(r=>`<td>${esc(getter(r) || '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function renderRevisionManualForm(){
   const today=new Date().toISOString().slice(0,10);
   return `<details class="revision-manual"><summary>Внести списания и продажи вручную</summary><form class="revision-form" id="revision-manual-form"><div class="form-grid"><label class="employee-field">Дата ревизии<input name="revisionDate" type="date" value="${today}" required></label><label class="employee-field">Списания, кг<input name="writeOffs" type="number" min="0" step="0.001" placeholder="Например, 0.180"></label><label class="employee-field">Продажи в iiko, кг<input name="iikoSales" type="number" min="0" step="0.001" placeholder="Например, 4.140"></label><label class="employee-field">Проверено<input name="checked" type="text" placeholder="Например, управляющий"></label></div><button class="submit-revision submit-revision-manual" type="submit">Сохранить данные</button><p class="submit-status revision-manual-status" aria-live="polite"></p></form></details>`;
 }
-function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств. Ревизии в эту таблицу не попадают.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе. Данные берутся из листа «Ревизия Кофе».</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div></section>`; }
+function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств. Ревизии в эту таблицу не попадают.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе. Данные сотрудника и ручные данные синхронизируются в одну колонку по дате ревизии.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div></section>`; }
 function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); }
 function setControlTab(target){ state.activeControl=target; document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target)); document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`)); if(target==='checklists') loadControlRecords(); if(target==='revisions') loadRevisionRecords(); }
 async function submitChecklist(docId){
