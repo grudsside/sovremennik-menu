@@ -247,3 +247,64 @@ tr:last-child td { border-bottom:0; }
 .schedule-event span{display:block;font-size:.78rem;line-height:1.25;}
 .schedule-event:has(strong){ }
 @media(max-width:620px){.home-tasks-card{padding:16px}.task-details>summary{align-items:flex-start}.status-pill{white-space:nowrap}.task-mini-meta{font-size:.8rem}}
+
+
+/* UI patch: fixed top navigation alignment, compact tabs, employee tab overflow, and schedule event colors */
+.main-tabs{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:8px !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+  margin:18px auto !important;
+  padding:10px !important;
+  border-radius:30px !important;
+  overflow:visible !important;
+}
+.main-tab{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  min-height:44px !important;
+  padding:0 16px !important;
+  border-radius:999px !important;
+  font-size:15px !important;
+  line-height:1 !important;
+  white-space:nowrap !important;
+  flex:0 0 auto !important;
+  max-width:100% !important;
+}
+.main-tabs .main-tab[data-top-target="employees"]{display:none !important;}
+.main-tabs .main-tab.admin-visible[data-top-target="employees"]{display:inline-flex !important;}
+.schedule-event--shift{
+  border-left-color:#6e8f58 !important;
+  background:#eef4e4 !important;
+}
+.schedule-event--event{
+  border-left-color:#b96f3c !important;
+  background:#fff1df !important;
+}
+.schedule-event--meeting{
+  border-left-color:#775ea8 !important;
+  background:#f0eafe !important;
+}
+.schedule-event--training{
+  border-left-color:#3d7a87 !important;
+  background:#e5f4f6 !important;
+}
+.schedule-event--event strong,.schedule-event--meeting strong,.schedule-event--training strong{color:#183b33;}
+@media(max-width:760px){
+  .main-tabs{
+    flex-wrap:nowrap !important;
+    justify-content:flex-start !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    border-radius:22px !important;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .main-tab{font-size:14px !important; min-height:42px !important; padding:0 14px !important;}
+}
