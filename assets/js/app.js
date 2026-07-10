@@ -286,7 +286,7 @@ function encodePayloadBase64(payload){
   }
   return btoa(unescape(encodeURIComponent(json)));
 }
-function sendPayloadToSheets(payload){ const withAuth={...payload, authToken:getAuthToken()}; const body = new URLSearchParams({ payloadB64: encodePayloadBase64(withAuth), payload: JSON.stringify(withAuth) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
+function sendPayloadToSheets(payload){ const withAuth={...payload, authToken:getAuthToken()}; const body = new URLSearchParams({ payloadB64: encodePayloadBase64(withAuth) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
 function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<details class="control-details"><summary>Показать заполненный чек-лист</summary><ul>${tasks.map(t=>`<li class="${t.checked?'done':'not-done'}"><span>${t.checked?'✓':'—'}</span>${esc(t.text)}</li>`).join('')}</ul></details>`; }
 function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
 function renderControlRecordsTable(){
