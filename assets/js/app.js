@@ -497,4 +497,289 @@ async function init(){
     document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error);
   }
 }
+
+/* --- v12: задачи, ошибки, расписание, обновленная главная --- */
+Object.assign(state, {
+  activeControl: state.activeControl || 'checklists',
+  tasks: null,
+  taskLoading: false,
+  taskError: '',
+  errorReports: null,
+  errorReportsLoading: false,
+  errorReportsError: '',
+  scheduleEvents: null,
+  scheduleLoading: false,
+  scheduleError: '',
+  scheduleMonth: new Date().toISOString().slice(0,7)
+});
+ACCESS_BY_ROLE.admin = ['home','method','theory','checklists','revisions','techcards','schedule','reportError','employees','control'];
+ACCESS_BY_ROLE.barista = ['home','method','theory','checklists','revisions','techcards','schedule','reportError'];
+ACCESS_BY_ROLE.waiter = ['home','method','theory','schedule','reportError'];
+
+const TASKS_STORAGE_KEY = 'sovremennikTasksV1';
+const ERROR_REPORTS_STORAGE_KEY = 'sovremennikErrorReportsV1';
+const SCHEDULE_STORAGE_KEY = 'sovremennikScheduleEventsV1';
+const TASK_ASSIGNEES_STORAGE_KEY = 'sovremennikTaskAssigneesV1';
+
+function allMainTabs(){
+  const base=(state.menu?.site?.mainTabs || []).slice();
+  const needed=[
+    {id:'schedule',title:'Расписание'},
+    {id:'reportError',title:'Сообщить об ошибке'},
+    {id:'employees',title:'Сотрудники'},
+    {id:'control',title:'Контроль'}
+  ];
+  needed.forEach(tab=>{ if(!base.some(t=>t.id===tab.id)){ const before=base.findIndex(t=>t.id==='control'); base.splice(before>=0?before:base.length,0,tab); } });
+  return base;
+}
+
+function getLocalArray(key){ try{return JSON.parse(localStorage.getItem(key)||'[]')||[]}catch(e){return[]} }
+function setLocalArray(key, rows){ try{localStorage.setItem(key, JSON.stringify(rows||[]));}catch(e){} }
+function getTasks(){ return Array.isArray(state.tasks) ? state.tasks : getLocalArray(TASKS_STORAGE_KEY); }
+function getErrorReports(){ return Array.isArray(state.errorReports) ? state.errorReports : getLocalArray(ERROR_REPORTS_STORAGE_KEY); }
+function getInitialScheduleEvents(){ return Array.isArray(state.menu?.scheduleEvents) ? state.menu.scheduleEvents : []; }
+function mergeById(rows){
+  const map=new Map();
+  (rows||[]).forEach(row=>{ if(row && row.id) map.set(row.id, row); });
+  return Array.from(map.values());
+}
+function getScheduleEvents(){ 
+  const dynamic = Array.isArray(state.scheduleEvents) ? state.scheduleEvents : getLocalArray(SCHEDULE_STORAGE_KEY);
+  return mergeById([...(getInitialScheduleEvents()||[]), ...(dynamic||[])]);
+}
+function getTaskAssignees(){
+  const rows = Array.isArray(state.taskAssignees) ? state.taskAssignees : getLocalArray(TASK_ASSIGNEES_STORAGE_KEY);
+  return rows && rows.length ? rows : dedupeEmployees(state.employees || []);
+}
+function normalizeTaskRow(row){ 
+  return { 
+    id: row.id || `task-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    createdAt: row.createdAt || new Date().toISOString(),
+    authorName: row.authorName || row.author || '',
+    assignee: row.assignee || row.to || row.assigneeName || '',
+    assigneeName: row.assigneeName || row.assignee || row.to || '',
+    assigneeLogin: row.assigneeLogin || row.login || '',
+    title: row.title || '',
+    description: row.description || '',
+    deadline: normalizeDateKey(row.deadline || ''),
+    status: row.status || 'Актуальная',
+    priority: row.priority || row.isVip || '',
+    completedAt: row.completedAt || '',
+    completedBy: row.completedBy || ''
+  };
+}
+function normalizeErrorRow(row){ return { id: row.id || `err-${Date.now()}-${Math.random().toString(16).slice(2)}`, createdAt: row.createdAt || new Date().toISOString(), date: row.date || '', time: row.time || '', employeeName: row.employeeName || row.authorName || '', text: row.text || row.message || '' }; }
+function normalizeScheduleRow(row){ return { id: row.id || `event-${Date.now()}-${Math.random().toString(16).slice(2)}`, eventDate: normalizeDateKey(row.eventDate || row.date || ''), createdAt: row.createdAt || new Date().toISOString(), type: row.type || 'Мероприятие', title: row.title || '', description: row.description || '', employeeName: row.employeeName || row.authorName || '' }; }
+async function loadTasks(){ state.taskLoading=true; state.taskError=''; refreshTasks(); try{ const rows=(await fetchFromSheets('tasks')).map(normalizeTaskRow); state.tasks=rows; setLocalArray(TASKS_STORAGE_KEY, rows); } catch(error){ console.warn(error); state.taskError=error.message||'Не удалось загрузить задачи.'; state.tasks=getLocalArray(TASKS_STORAGE_KEY); } finally{ state.taskLoading=false; refreshTasks(); } }
+async function loadTaskAssignees(){ 
+  try{ 
+    const rows=(await fetchFromSheets('employeeOptions')).map(normalizeEmployee);
+    state.taskAssignees=dedupeEmployees(rows);
+    setLocalArray(TASK_ASSIGNEES_STORAGE_KEY, state.taskAssignees);
+  } catch(error){ 
+    console.warn(error);
+    if(state.employees) state.taskAssignees=dedupeEmployees(state.employees);
+    else state.taskAssignees=getLocalArray(TASK_ASSIGNEES_STORAGE_KEY);
+  }
+  refreshTaskModalAssignees();
+}
+async function loadErrorReports(){ state.errorReportsLoading=true; state.errorReportsError=''; refreshControl(); try{ const rows=(await fetchFromSheets('errors')).map(normalizeErrorRow); state.errorReports=rows; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); } catch(error){ console.warn(error); state.errorReportsError=error.message||'Не удалось загрузить ошибки.'; state.errorReports=getLocalArray(ERROR_REPORTS_STORAGE_KEY); } finally{ state.errorReportsLoading=false; refreshControl(); } }
+async function loadScheduleEvents(){ state.scheduleLoading=true; state.scheduleError=''; refreshSchedule(); try{ const rows=(await fetchFromSheets('schedule')).map(normalizeScheduleRow); state.scheduleEvents=rows; setLocalArray(SCHEDULE_STORAGE_KEY, rows); } catch(error){ console.warn(error); state.scheduleError=error.message||'Не удалось загрузить расписание.'; state.scheduleEvents=getLocalArray(SCHEDULE_STORAGE_KEY); } finally{ state.scheduleLoading=false; refreshSchedule(); } }
+function canSeeTask(task){
+  if(isAdmin()) return true;
+  const user=currentUser()||{};
+  const userLogin=String(user.login||'').trim().toLowerCase();
+  const userName=String(user.name||'').trim().toLowerCase();
+  const assigneeLogin=String(task.assigneeLogin||'').trim().toLowerCase();
+  const assigneeName=String(task.assigneeName||task.assignee||'').trim().toLowerCase();
+  return (assigneeLogin && assigneeLogin===userLogin) || (assigneeName && assigneeName===userName);
+}
+function isVipTask(task){ const p=String(task.priority||'').toLowerCase(); return p==='vip' || p==='true' || p==='да' || p==='1'; }
+function canCompleteTask(task){ return isAdmin() || canSeeTask(task); }
+function activeTasks(){ 
+  return getTasks()
+    .map(normalizeTaskRow)
+    .filter(t => (String(t.status||'').toLowerCase() !== 'выполнена' && String(t.status||'').toLowerCase() !== 'done' && String(t.status||'').toLowerCase() !== 'completed'))
+    .filter(canSeeTask)
+    .sort((a,b)=>{
+      const vipDiff = (isVipTask(b)?1:0) - (isVipTask(a)?1:0);
+      if(vipDiff) return vipDiff;
+      const ad=a.deadline||'9999-12-31', bd=b.deadline||'9999-12-31';
+      return ad.localeCompare(bd) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));
+    }); 
+}
+function renderTaskItem(task){ 
+  const vip=isVipTask(task);
+  const deadline=task.deadline ? `до ${esc(displayDateFromKey(task.deadline))}` : 'без срока';
+  const assignedTo=task.assigneeName || task.assignee || task.assigneeLogin || 'не указано';
+  return `<article class="task-item task-compact ${vip?'vip':''}" data-task-id="${esc(task.id)}">
+    <details class="task-details">
+      <summary>
+        <span class="task-main">
+          <span class="task-title">${esc(task.title||'Задача')}</span>
+          <span class="task-mini-meta">${vip?'<b class="vip-mark">VIP</b>':''}<span>${esc(deadline)}</span><span>кому: ${esc(assignedTo)}</span></span>
+        </span>
+        <span class="status-pill">${esc(task.status||'Актуальная')}</span>
+      </summary>
+      ${task.description?`<p class="description">${esc(task.description)}</p>`:''}
+      <div class="task-meta"><span>Поставил: ${esc(task.authorName||'—')}</span><span>Создано: ${esc(formatDateTime(task.createdAt))}</span></div>
+      ${canCompleteTask(task)?`<button class="small-action task-complete" type="button" data-task-complete="${esc(task.id)}">Завершить задачу</button>`:''}
+    </details>
+  </article>`; 
+}
+function renderTasksList(){ 
+  if(state.taskLoading) return `<div class="task-empty">Загружаю задачи…</div>`; 
+  const tasks=activeTasks(); 
+  if(!tasks.length) return `<div class="task-empty">Актуальных задач для вас пока нет.</div>${state.taskError?`<p class="employees-error">${esc(state.taskError)}</p>`:''}`; 
+  return `<div class="task-list compact">${tasks.map(renderTaskItem).join('')}</div>${state.taskError?`<p class="employees-error">${esc(state.taskError)}</p>`:''}`; 
+}
+function employeeOptionsSelect(selected=''){ 
+  const rows=dedupeEmployees(getTaskAssignees()).filter(e=>e.login && e.name);
+  const options=rows.map(e=>`<option value="${esc(e.login)}" ${String(selected)===String(e.login)?'selected':''}>${esc(e.name)} · ${esc(roleLabel(e.role))}</option>`).join('');
+  return `<select name="assigneeLogin" required><option value="">Выберите сотрудника</option>${options}</select>`;
+}
+function refreshTaskModalAssignees(){
+  const wrap=document.querySelector('#task-assignee-select-wrap');
+  if(wrap) wrap.innerHTML=employeeOptionsSelect();
+}
+function employeeOptionsDatalist(){ const rows=dedupeEmployees(state.employees || []); return `<datalist id="employees-datalist">${rows.map(e=>`<option value="${esc(e.name || e.login)}"></option>`).join('')}</datalist>`; }
+function renderTaskModal(){ 
+  const user=currentUser(); 
+  return `<div class="task-modal" id="task-modal" aria-hidden="true"><div class="task-form-card"><div class="card-head"><h3>Поставить задачу</h3><button class="small-action secondary" type="button" data-close-task-modal>Закрыть</button></div><form id="task-form"><div class="form-grid"><label>Название задачи<input name="title" type="text" required placeholder="Например, проверить витрину"></label><label>Кому поставить задачу<span id="task-assignee-select-wrap">${employeeOptionsSelect()}</span></label><label>Дедлайн<input name="deadline" type="date"></label><label>Поставил<input name="authorName" type="text" value="${esc(user?.name||'')}" required></label></div><label>Описание<textarea name="description" rows="4" placeholder="Что нужно сделать и на что обратить внимание"></textarea></label><label class="vip-checkbox"><input name="isVip" type="checkbox"> <span>VIP-приоритет: сделать как можно скорее</span></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-close-task-modal>Отмена</button><button class="small-action" type="submit">Поставить задачу</button></div><p class="submit-status task-status" aria-live="polite"></p></form></div></div>`; 
+}
+function renderHome(){ return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`; }
+function refreshTasks(){ const el=document.querySelector('#tasks-list'); if(el) el.innerHTML=renderTasksList(); }
+function openTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); } loadTaskAssignees(); }
+function closeTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); } }
+async function submitTask(event){ 
+  event.preventDefault(); 
+  const form=event.currentTarget; 
+  const status=form.querySelector('.task-status'); 
+  const assigneeLogin=(form.elements.assigneeLogin.value||'').trim();
+  const assigneeRow=dedupeEmployees(getTaskAssignees()).find(e=>String(e.login||'')===assigneeLogin);
+  const task={ 
+    id:`task-${Date.now()}-${Math.random().toString(16).slice(2)}`, 
+    title:(form.elements.title.value||'').trim(), 
+    description:(form.elements.description.value||'').trim(), 
+    assigneeLogin,
+    assigneeName: assigneeRow?.name || '',
+    assignee: assigneeRow?.name || assigneeLogin,
+    deadline:normalizeDateKey(form.elements.deadline.value||''), 
+    authorName:(form.elements.authorName.value||currentUserName()||'').trim(), 
+    status:'Актуальная', 
+    priority: form.elements.isVip.checked ? 'VIP' : '',
+    createdAt:new Date().toISOString() 
+  }; 
+  if(!task.title || !task.assigneeLogin || !task.authorName){ if(status){status.textContent='Заполните название, сотрудника и автора.'; status.className='submit-status error';} return; } 
+  try{ 
+    await sendPayloadToSheets({payloadType:'taskAdd', ...task}); 
+    const rows=[task,...getLocalArray(TASKS_STORAGE_KEY)]; 
+    setLocalArray(TASKS_STORAGE_KEY, rows); state.tasks=rows; refreshTasks(); 
+    if(status) status.textContent=''; alert('Отлично! Задача поставлена'); 
+    form.reset(); form.elements.authorName.value=currentUserName()||''; closeTaskModal(); loadTasks(); 
+  } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить задачу.'; status.className='submit-status error';} } 
+}
+async function completeTask(taskId){
+  const task=getTasks().find(t=>String(t.id)===String(taskId));
+  if(!task) return;
+  if(!confirm(`Завершить задачу «${task.title || 'Задача'}»?`)) return;
+  try{
+    await sendPayloadToSheets({payloadType:'taskComplete', taskId, completedBy: currentUserName()||''});
+    const rows=getTasks().map(t=>String(t.id)===String(taskId)?{...t,status:'Выполнена',completedAt:new Date().toISOString(),completedBy:currentUserName()||''}:t);
+    setLocalArray(TASKS_STORAGE_KEY, rows); state.tasks=rows; refreshTasks(); loadTasks();
+  }catch(error){ console.error(error); alert('Не удалось завершить задачу.'); }
+}
+function renderReportError(){ return `<section class="top-panel ${state.activeTop==='reportError'?'active':''}" id="top-reportError"><div class="section-heading"><p>Обратная связь</p><h2>Сообщить об ошибке</h2></div><div class="report-layout"><div class="report-card"><p class="description">Напишите, что не работает или что нужно исправить в методичке, чек-листах, техкартах или сервисе.</p><form class="report-form" id="error-report-form"><label>Описание ошибки<textarea name="text" required placeholder="Например: в карточке Айс латте неверный состав…"></textarea></label><button class="small-action" type="submit">Отправить</button><p class="submit-status error-report-status" aria-live="polite"></p></form></div></div></section>`; }
+async function submitErrorReport(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
+function renderErrorReportsTable(){ const rows=getErrorReports(); if(state.errorReportsLoading) return `<div class="empty-control"><h3>Загружаю ошибки…</h3><p>Подключаюсь к Google Sheets.</p></div>`; if(!rows.length) return `<div class="empty-control"><h3>Ошибок пока нет</h3><p>Сообщения сотрудников появятся здесь.</p>${state.errorReportsError?`<p class="employees-error">${esc(state.errorReportsError)}</p>`:''}</div>`; return `<div class="employee-table-wrap"><table class="employee-table errors-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Сообщение</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(formatDateTime(r.createdAt)||[r.date,r.time].filter(Boolean).join(' '))}</td><td>${esc(r.employeeName||'—')}</td><td class="error-text">${esc(r.text||'')}</td></tr>`).join('')}</tbody></table></div>`; }
+
+function monthTitle(ym){ const d=new Date(`${ym}-01T00:00:00`); return d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}); }
+function shiftMonth(delta){ const [y,m]=state.scheduleMonth.split('-').map(Number); const d=new Date(y, m-1+delta, 1); state.scheduleMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; refreshSchedule(); }
+function eventsForDate(dateKey){ return getScheduleEvents().filter(e=>normalizeDateKey(e.eventDate)===dateKey); }
+function renderScheduleGrid(){ const [year,month]=state.scheduleMonth.split('-').map(Number); const first=new Date(year,month-1,1); const start=new Date(first); const day=(first.getDay()+6)%7; start.setDate(first.getDate()-day); const days=[]; for(let i=0;i<42;i++){ const d=new Date(start); d.setDate(start.getDate()+i); const key=d.toISOString().slice(0,10); const muted=d.getMonth()!==month-1; days.push({key,day:d.getDate(),muted,events:eventsForDate(key)}); } const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс']; return `<div class="schedule-grid">${weekdays.map(w=>`<div class="schedule-weekday">${w}</div>`).join('')}${days.map(day=>`<div class="schedule-day ${day.muted?'muted':''}"><div class="schedule-date">${day.day}</div><div class="schedule-events">${day.events.map(ev=>`<div class="schedule-event"><strong>${esc(ev.title||ev.type)}</strong><span>${esc(ev.type||'Мероприятие')}${ev.employeeName?` · ${esc(ev.employeeName)}`:''}</span>${ev.description?`<span>${esc(ev.description)}</span>`:''}</div>`).join('')}</div></div>`).join('')}</div>`; }
+function renderSchedule(){ const today=new Date().toISOString().slice(0,10); return `<section class="top-panel ${state.activeTop==='schedule'?'active':''}" id="top-schedule"><div class="section-heading"><p>График</p><h2>Расписание</h2></div><div class="schedule-card"><div class="schedule-toolbar"><div class="schedule-month-nav"><button class="small-action secondary" type="button" data-schedule-prev>←</button><div class="schedule-month-title">${esc(monthTitle(state.scheduleMonth))}</div><button class="small-action secondary" type="button" data-schedule-next>→</button></div><button class="small-action" type="button" data-toggle-schedule-form>Добавить мероприятие</button></div><div id="schedule-grid-wrap">${renderScheduleGrid()}</div><details class="schedule-form-wrap" id="schedule-form-wrap"><summary>Форма добавления мероприятия</summary><form class="schedule-event-form" id="schedule-event-form"><div class="form-grid"><label>Дата<input name="eventDate" type="date" value="${today}" required></label><label>Тип<select name="type"><option>Мероприятие</option><option>Смена</option><option>Обучение</option><option>Собрание</option></select></label><label>Название<input name="title" type="text" required placeholder="Например, смена Анны"></label><label>Добавил<input name="employeeName" type="text" value="${esc(currentUserName())}" required></label></div><label>Описание<textarea name="description" rows="3" placeholder="Время, участники, детали"></textarea></label><button class="small-action" type="submit">Добавить</button><p class="submit-status schedule-status" aria-live="polite"></p></form></details>${state.scheduleError?`<p class="employees-error">${esc(state.scheduleError)}</p>`:''}</div></section>`; }
+function refreshSchedule(){ const wrap=document.querySelector('#schedule-grid-wrap'); if(wrap) wrap.innerHTML=renderScheduleGrid(); const title=document.querySelector('.schedule-month-title'); if(title) title.textContent=monthTitle(state.scheduleMonth); }
+async function submitScheduleEvent(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.schedule-status'); const record={ id:`event-${Date.now()}-${Math.random().toString(16).slice(2)}`, eventDate:normalizeDateKey(form.elements.eventDate.value), type:(form.elements.type.value||'Мероприятие').trim(), title:(form.elements.title.value||'').trim(), description:(form.elements.description.value||'').trim(), employeeName:(form.elements.employeeName.value||currentUserName()||'').trim(), createdAt:new Date().toISOString() }; if(!record.eventDate || !record.title){ if(status){status.textContent='Заполните дату и название.'; status.className='submit-status error';} return; } try{ await sendPayloadToSheets({payloadType:'scheduleAdd', ...record}); const rows=[record,...getLocalArray(SCHEDULE_STORAGE_KEY)]; setLocalArray(SCHEDULE_STORAGE_KEY, rows); state.scheduleEvents=rows; refreshSchedule(); if(status) status.textContent=''; alert('Отлично! Мероприятие добавлено'); form.reset(); form.elements.eventDate.value=new Date().toISOString().slice(0,10); form.elements.employeeName.value=currentUserName()||''; loadScheduleEvents(); }catch(error){ console.error(error); if(status){status.textContent='Не удалось добавить мероприятие.'; status.className='submit-status error';} } }
+
+function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button><button class="subtab ${state.activeControl==='errors'?'active':''}" data-control-target="errors" type="button">Ошибки</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='errors'?'active':''}" id="control-errors"><div class="control-note"><p>Здесь отображаются сообщения сотрудников об ошибках.</p><div class="doc-actions"><button type="button" class="refresh-errors">Обновить данные</button></div></div><div id="error-records">${renderErrorReportsTable()}</div></div></section>`; }
+function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); const err=document.querySelector('#error-records'); if(err) err.innerHTML=renderErrorReportsTable(); }
+function setControlTab(target){ state.activeControl=target; document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target)); document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`)); if(target==='checklists') loadControlRecords(); if(target==='revisions') loadRevisionRecords(); if(target==='errors') loadErrorReports(); }
+
+function renderApp(){
+  if(!isAuthenticated()) return showLogin();
+  document.body.classList.remove('login-mode');
+  const {site}=state.menu;
+  ensureAllowedTop();
+  if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id;
+  document.title=`${site.title} — база сотрудников`;
+  document.querySelector('.brand').textContent=site.title;
+  document.querySelector('.kicker').textContent=site.subtitle;
+  document.querySelector('.muted').textContent=site.description;
+  const user=currentUser();
+  const userPanel=document.querySelector('#user-panel');
+  if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
+  const tabs=allowedMainTabs();
+  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''} ${tab.id==='employees'&&isAdmin()?'admin-visible':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
+  document.querySelector('#panels').innerHTML=
+    renderHome()+
+    (hasAccess('method')?renderMethod():'')+
+    (hasAccess('theory')?renderTheoryTopPanel():'')+
+    (hasAccess('checklists')?renderChecklists():'')+
+    (hasAccess('revisions')?renderRevisions():'')+
+    (hasAccess('techcards')?renderTechCards():'')+
+    (hasAccess('schedule')?renderSchedule():'')+
+    (hasAccess('reportError')?renderReportError():'')+
+    (hasAccess('employees')?renderEmployees():'')+
+    (hasAccess('control')?renderControl():'');
+  bindEvents();
+  if(!state.tasks) loadTasks();
+  if(!state.taskAssignees) loadTaskAssignees();
+  if(isAdmin() && !state.employees) loadEmployees();
+  if(state.activeTop==='schedule' && !state.scheduleEvents) loadScheduleEvents();
+  if(state.activeTop==='employees' && !state.employees) loadEmployees();
+  if(state.activeTop==='control'){ loadControlRecords(); loadRevisionRecords(); if(state.activeControl==='errors') loadErrorReports(); }
+}
+function setTop(target){
+  if(!hasAccess(target)) target='home';
+  state.activeTop=target;
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target));
+  document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`));
+  history.replaceState(null,'',`#${target}`);
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(target==='home'){ loadTasks(); if(!state.taskAssignees) loadTaskAssignees(); }
+  if(target==='schedule') loadScheduleEvents();
+  if(target==='control'){ loadControlRecords(); loadRevisionRecords(); if(state.activeControl==='errors') loadErrorReports(); }
+  if(target==='employees') loadEmployees();
+}
+function bindEvents(){
+  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
+  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
+  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
+  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
+  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
+  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
+  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
+  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
+  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
+  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
+  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
+  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
+  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
+  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
+  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
+  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
+  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
+  document.querySelector('.refresh-errors')?.addEventListener('click',loadErrorReports);
+  document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
+  document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
+  document.querySelector('#task-form')?.addEventListener('submit',submitTask);
+  document.querySelectorAll('[data-task-complete]').forEach(btn=>btn.addEventListener('click',()=>completeTask(btn.dataset.taskComplete)));
+  document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
+  document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
+  document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
+  document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
+  document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
+}
+
 init();

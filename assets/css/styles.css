@@ -218,3 +218,32 @@ tr:last-child td { border-bottom:0; }
 }
 .employee-delete:hover{background:#ffe7df;}
 .muted-action{color:#9a907d;font-weight:700;}
+
+
+/* --- v12: главная страница, задачи, ошибки, расписание --- */
+.home-dashboard{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:18px;align-items:start}.home-tasks-card,.quick-action-card,.report-card,.schedule-card,.task-form-card{background:rgba(255,252,244,.92);border:1px solid rgba(150,138,98,.28);border-radius:24px;padding:22px;box-shadow:0 12px 30px rgba(54,70,40,.08)}.home-tasks-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.home-tasks-head h2,.quick-action-card h3,.report-card h2,.schedule-card h2{margin:0;color:#183b33}.small-action{border:0;border-radius:999px;background:#476d3b;color:white;padding:10px 16px;font-weight:700;cursor:pointer;box-shadow:0 8px 18px rgba(71,109,59,.22)}.small-action.secondary{background:#efe9d4;color:#2d4b38;border:1px solid #d9ceb2}.task-list{display:grid;gap:10px}.task-item{border:1px solid rgba(150,138,98,.22);border-radius:18px;background:#fff;padding:14px;display:grid;gap:8px}.task-item header{display:flex;gap:10px;justify-content:space-between;align-items:start}.task-title{font-weight:800;color:#183b33}.task-meta{font-size:.88rem;color:#657165;display:flex;gap:8px;flex-wrap:wrap}.task-deadline{background:#edf3df;color:#37542f;border-radius:999px;padding:3px 9px;font-weight:700}.task-empty,.schedule-empty,.errors-empty{padding:18px;border:1px dashed #cbbf9f;border-radius:18px;color:#637060;background:#fffdf5}.task-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(17,30,25,.48);z-index:1000}.task-modal.open{display:flex}.task-form-card{width:min(620px,100%);max-height:92vh;overflow:auto}.task-form-card form,.report-form,.schedule-event-form{display:grid;gap:12px}.task-form-card label,.report-form label,.schedule-event-form label{display:grid;gap:6px;font-weight:700;color:#244236}.task-form-card input,.task-form-card textarea,.report-form textarea,.schedule-event-form input,.schedule-event-form textarea,.schedule-event-form select{border:1px solid #d4c8a8;border-radius:14px;padding:12px;background:#fff;color:#183b33;font:inherit}.task-form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}.report-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}.report-card textarea{min-height:180px;resize:vertical}.control-subtabs .subtab{white-space:nowrap}.errors-table .error-text{max-width:520px;white-space:pre-wrap}.schedule-toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:16px}.schedule-month-nav{display:flex;gap:8px;align-items:center}.schedule-month-title{font-weight:900;color:#183b33;font-size:1.15rem;min-width:170px;text-align:center}.schedule-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.schedule-weekday{font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:#657165;font-weight:800;text-align:center}.schedule-day{min-height:120px;border:1px solid rgba(150,138,98,.22);border-radius:18px;background:#fffdf8;padding:10px;display:grid;align-content:start;gap:8px}.schedule-day.muted{opacity:.45}.schedule-date{font-weight:900;color:#183b33}.schedule-events{display:grid;gap:6px}.schedule-event{border-left:4px solid #6e8f58;background:#eef4e4;border-radius:12px;padding:7px 8px;font-size:.86rem}.schedule-event strong{display:block;color:#183b33}.schedule-event span{color:#5f6b5d}.schedule-form-wrap{margin-top:18px}.schedule-event-form .form-grid,.task-form-card .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.schedule-list{display:grid;gap:10px}.task-status-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.status-pill{border-radius:999px;background:#f1ead4;color:#35513b;padding:3px 9px;font-weight:800;font-size:.82rem}.main-tabs{position:sticky;top:0;z-index:20;background:rgba(250,247,235,.88);backdrop-filter:blur(10px);padding-block:8px}.main-tabs .main-tab[data-top-target="employees"]{display:none}.main-tabs .main-tab.admin-visible[data-top-target="employees"]{display:inline-flex}@media(max-width:850px){.home-dashboard{grid-template-columns:1fr}.schedule-grid{grid-template-columns:1fr}.schedule-weekday{display:none}.schedule-day{min-height:auto}.schedule-event-form .form-grid,.task-form-card .form-grid{grid-template-columns:1fr}.home-tasks-head{display:grid}.task-form-actions{justify-content:stretch}.task-form-actions button{flex:1}}
+
+/* --- v13: компактные задачи, VIP и расписание из графика --- */
+.home-dashboard.single{grid-template-columns:minmax(0,1fr);max-width:980px;margin:0 auto;}
+.home-tasks-head.compact{align-items:center;}
+.compact-action{padding:8px 13px;font-size:.92rem;}
+.task-list.compact{gap:8px;}
+.task-item.task-compact{padding:0;border-radius:18px;overflow:hidden;background:#fffdf8;}
+.task-item.task-compact.vip{border-color:#d58b8b;background:#fff6f3;box-shadow:0 10px 26px rgba(148,50,50,.12);}
+.task-details>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 14px;}
+.task-details>summary::-webkit-details-marker{display:none;}
+.task-main{display:grid;gap:4px;min-width:0;}
+.task-title{font-size:1rem;line-height:1.2;}
+.task-mini-meta{display:flex;gap:8px;flex-wrap:wrap;color:#68725f;font-size:.84rem;align-items:center;}
+.vip-mark{background:#cc3f3f;color:#fff;border-radius:999px;padding:2px 8px;font-size:.75rem;letter-spacing:.04em;}
+.task-details .description{padding:0 14px;margin:0 0 10px;}
+.task-details .task-meta{padding:0 14px 10px;}
+.task-complete{margin:0 14px 14px;background:#4b6f38;}
+.vip-checkbox{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;gap:10px!important;background:#fff6f3;border:1px solid #e4b3a8;border-radius:14px;padding:10px 12px;color:#7b2c2c!important;}
+.vip-checkbox input{width:auto!important;}
+#task-assignee-select-wrap select{width:100%;border:1px solid #d4c8a8;border-radius:14px;padding:12px;background:#fff;color:#183b33;font:inherit;}
+.schedule-event{word-break:break-word;}
+.schedule-event strong{font-size:.86rem;line-height:1.25;}
+.schedule-event span{display:block;font-size:.78rem;line-height:1.25;}
+.schedule-event:has(strong){ }
+@media(max-width:620px){.home-tasks-card{padding:16px}.task-details>summary{align-items:flex-start}.status-pill{white-space:nowrap}.task-mini-meta{font-size:.8rem}}
