@@ -1,14 +1,36 @@
 const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, employees: null, employeesLoading: false, employeesError: '', controlLoading: false, revisionLoading: false, controlError: '', revisionError: '', auth: null };
-const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
-const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV1';
-const AUTH_STORAGE_KEY = 'sovremennikAuthV1';
+const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV2Clean';
+const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV2Clean';
+const AUTH_STORAGE_KEY = 'sovremennikAuthV2Clean';
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLDP8550gbspjAY7nauxhr7HVMbQXebu6cJFnvbz9HO0AbkXchWI3wAIXdA5EnBwcVFA/exec';
 const HOPPER_TARE_KG = 0.847;
+
+const CLEAN_CACHE_VERSION = '2026-07-10-utf8-safe-v2';
+function cleanupOldClientCache(){
+  try {
+    const versionKey = 'sovremennikClientCacheVersion';
+    if (localStorage.getItem(versionKey) !== CLEAN_CACHE_VERSION) {
+      [
+        'sovremennikChecklistControlV1',
+        'sovremennikCoffeeRevisionV1',
+        'sovremennikTasksV1',
+        'sovremennikErrorReportsV1',
+        'sovremennikScheduleEventsV1',
+        'sovremennikTaskAssigneesV1',
+        'sovremennikAuthV1'
+      ].forEach(key => localStorage.removeItem(key));
+      localStorage.setItem(versionKey, CLEAN_CACHE_VERSION);
+    }
+  } catch (error) {
+    console.warn('Cache cleanup skipped', error);
+  }
+}
+cleanupOldClientCache();
 
 // Стартовый администратор нужен, чтобы можно было войти сразу после публикации сайта.
 // После обновления Google Apps Script этот же аккаунт будет также создан в листе «Сотрудники».
 const BUILTIN_ADMIN = { name: 'Григорий', role: 'admin', login: 'grigory', password: '0808' };
-const BUILTIN_ADMIN_TOKEN = 'builtin-admin-grigory-0808-v1';
+const BUILTIN_ADMIN_TOKEN = 'builtin-admin-grigory-0808-v2';
 function isBuiltinAdminCredentials(login, password){
   return String(login || '').trim().toLowerCase() === BUILTIN_ADMIN.login && String(password || '').trim() === BUILTIN_ADMIN.password;
 }
@@ -53,6 +75,7 @@ function fetchJsonp(params){
   return new Promise((resolve, reject)=>{
     const callbackName=`sovAuth_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const script=document.createElement('script');
+    script.charset='UTF-8';
     const allParams={...params, callback: callbackName, _: Date.now()};
     const query=Object.entries(allParams).filter(([,v])=>v!==undefined && v!==null).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
     const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
@@ -253,6 +276,7 @@ function fetchFromSheets(view){
   return new Promise((resolve, reject)=>{
     const callbackName = `sovremennikCallback_${view}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const script = document.createElement('script');
+    script.charset='UTF-8';
     const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
     const timer = setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить данные: превышено время ожидания.')); }, 12000);
     function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
@@ -527,10 +551,10 @@ ACCESS_BY_ROLE.admin = ['home','method','theory','checklists','revisions','techc
 ACCESS_BY_ROLE.barista = ['home','method','theory','checklists','revisions','techcards','schedule','reportError'];
 ACCESS_BY_ROLE.waiter = ['home','method','theory','schedule','reportError'];
 
-const TASKS_STORAGE_KEY = 'sovremennikTasksV1';
-const ERROR_REPORTS_STORAGE_KEY = 'sovremennikErrorReportsV1';
-const SCHEDULE_STORAGE_KEY = 'sovremennikScheduleEventsV1';
-const TASK_ASSIGNEES_STORAGE_KEY = 'sovremennikTaskAssigneesV1';
+const TASKS_STORAGE_KEY = 'sovremennikTasksV2Clean';
+const ERROR_REPORTS_STORAGE_KEY = 'sovremennikErrorReportsV2Clean';
+const SCHEDULE_STORAGE_KEY = 'sovremennikScheduleEventsV2Clean';
+const TASK_ASSIGNEES_STORAGE_KEY = 'sovremennikTaskAssigneesV2Clean';
 
 function allMainTabs(){
   const base=(state.menu?.site?.mainTabs || []).slice();
