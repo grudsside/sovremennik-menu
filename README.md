@@ -87,3 +87,8 @@ google_apps_script_code.js
 - кнопка «Сообщить об ошибке» оставлена только в верхнем меню.
 
 После загрузки файлов нужно обновить Google Apps Script кодом из `google_apps_script_code.js` и сделать новый деплой.
+
+
+## Чистая база Google Sheets
+
+Сайт подключен к новой Apps Script-ссылке. Для запуска замените код Apps Script на `google_apps_script_code.js`, запустите `setupDatabase`, затем сделайте новый деплой.

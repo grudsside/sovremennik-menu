@@ -2,7 +2,7 @@ const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeContro
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV1';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV1';
 const AUTH_STORAGE_KEY = 'sovremennikAuthV1';
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsT5RXCzV6GVjpYU0DFDMWmM4vQR5t03JumsOb-hdNhtaWL7e6K4G2C9XE1cFYy-nM/exec';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLDP8550gbspjAY7nauxhr7HVMbQXebu6cJFnvbz9HO0AbkXchWI3wAIXdA5EnBwcVFA/exec';
 const HOPPER_TARE_KG = 0.847;
 
 // Стартовый администратор нужен, чтобы можно было войти сразу после публикации сайта.
@@ -19,9 +19,9 @@ function builtinAdminAuth(){
 const ROLE_LABELS = { admin: 'Администратор', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'бариста': 'Бариста', 'официант': 'Официант' };
 const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
 const ACCESS_BY_ROLE = {
-  admin: ['home','method','theory','checklists','revisions','techcards','employees','control'],
-  barista: ['home','method','theory','checklists','revisions','techcards'],
-  waiter: ['home','method','theory']
+  admin: ['home','method','theory','checklists','revisions','techcards','schedule','reportError','employees','control'],
+  barista: ['home','method','theory','checklists','revisions','techcards','schedule','reportError'],
+  waiter: ['home','method','theory','schedule','reportError']
 };
 function normalizeRole(role){ return ROLE_ALIASES[String(role || '').trim().toLowerCase()] || String(role || '').trim().toLowerCase(); }
 function roleLabel(role){ const normalized=normalizeRole(role); return ROLE_LABELS[normalized] || ROLE_LABELS[role] || role || '—'; }
