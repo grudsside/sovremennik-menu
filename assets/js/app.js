@@ -2,7 +2,7 @@ const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeContro
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV2Clean';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV2Clean';
 const AUTH_STORAGE_KEY = 'sovremennikAuthV2Clean';
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxLDP8550gbspjAY7nauxhr7HVMbQXebu6cJFnvbz9HO0AbkXchWI3wAIXdA5EnBwcVFA/exec';
+const GOOGLE_SCRIPT_URL = ''; // legacy Google Apps Script disabled; Supabase is used below
 const HOPPER_TARE_KG = 0.847;
 
 const CLEAN_CACHE_VERSION = '2026-07-10-utf8-safe-v2';
@@ -28,7 +28,7 @@ function cleanupOldClientCache(){
 cleanupOldClientCache();
 
 // Стартовый администратор нужен, чтобы можно было войти сразу после публикации сайта.
-// После обновления Google Apps Script этот же аккаунт будет также создан в листе «Сотрудники».
+// После обновления Supabase этот же аккаунт будет также создан в листе «Сотрудники».
 const BUILTIN_ADMIN = { name: 'Григорий', role: 'admin', login: 'grigory', password: '0808' };
 const BUILTIN_ADMIN_TOKEN = 'builtin-admin-grigory-0808-v2';
 function isBuiltinAdminCredentials(login, password){
@@ -71,7 +71,7 @@ function showLogin(){
   document.querySelector('#login-form')?.addEventListener('submit', handleLogin);
 }
 function fetchJsonp(params){
-  if(!GOOGLE_SCRIPT_URL) return Promise.reject(new Error('Не указана ссылка Google Apps Script.'));
+  if(!GOOGLE_SCRIPT_URL) return Promise.reject(new Error('Не указана ссылка Supabase.'));
   return new Promise((resolve, reject)=>{
     const callbackName=`sovAuth_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const script=document.createElement('script');
@@ -82,7 +82,7 @@ function fetchJsonp(params){
     const timer=setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить ответ от сервера.')); }, 12000);
     function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
     window[callbackName]=(response)=>{ cleanup(); if(response && response.ok) resolve(response); else reject(new Error(response?.error || 'Сервер вернул ошибку.')); };
-    script.onerror=()=>{ cleanup(); reject(new Error('Не удалось подключиться к Google Apps Script.')); };
+    script.onerror=()=>{ cleanup(); reject(new Error('Не удалось подключиться к Supabase.')); };
     script.src=`${GOOGLE_SCRIPT_URL}${sep}${query}`;
     document.body.appendChild(script);
   });
@@ -96,7 +96,7 @@ async function handleLogin(event){
   if(errorEl) errorEl.textContent='Проверяю данные…';
 
   // Гарантированный вход для стартового администратора.
-  // Сначала пробуем серверный вход, чтобы получить нормальный токен Google Apps Script.
+  // Сначала пробуем серверный вход, чтобы получить нормальный токен Supabase.
   // Если сервер еще не обновлен или временно недоступен, входим локально, чтобы сайт не блокировался.
   if(isBuiltinAdminCredentials(login, password)){
     try {
@@ -280,8 +280,8 @@ function fetchFromSheets(view){
     const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
     const timer = setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить данные: превышено время ожидания.')); }, 12000);
     function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
-    window[callbackName] = (response)=>{ cleanup(); if(response && response.ok){ resolve(response.rows || []); } else { reject(new Error(response?.error || 'Google Sheets вернул ошибку.')); } };
-    script.onerror = ()=>{ cleanup(); reject(new Error('Не удалось подключиться к Google Sheets.')); };
+    window[callbackName] = (response)=>{ cleanup(); if(response && response.ok){ resolve(response.rows || []); } else { reject(new Error(response?.error || 'Supabase вернул ошибку.')); } };
+    script.onerror = ()=>{ cleanup(); reject(new Error('Не удалось подключиться к Supabase.')); };
     const tokenParam = getAuthToken() ? `&authToken=${encodeURIComponent(getAuthToken())}` : '';
     script.src = `${GOOGLE_SCRIPT_URL}${sep}view=${encodeURIComponent(view)}&callback=${encodeURIComponent(callbackName)}${tokenParam}&_=${Date.now()}`;
     document.body.appendChild(script);
@@ -290,13 +290,13 @@ function fetchFromSheets(view){
 async function loadControlRecords(){
   state.controlLoading = true; state.controlError = ''; refreshControl();
   try { const records = (await fetchFromSheets('checklists')).map(normalizeRemoteRecord).filter(isRealChecklistRecord); state.controlRecords = records; setLocalControlRecords(records); }
-  catch(error) { console.warn(error); state.controlError = error.message || 'Не удалось загрузить данные из Google Sheets.'; state.controlRecords = getLocalControlRecords(); }
+  catch(error) { console.warn(error); state.controlError = error.message || 'Не удалось загрузить данные из Supabase.'; state.controlRecords = getLocalControlRecords(); }
   finally { state.controlLoading = false; refreshControl(); }
 }
 async function loadRevisionRecords(){
   state.revisionLoading = true; state.revisionError = ''; refreshControl();
   try { const records = mergeRevisionRecordsByDate(await fetchFromSheets('coffeeRevision')); state.revisionRecords = records; setLocalRevisionRecords(records); }
-  catch(error) { console.warn(error); state.revisionError = error.message || 'Не удалось загрузить ревизии из Google Sheets.'; state.revisionRecords = getLocalRevisionRecords(); }
+  catch(error) { console.warn(error); state.revisionError = error.message || 'Не удалось загрузить ревизии из Supabase.'; state.revisionRecords = getLocalRevisionRecords(); }
   finally { state.revisionLoading = false; refreshControl(); }
 }
 
@@ -315,14 +315,14 @@ function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<det
 function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
 function renderControlRecordsTable(){
   const records=getControlRecords();
-  if(state.controlLoading) return `<div class="empty-control"><h3>Загружаю данные чек-листов…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
-  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки любого чек-листа запись появится здесь. Данные берутся из общей Google Таблицы.</p>${state.controlError?`<p class="control-error">${esc(state.controlError)}</p>`:''}</div>`;
+  if(state.controlLoading) return `<div class="empty-control"><h3>Загружаю данные чек-листов…</h3><p>Подключаюсь к Supabase.</p></div>`;
+  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных чек-листов</h3><p>После отправки любого чек-листа запись появится здесь. Данные берутся из общей Supabase.</p>${state.controlError?`<p class="control-error">${esc(state.controlError)}</p>`:''}</div>`;
   return `<div class="control-table-wrap">${state.controlError?`<p class="control-error">${esc(state.controlError)} Показана локальная резервная копия.</p>`:''}<table class="control-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Чек-лист</th><th>Выполнено</th><th>Детали</th></tr></thead><tbody>${records.map(r=>{const {done,total}=recordDoneTotal(r); return `<tr><td>${esc(formatDateTime(r.createdAt))}</td><td>${esc(r.employeeName||'')}</td><td>${esc(r.checklistTitle||'')}</td><td>${done}/${total}</td><td>${renderRecordDetails(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
 }
 function renderRevisionRecordsTable(){
   const records=getRevisionRecords();
-  if(state.revisionLoading) return `<div class="empty-control"><h3>Загружаю данные ревизий…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
-  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных ревизий</h3><p>После отправки формы «Ревизия кофе» запись появится здесь и в листе «Ревизия Кофе».</p>${state.revisionError?`<p class="control-error">${esc(state.revisionError)}</p>`:''}</div>`;
+  if(state.revisionLoading) return `<div class="empty-control"><h3>Загружаю данные ревизий…</h3><p>Подключаюсь к Supabase.</p></div>`;
+  if(!records.length) return `<div class="empty-control"><h3>Пока нет отправленных ревизий</h3><p>После отправки формы «Ревизия кофе» запись появится здесь и в Supabase.</p>${state.revisionError?`<p class="control-error">${esc(state.revisionError)}</p>`:''}</div>`;
   const sorted=mergeRevisionRecordsByDate(records).sort((a,b)=>String(a.dateKey||'').localeCompare(String(b.dateKey||'')));
   const cols=sorted.slice(-14);
   const rows=[
@@ -359,7 +359,7 @@ async function submitChecklist(docId){
   const payload={ payloadType:'checklist', targetSheet:'checklists', checklistId: doc.id, checklistType: doc.title, employeeName, items: tasks };
   if(status){status.textContent='Отправляю чек-лист…'; status.className='submit-status';}
   try { await sendPayloadToSheets(payload); saveLocalControlRecord(record); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Чек-Лист отправлен'); inputs.forEach(input=>input.checked=false); if(nameInput) nameInput.value=''; }
-  catch(error) { console.error(error); saveLocalControlRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Чек-лист сохранен локально, но отправка в Google Sheets не подтверждена.'); }
+  catch(error) { console.error(error); saveLocalControlRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Чек-лист сохранен локально, но отправка в Supabase не подтверждена.'); }
 }
 async function submitCoffeeRevision(event){
   event.preventDefault();
@@ -374,7 +374,7 @@ async function submitCoffeeRevision(event){
   const payload={ payloadType:'coffeeRevision', targetSheet:'coffeeRevision', revisionDate: dateKey, employeeName, hopperWeight, openedPacks };
   if(status){status.textContent='Отправляю ревизию…'; status.className='submit-status';}
   try { await sendPayloadToSheets(payload); saveLocalRevisionRecord(record); setLocalRevisionRecords(mergeRevisionRecordsByDate(getLocalRevisionRecords())); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Ревизия отправлена'); form.reset(); form.elements.revisionDate.value=new Date().toISOString().slice(0,10); }
-  catch(error) { console.error(error); saveLocalRevisionRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Ревизия сохранена локально, но отправка в Google Sheets не подтверждена.'); }
+  catch(error) { console.error(error); saveLocalRevisionRecord(record); if(status){status.textContent='Не удалось подтвердить отправку. Сохранена локальная копия, проверьте подключение.'; status.className='submit-status error';} alert('Ревизия сохранена локально, но отправка в Supabase не подтверждена.'); }
 }
 async function submitRevisionManual(event){
   event.preventDefault();
@@ -388,7 +388,7 @@ async function submitRevisionManual(event){
   const payload={ payloadType:'coffeeRevisionManual', targetSheet:'coffeeRevision', revisionDate: normalizeDateKey(revisionDate), writeOffs, iikoSales, checked };
   if(status){status.textContent='Сохраняю данные…'; status.className='submit-status';}
   try { await sendPayloadToSheets(payload); if(status){status.textContent=''; status.className='submit-status';} alert('Отлично! Данные ревизии сохранены'); await loadRevisionRecords(); }
-  catch(error) { console.error(error); if(status){status.textContent='Не удалось подтвердить отправку. Проверьте подключение.'; status.className='submit-status error';} alert('Данные не удалось отправить в Google Sheets.'); }
+  catch(error) { console.error(error); if(status){status.textContent='Не удалось подтвердить отправку. Проверьте подключение.'; status.className='submit-status error';} alert('Данные не удалось отправить в Supabase.'); }
 }
 function exportControlCsv(){ const records=getControlRecords(); const rows=[['Дата и время','Сотрудник','Чек-лист','Выполнено','Всего','Пункты']]; records.forEach(r=>{ const {done,total}=recordDoneTotal(r); const tasks=(r.tasks||[]).map(t=>`${t.checked?'✓':'—'} ${t.text}`).join(' | '); rows.push([formatDateTime(r.createdAt), r.employeeName||'', r.checklistTitle||'', done, total, tasks]); }); downloadCsv('control_checklists.csv', rows); }
 function exportRevisionCsv(){ const rows=[['Дата','Дата и время','Сотрудник','Вес бункера, кг','Вскрыто пачек, шт.','Списания, кг','Продажи iiko','Разница','Потери','Проверено']]; getRevisionRecords().forEach(r=>rows.push([r.date||displayDateFromKey(r.dateKey)||formatDateOnly(r.createdAt), formatDateTime(r.createdAt), r.employeeName||'', r.hopperWeight||'', r.openedPacks||'', r.writeOffs||'', r.iikoSales||'', r.difference||'', r.losses||'', r.checked||''])); downloadCsv('coffee_revisions.csv', rows); }
@@ -429,9 +429,9 @@ function canDeleteEmployee(e){
 }
 function renderEmployeesTable(){
   if(!isAdmin()) return `<div class="empty-control"><h3>Нет доступа</h3><p>Раздел доступен только администратору.</p></div>`;
-  if(state.employeesLoading) return `<div class="empty-control"><h3>Загружаю сотрудников…</h3><p>Подключаюсь к Google Sheets.</p></div>`;
+  if(state.employeesLoading) return `<div class="empty-control"><h3>Загружаю сотрудников…</h3><p>Подключаюсь к Supabase.</p></div>`;
   const rows=dedupeEmployees(state.employees || []);
-  if(!rows.length) return `<div class="empty-control"><h3>Список пока пуст</h3><p>После обновления Google Apps Script здесь появится стартовый аккаунт администратора.</p>${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}</div>`;
+  if(!rows.length) return `<div class="empty-control"><h3>Список пока пуст</h3><p>После обновления Supabase здесь появится стартовый аккаунт администратора.</p>${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}</div>`;
   return `<div class="employee-table-wrap">${state.employeesError?`<p class="employees-error">${esc(state.employeesError)}</p>`:''}<table class="employee-table"><thead><tr><th>Имя</th><th>Роль</th><th>Логин</th><th>Пароль</th><th>Действие</th></tr></thead><tbody>${rows.map(e=>`<tr><td>${esc(e.name)}</td><td><span class="role-badge">${esc(roleLabel(e.role))}</span></td><td>${esc(e.login)}</td><td class="password-cell">${esc(e.password)}</td><td>${canDeleteEmployee(e)?`<button class="employee-delete" type="button" data-employee-delete="${esc(e.login)}">Удалить</button>`:`<span class="muted-action">—</span>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function renderEmployees(){
@@ -456,7 +456,7 @@ async function deleteEmployee(login){
   if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');
   if(!confirm(`Удалить аккаунт «${normalized}»?`)) return;
   try { await sendPayloadToSheets({ payloadType:'employeeDelete', login: normalized }); alert('Аккаунт удален'); await loadEmployees(); }
-  catch(error){ console.error(error); alert('Не удалось удалить аккаунт. Проверьте Google Apps Script.'); }
+  catch(error){ console.error(error); alert('Не удалось удалить аккаунт. Проверьте Supabase.'); }
 }
 
 function renderApp(){
@@ -726,7 +726,7 @@ async function completeTask(taskId){
 }
 function renderReportError(){ return `<section class="top-panel ${state.activeTop==='reportError'?'active':''}" id="top-reportError"><div class="section-heading"><p>Обратная связь</p><h2>Сообщить об ошибке</h2></div><div class="report-layout"><div class="report-card"><p class="description">Напишите, что не работает или что нужно исправить в методичке, чек-листах, техкартах или сервисе.</p><form class="report-form" id="error-report-form"><label>Описание ошибки<textarea name="text" required placeholder="Например: в карточке Айс латте неверный состав…"></textarea></label><button class="small-action" type="submit">Отправить</button><p class="submit-status error-report-status" aria-live="polite"></p></form></div></div></section>`; }
 async function submitErrorReport(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
-function renderErrorReportsTable(){ const rows=getErrorReports(); if(state.errorReportsLoading) return `<div class="empty-control"><h3>Загружаю ошибки…</h3><p>Подключаюсь к Google Sheets.</p></div>`; if(!rows.length) return `<div class="empty-control"><h3>Ошибок пока нет</h3><p>Сообщения сотрудников появятся здесь.</p>${state.errorReportsError?`<p class="employees-error">${esc(state.errorReportsError)}</p>`:''}</div>`; return `<div class="employee-table-wrap"><table class="employee-table errors-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Сообщение</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(formatDateTime(r.createdAt)||[r.date,r.time].filter(Boolean).join(' '))}</td><td>${esc(r.employeeName||'—')}</td><td class="error-text">${esc(r.text||'')}</td></tr>`).join('')}</tbody></table></div>`; }
+function renderErrorReportsTable(){ const rows=getErrorReports(); if(state.errorReportsLoading) return `<div class="empty-control"><h3>Загружаю ошибки…</h3><p>Подключаюсь к Supabase.</p></div>`; if(!rows.length) return `<div class="empty-control"><h3>Ошибок пока нет</h3><p>Сообщения сотрудников появятся здесь.</p>${state.errorReportsError?`<p class="employees-error">${esc(state.errorReportsError)}</p>`:''}</div>`; return `<div class="employee-table-wrap"><table class="employee-table errors-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Сообщение</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(formatDateTime(r.createdAt)||[r.date,r.time].filter(Boolean).join(' '))}</td><td>${esc(r.employeeName||'—')}</td><td class="error-text">${esc(r.text||'')}</td></tr>`).join('')}</tbody></table></div>`; }
 
 function monthTitle(ym){ const d=new Date(`${ym}-01T00:00:00`); return d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}); }
 function shiftMonth(delta){ const [y,m]=state.scheduleMonth.split('-').map(Number); const d=new Date(y, m-1+delta, 1); state.scheduleMonth=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; refreshSchedule(); }
@@ -824,5 +824,124 @@ function bindEvents(){
   document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
   document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
 }
+
+
+/* --- Supabase backend override: replaces Supabase data layer --- */
+const SOV_SUPA_CONFIG = window.SOVREMENNIK_SUPABASE || {};
+const SUPABASE_URL = SOV_SUPA_CONFIG.url || 'https://tjibbzfdughhjenumzxo.supabase.co';
+const SUPABASE_ANON_KEY = SOV_SUPA_CONFIG.anonKey || 'sb_publishable_S0QBmN0f6SYvaPXj_QFvzg_uQmdXSwJ';
+const SUPABASE_EMPLOYEE_FUNCTION_URL = SOV_SUPA_CONFIG.employeeFunctionUrl || `${SUPABASE_URL}/functions/v1/admin-employees`;
+const SUPABASE_LOGIN_DOMAIN = SOV_SUPA_CONFIG.loginDomain || 'sovremennik.local';
+const SUPABASE_AUTH_STORAGE_KEY = 'sovremennikSupabaseAuthV1';
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+
+function loginToEmail(login){ return `${String(login || '').trim().toLowerCase()}@${SUPABASE_LOGIN_DOMAIN}`; }
+function mapProfile(profile){ return profile ? { id: profile.id, name: profile.name || '', role: normalizeRole(profile.role || ''), login: profile.login || '', password: '' } : null; }
+async function getCurrentSession(){ const res = await supa.auth.getSession(); return res.data.session || null; }
+async function getCurrentProfile(){ const session = await getCurrentSession(); if(!session?.user?.id) return null; const res = await supa.from('profiles').select('id, login, name, role, is_active').eq('id', session.user.id).single(); if(res.error) throw res.error; if(!res.data?.is_active) throw new Error('Аккаунт отключен.'); return mapProfile(res.data); }
+function saveAuth(auth){ state.auth = auth; try { localStorage.setItem(SUPABASE_AUTH_STORAGE_KEY, JSON.stringify(auth)); } catch(e) {} }
+function readSavedAuth(){ try { const saved = JSON.parse(localStorage.getItem(SUPABASE_AUTH_STORAGE_KEY) || 'null'); return saved && saved.user ? saved : null; } catch(e) { return null; } }
+async function restoreSupabaseSession(){ try { const profile = await getCurrentProfile(); if(profile) { const session = await getCurrentSession(); saveAuth({ token: session?.access_token || '', session, user: profile }); return true; } } catch(error) { console.warn('Supabase session restore failed', error); } return false; }
+function getAuthToken(){ return state.auth?.token || state.auth?.session?.access_token || ''; }
+function normalizeEmployee(row){ return { id: row.id || row.user_id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
+
+async function handleLogin(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const errorEl = document.querySelector('#login-error');
+  const login = (form.elements.login.value || '').trim().toLowerCase();
+  const password = (form.elements.password.value || '').trim();
+  if(errorEl) errorEl.textContent = 'Проверяю данные…';
+  try {
+    const email = loginToEmail(login);
+    const result = await supa.auth.signInWithPassword({ email, password });
+    if(result.error) throw result.error;
+    const profile = await getCurrentProfile();
+    saveAuth({ token: result.data.session?.access_token || '', session: result.data.session, user: profile });
+    state.activeTop = 'home';
+    renderApp();
+  } catch(error) {
+    if(errorEl) errorEl.textContent = 'Не удалось войти: ' + (error.message || 'проверьте логин и пароль.');
+  }
+}
+async function handleLogout(){ try { await supa.auth.signOut(); } catch(e) {} clearAuth(); state.controlRecords=null; state.revisionRecords=null; state.employees=null; showLogin(); }
+function clearAuth(){ state.auth = null; try { localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY); } catch(e) {} }
+
+async function listActiveProfiles(){ const res = await supa.from('profiles').select('id, name, role, login, is_active').eq('is_active', true).order('name', { ascending: true }); if(res.error) throw res.error; return (res.data || []).map(mapProfile); }
+async function findEmployeeByLogin(login){ const rows = state.taskAssignees || state.employees || await listActiveProfiles(); const key = String(login || '').trim().toLowerCase(); return rows.find(e => String(e.login || '').toLowerCase() === key) || null; }
+function mapChecklistRow(row){ return { id: row.id, checklistId: row.checklist_id || '', checklistTitle: row.checklist_title || '', employeeName: row.employee_name || '', createdAt: row.created_at, tasks: Array.isArray(row.items) ? row.items : [], completed: row.completed_count, total: row.total_count, percent: row.percent ? `${row.percent}%` : '' }; }
+function mapCoffeeRow(row){ return { id:`coffee-${row.revision_date}`, dateKey: normalizeDateKey(row.revision_date), date: displayDateFromKey(normalizeDateKey(row.revision_date)), employeeName: row.employee_name || '', hopperWeight: row.hopper_weight ?? '', openedPacks: row.opened_packs ?? '', writeOffs: row.write_offs ?? '', iikoSales: row.iiko_sales ?? '', checked: row.checked || '', cleanHopperWeight: row.clean_hopper_weight ?? '', totalCoffeeUsage: row.total_coffee_usage ?? '', difference: row.difference ?? '', losses: row.losses_percent === null || row.losses_percent === undefined ? '' : `${row.losses_percent}%`, createdAt: row.created_at || row.updated_at || new Date().toISOString() }; }
+function mapTaskRow(row, profiles){ const byId = profiles || new Map(); const assignee = byId.get(row.assignee_id) || {}; const creator = byId.get(row.creator_id) || {}; return { id: row.id, createdAt: row.created_at, authorName: creator.name || '', assignee: assignee.name || '', assigneeName: assignee.name || '', assigneeLogin: assignee.login || '', title: row.title || '', description: row.description || '', deadline: normalizeDateKey(row.due_date || ''), status: row.status === 'done' ? 'Выполнена' : 'Актуальная', priority: row.is_vip ? 'VIP' : '', completedAt: row.completed_at || '', completedBy: '' }; }
+function mapErrorRow(row){ return { id: row.id, createdAt: row.created_at, employeeName: row.employee_name || '', text: row.message || '' }; }
+function mapScheduleRow(row){ return { id: row.id, eventDate: normalizeDateKey(row.event_date), createdAt: row.created_at, type: row.event_type || 'Мероприятие', title: row.title || '', description: row.description || '', employeeName: row.employee_name || '' }; }
+
+async function fetchFromSheets(view){
+  if(view === 'employees' || view === 'employeeOptions') return await listActiveProfiles();
+  if(view === 'checklists') { const res = await supa.from('checklist_submissions').select('*').order('created_at', { ascending:false }); if(res.error) throw res.error; return (res.data || []).map(mapChecklistRow); }
+  if(view === 'coffeeRevision') { const res = await supa.from('coffee_revision_report').select('*').order('revision_date', { ascending:true }); if(res.error) throw res.error; return (res.data || []).map(mapCoffeeRow); }
+  if(view === 'errors') { const res = await supa.from('error_reports').select('*').order('created_at', { ascending:false }); if(res.error) throw res.error; return (res.data || []).map(mapErrorRow); }
+  if(view === 'schedule') { const res = await supa.from('schedule_events').select('*').order('event_date', { ascending:true }); if(res.error) throw res.error; return (res.data || []).map(mapScheduleRow); }
+  if(view === 'tasks') {
+    const profiles = await listActiveProfiles(); const map = new Map(profiles.map(p=>[p.id,p]));
+    const res = await supa.from('tasks').select('*').order('is_vip', { ascending:false }).order('due_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false });
+    if(res.error) throw res.error; return (res.data || []).map(row => mapTaskRow(row, map));
+  }
+  return [];
+}
+
+async function callEmployeeFunction(body){
+  const session = await getCurrentSession(); if(!session?.access_token) throw new Error('Нет активной сессии Supabase.');
+  const res = await fetch(SUPABASE_EMPLOYEE_FUNCTION_URL, { method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify(body) });
+  const data = await res.json().catch(()=>({ok:false,error:'Не удалось прочитать ответ функции'}));
+  if(!res.ok || !data.ok) throw new Error(data.error || 'Ошибка Edge Function.');
+  return data;
+}
+
+async function sendPayloadToSheets(payload){
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт.');
+  if(payload.payloadType === 'checklist') {
+    const items = payload.items || [];
+    const completed = items.filter(i=>i.checked).length;
+    const total = items.length;
+    const res = await supa.from('checklist_submissions').insert({ checklist_id: payload.checklistId || '', checklist_title: payload.checklistType || payload.checklistTitle || '', employee_id: user.id, employee_name: payload.employeeName || user.name, items, completed_count: completed, total_count: total, percent: total ? Math.round(completed / total * 100) : 0 }).select().single();
+    if(res.error) throw res.error; return res.data;
+  }
+  if(payload.payloadType === 'coffeeRevision' || payload.payloadType === 'coffeeRevisionManual') {
+    const row = { revision_date: normalizeDateKey(payload.revisionDate), employee_id: user.id, employee_name: payload.employeeName || user.name };
+    if(payload.hopperWeight !== undefined && payload.hopperWeight !== '') row.hopper_weight = Number(payload.hopperWeight);
+    if(payload.openedPacks !== undefined && payload.openedPacks !== '') row.opened_packs = Number(payload.openedPacks);
+    if(payload.writeOffs !== undefined && payload.writeOffs !== '') row.write_offs = Number(payload.writeOffs);
+    if(payload.iikoSales !== undefined && payload.iikoSales !== '') row.iiko_sales = Number(payload.iikoSales);
+    if(payload.checked !== undefined && payload.checked !== '') row.checked = payload.checked;
+    const res = await supa.from('coffee_revisions').upsert(row, { onConflict:'revision_date' }).select().single(); if(res.error) throw res.error; return res.data;
+  }
+  if(payload.payloadType === 'employeeAdd') { return await callEmployeeFunction({ action:'create', name: payload.employee.name, role: normalizeRole(payload.employee.role), login: payload.employee.login, password: payload.employee.password }); }
+  if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id }); }
+  if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'errorReport') { const res = await supa.from('error_reports').insert({ employee_id: user.id, employee_name: payload.employeeName || user.name, message: payload.text || '' }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'scheduleAdd') { const res = await supa.from('schedule_events').insert({ event_date: normalizeDateKey(payload.eventDate), event_type: payload.type || 'Мероприятие', title: payload.title || '', description: payload.description || '', employee_name: payload.employeeName || user.name, source: 'manual', created_by: user.id }).select().single(); if(res.error) throw res.error; return res.data; }
+  throw new Error('Неизвестный тип операции.');
+}
+
+async function init(){
+  try {
+    state.menu = await loadMenu();
+    state.auth = readSavedAuth();
+    await restoreSupabaseSession();
+    const hash = location.hash.replace('#','');
+    if(hash.includes('/')) { const [top, method] = hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top) || top==='employees') state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; }
+    else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash) || hash==='employees') { state.activeTop=hash; }
+    renderApp();
+  } catch(error) {
+    document.querySelector('#panels').innerHTML = `<div class="error">Сайт загружен, но не удалось подключиться к Supabase или прочитать данные. Детали: ${esc(error.message)}</div>`;
+    console.error(error);
+  }
+}
+
+/* --- End Supabase override --- */
 
 init();
