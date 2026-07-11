@@ -1017,6 +1017,30 @@ async function callEmployeeFunction(body){
   return data;
 }
 
+async function callNotificationFunction(eventType, data = {}){
+  try {
+    const cfg = window.SOVREMENNIK_SUPABASE || {};
+    const url = cfg.notifyFunctionUrl || `${SUPABASE_URL}/functions/v1/notify-event`;
+    const session = await getCurrentSession();
+    if(!url || !session?.access_token) return;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ event_type: eventType, data })
+    });
+    if(!res.ok) {
+      const err = await res.text().catch(()=>res.statusText);
+      console.warn('Push notify skipped:', err);
+    }
+  } catch(error) {
+    console.warn('Push notify failed:', error);
+  }
+}
+function safeNotifyEvent(eventType, data = {}){
+  callNotificationFunction(eventType, data).catch(error => console.warn('Push notify failed:', error));
+}
+
+
 async function sendPayloadToSheets(payload){
   const user = currentUser();
   if(!user?.id) throw new Error('Нужно войти в аккаунт.');
@@ -1025,7 +1049,7 @@ async function sendPayloadToSheets(payload){
     const completed = items.filter(i=>i.checked).length;
     const total = items.length;
     const res = await supa.from('checklist_submissions').insert({ checklist_id: payload.checklistId || '', checklist_title: payload.checklistType || payload.checklistTitle || '', employee_id: user.id, employee_name: payload.employeeName || user.name, items, completed_count: completed, total_count: total, percent: total ? Math.round(completed / total * 100) : 0 }).select().single();
-    if(res.error) throw res.error; return res.data;
+    if(res.error) throw res.error; safeNotifyEvent('checklist_submitted', { submission_id: res.data?.id, checklist_title: payload.checklistType || payload.checklistTitle || '', employee_name: payload.employeeName || user.name }); return res.data;
   }
   if(payload.payloadType === 'coffeeRevision' || payload.payloadType === 'coffeeRevisionManual') {
     const row = { revision_date: normalizeDateKey(payload.revisionDate), employee_id: user.id, employee_name: payload.employeeName || user.name };
@@ -1034,15 +1058,15 @@ async function sendPayloadToSheets(payload){
     if(payload.writeOffs !== undefined && payload.writeOffs !== '') row.write_offs = Number(payload.writeOffs);
     if(payload.iikoSales !== undefined && payload.iikoSales !== '') row.iiko_sales = Number(payload.iikoSales);
     if(payload.checked !== undefined && payload.checked !== '') row.checked = payload.checked;
-    const res = await supa.from('coffee_revisions').upsert(row, { onConflict:'revision_date' }).select().single(); if(res.error) throw res.error; return res.data;
+    const res = await supa.from('coffee_revisions').upsert(row, { onConflict:'revision_date' }).select().single(); if(res.error) throw res.error; safeNotifyEvent('revision_submitted', { revision_id: res.data?.id, revision_date: row.revision_date, employee_name: row.employee_name }); return res.data;
   }
   if(payload.payloadType === 'employeeAdd') { return await callEmployeeFunction({ action:'create', name: payload.employee.name, role: normalizeRole(payload.employee.role), login: payload.employee.login, password: payload.employee.password }); }
   if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id }); }
   if(payload.payloadType === 'rolePermissionsSave') { const res = await supa.from('role_permissions').upsert({ role: normalizeRole(payload.role), sections: payload.sections || [], updated_by: user.id }, { onConflict:'role' }).select().single(); if(res.error) throw res.error; return res.data; }
-  if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null, due_at: payload.deadlineAt ? new Date(payload.deadlineAt).toISOString() : null }).select().single(); if(res.error) throw res.error; return res.data; }
-  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select('id,status,completed_at').maybeSingle(); if(res.error) throw res.error; if(!res.data) throw new Error('Задача уже завершена или нет доступа.'); return res.data; }
-  if(payload.payloadType === 'errorReport') { const res = await supa.from('error_reports').insert({ employee_id: user.id, employee_name: payload.employeeName || user.name, message: payload.text || '' }).select().single(); if(res.error) throw res.error; return res.data; }
-  if(payload.payloadType === 'scheduleAdd') { const res = await supa.from('schedule_events').insert({ event_date: normalizeDateKey(payload.eventDate), event_type: payload.type || 'Мероприятие', title: payload.title || '', description: payload.description || '', employee_name: payload.employeeName || user.name, source: 'manual', created_by: user.id }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null, due_at: payload.deadlineAt ? new Date(payload.deadlineAt).toISOString() : null }).select().single(); if(res.error) throw res.error; safeNotifyEvent('task_assigned', { task_id: res.data?.id }); return res.data; }
+  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select('id,status,completed_at').maybeSingle(); if(res.error) throw res.error; if(!res.data) throw new Error('Задача уже завершена или нет доступа.'); safeNotifyEvent('task_completed', { task_id: payload.taskId }); return res.data; }
+  if(payload.payloadType === 'errorReport') { const res = await supa.from('error_reports').insert({ employee_id: user.id, employee_name: payload.employeeName || user.name, message: payload.text || '' }).select().single(); if(res.error) throw res.error; safeNotifyEvent('error_report_submitted', { report_id: res.data?.id, employee_name: payload.employeeName || user.name }); return res.data; }
+  if(payload.payloadType === 'scheduleAdd') { const res = await supa.from('schedule_events').insert({ event_date: normalizeDateKey(payload.eventDate), event_type: payload.type || 'Мероприятие', title: payload.title || '', description: payload.description || '', employee_name: payload.employeeName || user.name, source: 'manual', created_by: user.id }).select().single(); if(res.error) throw res.error; safeNotifyEvent('schedule_event_added', { event_id: res.data?.id, title: payload.title || '', event_date: normalizeDateKey(payload.eventDate) }); return res.data; }
   throw new Error('Неизвестный тип операции.');
 }
 
