@@ -1,4 +1,4 @@
-const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, employees: null, employeesLoading: false, employeesError: '', controlLoading: false, revisionLoading: false, controlError: '', revisionError: '', auth: null };
+const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, employees: null, employeesLoading: false, employeesError: '', rolePermissions: null, rolePermissionsLoading: false, rolePermissionsError: '', controlLoading: false, revisionLoading: false, controlError: '', revisionError: '', auth: null };
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV2Clean';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV2Clean';
 const AUTH_STORAGE_KEY = 'sovremennikAuthV2Clean';
@@ -38,13 +38,17 @@ function builtinAdminAuth(){
   return { token: BUILTIN_ADMIN_TOKEN, user: { name: BUILTIN_ADMIN.name, role: BUILTIN_ADMIN.role, login: BUILTIN_ADMIN.login } };
 }
 
-const ROLE_LABELS = { admin: 'Администратор', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'бариста': 'Бариста', 'официант': 'Официант' };
-const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
-const ACCESS_BY_ROLE = {
-  admin: ['home','method','theory','checklists','revisions','techcards','schedule','reportError','employees','control'],
+const ROLE_LABELS = { admin: 'Администратор', manager: 'Руководитель', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'руководитель': 'Руководитель', 'бариста': 'Бариста', 'официант': 'Официант' };
+const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'руководитель': 'manager', 'manager': 'manager', 'менеджер': 'manager', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
+const ALL_SECTIONS = ['home','method','theory','checklists','revisions','techcards','schedule','reportError','employees','control'];
+const EDITABLE_ROLES = ['manager','barista','waiter'];
+const DEFAULT_ACCESS_BY_ROLE = {
+  admin: ALL_SECTIONS,
+  manager: ['home','method','theory','checklists','revisions','techcards','schedule','reportError','control'],
   barista: ['home','method','theory','checklists','revisions','techcards','schedule','reportError'],
   waiter: ['home','method','theory','schedule','reportError']
 };
+let ACCESS_BY_ROLE = DEFAULT_ACCESS_BY_ROLE;
 function normalizeRole(role){ return ROLE_ALIASES[String(role || '').trim().toLowerCase()] || String(role || '').trim().toLowerCase(); }
 function roleLabel(role){ const normalized=normalizeRole(role); return ROLE_LABELS[normalized] || ROLE_LABELS[role] || role || '—'; }
 function currentUser(){ return state.auth?.user || null; }
@@ -55,7 +59,8 @@ function isAdmin(){ return normalizeRole(currentUser()?.role) === 'admin'; }
 function saveAuth(auth){ state.auth=auth; localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth)); }
 function readSavedAuth(){ try { const saved=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null'); return saved && saved.token && saved.user ? saved : null; } catch(e){ return null; } }
 function clearAuth(){ state.auth=null; localStorage.removeItem(AUTH_STORAGE_KEY); }
-function hasAccess(target){ if(target==='home') return true; const role=normalizeRole(currentUser()?.role); return (ACCESS_BY_ROLE[role] || []).includes(target); }
+function effectiveAccessByRole(){ return state.rolePermissions || DEFAULT_ACCESS_BY_ROLE; }
+function hasAccess(target){ if(target==='home') return true; const role=normalizeRole(currentUser()?.role); if(role === 'admin') return true; return (effectiveAccessByRole()[role] || []).includes(target); }
 function allMainTabs(){ const tabs=[...(state.menu?.site?.mainTabs || [])]; if(!tabs.some(t=>t.id==='employees')){ const controlIndex=tabs.findIndex(t=>t.id==='control'); tabs.splice(controlIndex>=0?controlIndex:tabs.length, 0, {id:'employees', title:'Сотрудники'}); } return tabs; }
 function allowedMainTabs(){ return allMainTabs().filter(tab=>hasAccess(tab.id)); }
 function ensureAllowedTop(){ const allowed=allowedMainTabs().map(t=>t.id); if(!allowed.includes(state.activeTop)) state.activeTop = allowed.includes('home') ? 'home' : (allowed[0] || 'home'); }
@@ -436,7 +441,83 @@ function renderEmployeesTable(){
 }
 function renderEmployees(){
   if(!isAdmin()) return '';
-  return `<section class="top-panel ${state.activeTop==='employees'?'active':''}" id="top-employees"><div class="section-heading"><p>Администрирование</p><h2>Сотрудники</h2></div><div class="employees-grid"><div class="employee-list-card"><div class="card-head"><h3>Список сотрудников</h3><span class="source-badge">аккаунты</span></div><p class="description">Это база аккаунтов сотрудников. Входы в систему здесь не фиксируются, каждый логин отображается один раз.</p><div id="employees-table">${renderEmployeesTable()}</div></div><div class="employee-form-card"><div class="card-head"><h3>Добавить нового сотрудника</h3><span class="source-badge">admin</span></div><form class="employee-form" id="employee-form"><label>Имя<input name="name" type="text" placeholder="Например, Анна" required></label><label>Роль<select name="role" required><option value="barista">Бариста</option><option value="waiter">Официант</option><option value="admin">Администратор</option></select></label><label>Логин<input name="login" type="text" placeholder="anna" required></label><label>Пароль<input name="password" type="text" placeholder="например 1234" required></label><button class="employee-submit" type="submit">Добавить сотрудника</button><p class="submit-status employee-status" aria-live="polite"></p></form></div></div></section>`;
+  return `<section class="top-panel ${state.activeTop==='employees'?'active':''}" id="top-employees"><div class="section-heading"><p>Администрирование</p><h2>Сотрудники</h2></div><div class="employees-grid"><div class="employee-list-card"><div class="card-head"><h3>Список сотрудников</h3><span class="source-badge">аккаунты</span></div><p class="description">Это база аккаунтов сотрудников. Входы в систему здесь не фиксируются, каждый логин отображается один раз.</p><div id="employees-table">${renderEmployeesTable()}</div></div><div class="employee-form-card"><div class="card-head"><h3>Добавить нового сотрудника</h3><span class="source-badge">admin</span></div><form class="employee-form" id="employee-form"><label>Имя<input name="name" type="text" placeholder="Например, Анна" required></label><label>Роль<select name="role" required><option value="barista">Бариста</option><option value="waiter">Официант</option><option value="manager">Руководитель</option><option value="admin">Администратор</option></select></label><label>Логин<input name="login" type="text" placeholder="anna" required></label><label>Пароль<input name="password" type="text" placeholder="например 1234" required></label><button class="employee-submit" type="submit">Добавить сотрудника</button><p class="submit-status employee-status" aria-live="polite"></p></form></div></div>${renderRolePermissionsPanel()}</section>`;
+}
+
+function sectionLabel(sectionId){
+  const tab = allMainTabs().find(t=>t.id===sectionId);
+  return tab ? tab.title : sectionId;
+}
+function normalizePermissionsRows(rows){
+  const permissions = JSON.parse(JSON.stringify(DEFAULT_ACCESS_BY_ROLE));
+  (rows || []).forEach(row=>{
+    const role = normalizeRole(row.role);
+    if(role && Array.isArray(row.sections)) permissions[role] = row.sections.filter(Boolean);
+  });
+  permissions.admin = ALL_SECTIONS;
+  return permissions;
+}
+function renderRolePermissionsPanel(){
+  const permissions = effectiveAccessByRole();
+  const sectionOptions = allMainTabs().filter(tab=>tab.id !== 'home');
+  return `<div class="role-permissions-card"><div class="card-head"><h3>Права на просмотр разделов</h3><span class="source-badge">доступы</span></div><p class="description">Администратор может выбрать роль и отметить, какие разделы будут видны сотрудникам с этой ролью. Роль «Администратор» всегда видит все разделы.</p>${state.rolePermissionsError?`<p class="employees-error">${esc(state.rolePermissionsError)}</p>`:''}<form class="role-permissions-form" id="role-permissions-form"><label>Роль<select name="role">${EDITABLE_ROLES.map(role=>`<option value="${esc(role)}">${esc(roleLabel(role))}</option>`).join('')}</select></label><div class="permissions-grid">${sectionOptions.map(tab=>`<label class="permission-check"><input type="checkbox" name="sections" value="${esc(tab.id)}"> <span>${esc(tab.title)}</span></label>`).join('')}</div><button class="employee-submit" type="submit">Сохранить права</button><p class="submit-status permissions-status" aria-live="polite"></p></form></div>`;
+}
+function applyPermissionFormRole(role){
+  const form = document.querySelector('#role-permissions-form');
+  if(!form) return;
+  const normalized = normalizeRole(role || form.elements.role.value);
+  const sections = effectiveAccessByRole()[normalized] || [];
+  form.querySelectorAll('input[name="sections"]').forEach(input=>{ input.checked = sections.includes(input.value); });
+}
+function refreshRolePermissions(){
+  const oldRole = document.querySelector('#role-permissions-form select[name="role"]')?.value || 'manager';
+  const card = document.querySelector('.role-permissions-card');
+  if(card) card.outerHTML = renderRolePermissionsPanel();
+  const select = document.querySelector('#role-permissions-form select[name="role"]');
+  if(select){ select.value = oldRole; applyPermissionFormRole(select.value); }
+  bindRolePermissionEvents();
+}
+function bindRolePermissionEvents(){
+  const form = document.querySelector('#role-permissions-form');
+  if(!form) return;
+  const select = form.elements.role;
+  if(select){ select.addEventListener('change', ()=>applyPermissionFormRole(select.value)); applyPermissionFormRole(select.value); }
+  form.addEventListener('submit', submitRolePermissions);
+}
+async function loadRolePermissions(){
+  state.rolePermissionsLoading = true;
+  state.rolePermissionsError = '';
+  try{
+    const rows = await fetchFromSheets('rolePermissions');
+    state.rolePermissions = normalizePermissionsRows(rows);
+  }catch(error){
+    console.warn(error);
+    state.rolePermissionsError = error.message || 'Не удалось загрузить права. Используются стандартные настройки.';
+    state.rolePermissions = state.rolePermissions || DEFAULT_ACCESS_BY_ROLE;
+  }finally{
+    state.rolePermissionsLoading = false;
+    refreshRolePermissions();
+    if(isAuthenticated()) renderApp();
+  }
+}
+async function submitRolePermissions(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Редактировать права может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.permissions-status');
+  const role = normalizeRole(form.elements.role.value);
+  const sections = Array.from(form.querySelectorAll('input[name="sections"]:checked')).map(i=>i.value);
+  if(status){ status.textContent = 'Сохраняю права…'; status.className = 'submit-status'; }
+  try{
+    await sendPayloadToSheets({ payloadType:'rolePermissionsSave', role, sections });
+    state.rolePermissions = { ...effectiveAccessByRole(), [role]: sections, admin: ALL_SECTIONS };
+    if(status) status.textContent = '';
+    alert('Права сохранены');
+    renderApp();
+  }catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось сохранить права.'; status.className = 'submit-status error'; }
+  }
 }
 function refreshEmployees(){ const el=document.querySelector('#employees-table'); if(el) el.innerHTML=renderEmployeesTable(); }
 async function submitEmployeeForm(event){
@@ -495,7 +576,7 @@ function setTop(target){
   history.replaceState(null,'',`#${target}`);
   window.scrollTo({top:0,behavior:'smooth'});
   if(target==='control'){ loadControlRecords(); loadRevisionRecords(); }
-  if(target==='employees') loadEmployees();
+  if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
 }
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
 function bindEvents(){
@@ -512,6 +593,7 @@ function bindEvents(){
   document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
   document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
   document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  bindRolePermissionEvents();
   document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
   document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
   document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
@@ -639,22 +721,52 @@ function activeTasks(){
     .sort((a,b)=>{
       const vipDiff = (isVipTask(b)?1:0) - (isVipTask(a)?1:0);
       if(vipDiff) return vipDiff;
-      const ad=a.deadline||'9999-12-31', bd=b.deadline||'9999-12-31';
+      const ad=taskDeadlineSortValue(a), bd=taskDeadlineSortValue(b);
       return ad.localeCompare(bd) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));
     }); 
 }
+
+function parseTaskDeadline(task){
+  const value = task.deadlineAt || task.dueAt || task.due_at || task.deadline || '';
+  if(!value) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(value + 'T23:59:00');
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+function taskDeadlineLabel(task){
+  const d = parseTaskDeadline(task);
+  if(!d) return 'без срока';
+  const diff = d.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  if(diff < 0){
+    if(abs < 24*60*60*1000) return `просрочено на ${Math.max(1, Math.ceil(abs/3600000))} ч`;
+    return `просрочено на ${Math.max(1, Math.ceil(abs/86400000))} д`;
+  }
+  if(diff < 24*60*60*1000) return `осталось ${Math.max(1, Math.ceil(diff/3600000))} ч`;
+  return `осталось ${Math.max(1, Math.ceil(diff/86400000))} д`;
+}
+function taskDeadlineSortValue(task){
+  const d = parseTaskDeadline(task);
+  return d ? d.toISOString() : '9999-12-31T23:59:59.999Z';
+}
+function displayTaskDeadline(task){
+  const d = parseTaskDeadline(task);
+  if(!d) return 'без срока';
+  return d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
 function renderTaskItem(task){ 
   const vip=isVipTask(task);
-  const deadline=task.deadline ? `до ${esc(displayDateFromKey(task.deadline))}` : 'без срока';
+  const deadlineText=taskDeadlineLabel(task);
+  const deadlineFull=displayTaskDeadline(task);
   const assignedTo=task.assigneeName || task.assignee || task.assigneeLogin || 'не указано';
   return `<article class="task-item task-compact ${vip?'vip':''}" data-task-id="${esc(task.id)}">
     <details class="task-details">
       <summary>
         <span class="task-main">
           <span class="task-title">${esc(task.title||'Задача')}</span>
-          <span class="task-mini-meta">${vip?'<b class="vip-mark">VIP</b>':''}<span>${esc(deadline)}</span><span>кому: ${esc(assignedTo)}</span></span>
+          <span class="task-mini-meta">${vip?'<b class="vip-mark">VIP</b>':''}<span>${esc(deadlineFull)}</span><span>кому: ${esc(assignedTo)}</span></span>
         </span>
-        <span class="status-pill">${esc(task.status||'Актуальная')}</span>
+        <span class="task-timer ${vip?'vip-timer':''}">${esc(deadlineText)}</span>
       </summary>
       ${task.description?`<p class="description">${esc(task.description)}</p>`:''}
       <div class="task-meta"><span>Поставил: ${esc(task.authorName||'—')}</span><span>Создано: ${esc(formatDateTime(task.createdAt))}</span></div>
@@ -680,7 +792,7 @@ function refreshTaskModalAssignees(){
 function employeeOptionsDatalist(){ const rows=dedupeEmployees(state.employees || []); return `<datalist id="employees-datalist">${rows.map(e=>`<option value="${esc(e.name || e.login)}"></option>`).join('')}</datalist>`; }
 function renderTaskModal(){ 
   const user=currentUser(); 
-  return `<div class="task-modal" id="task-modal" aria-hidden="true"><div class="task-form-card"><div class="card-head"><h3>Поставить задачу</h3><button class="small-action secondary" type="button" data-close-task-modal>Закрыть</button></div><form id="task-form"><div class="form-grid"><label>Название задачи<input name="title" type="text" required placeholder="Например, проверить витрину"></label><label>Кому поставить задачу<span id="task-assignee-select-wrap">${employeeOptionsSelect()}</span></label><label>Дедлайн<input name="deadline" type="date"></label><label>Поставил<input name="authorName" type="text" value="${esc(user?.name||'')}" required></label></div><label>Описание<textarea name="description" rows="4" placeholder="Что нужно сделать и на что обратить внимание"></textarea></label><label class="vip-checkbox"><input name="isVip" type="checkbox"> <span>VIP-приоритет: сделать как можно скорее</span></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-close-task-modal>Отмена</button><button class="small-action" type="submit">Поставить задачу</button></div><p class="submit-status task-status" aria-live="polite"></p></form></div></div>`; 
+  return `<div class="task-modal" id="task-modal" aria-hidden="true"><div class="task-form-card"><div class="card-head"><h3>Поставить задачу</h3><button class="small-action secondary" type="button" data-close-task-modal>Закрыть</button></div><form id="task-form"><div class="form-grid"><label>Название задачи<input name="title" type="text" required placeholder="Например, проверить витрину"></label><label>Кому поставить задачу<span id="task-assignee-select-wrap">${employeeOptionsSelect()}</span></label><label>Дедлайн<input name="deadline" type="datetime-local"></label><label>Поставил<input name="authorName" type="text" value="${esc(user?.name||'')}" required></label></div><label>Описание<textarea name="description" rows="4" placeholder="Что нужно сделать и на что обратить внимание"></textarea></label><label class="vip-checkbox"><input name="isVip" type="checkbox"> <span>VIP-приоритет: сделать как можно скорее</span></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-close-task-modal>Отмена</button><button class="small-action" type="submit">Поставить задачу</button></div><p class="submit-status task-status" aria-live="polite"></p></form></div></div>`; 
 }
 function renderHome(){ return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`; }
 function refreshTasks(){ const el=document.querySelector('#tasks-list'); if(el) el.innerHTML=renderTasksList(); }
@@ -699,7 +811,8 @@ async function submitTask(event){
     assigneeLogin,
     assigneeName: assigneeRow?.name || '',
     assignee: assigneeRow?.name || assigneeLogin,
-    deadline:normalizeDateKey(form.elements.deadline.value||''), 
+    deadlineAt:(form.elements.deadline.value||''),
+    deadline:normalizeDateKey((form.elements.deadline.value||'').slice(0,10)), 
     authorName:(form.elements.authorName.value||currentUserName()||'').trim(), 
     status:'Актуальная', 
     priority: form.elements.isVip.checked ? 'VIP' : '',
@@ -714,15 +827,17 @@ async function submitTask(event){
     form.reset(); form.elements.authorName.value=currentUserName()||''; closeTaskModal(); loadTasks(); 
   } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить задачу.'; status.className='submit-status error';} } 
 }
-async function completeTask(taskId){
+async function completeTask(taskId, button){
   const task=getTasks().find(t=>String(t.id)===String(taskId));
   if(!task) return;
   if(!confirm(`Завершить задачу «${task.title || 'Задача'}»?`)) return;
+  if(button){ button.disabled = true; button.textContent = 'Завершаю…'; }
   try{
     await sendPayloadToSheets({payloadType:'taskComplete', taskId, completedBy: currentUserName()||''});
-    const rows=getTasks().map(t=>String(t.id)===String(taskId)?{...t,status:'Выполнена',completedAt:new Date().toISOString(),completedBy:currentUserName()||''}:t);
-    setLocalArray(TASKS_STORAGE_KEY, rows); state.tasks=rows; refreshTasks(); loadTasks();
-  }catch(error){ console.error(error); alert('Не удалось завершить задачу.'); }
+    const rows=getTasks().filter(t=>String(t.id)!==String(taskId));
+    setLocalArray(TASKS_STORAGE_KEY, rows); state.tasks=rows; refreshTasks();
+    await loadTasks();
+  }catch(error){ console.error(error); alert('Не удалось завершить задачу: ' + (error.message || 'проверьте доступ и подключение.')); if(button){ button.disabled = false; button.textContent = 'Завершить задачу'; } }
 }
 function renderReportError(){ return `<section class="top-panel ${state.activeTop==='reportError'?'active':''}" id="top-reportError"><div class="section-heading"><p>Обратная связь</p><h2>Сообщить об ошибке</h2></div><div class="report-layout"><div class="report-card"><p class="description">Напишите, что не работает или что нужно исправить в методичке, чек-листах, техкартах или сервисе.</p><form class="report-form" id="error-report-form"><label>Описание ошибки<textarea name="text" required placeholder="Например: в карточке Айс латте неверный состав…"></textarea></label><button class="small-action" type="submit">Отправить</button><p class="submit-status error-report-status" aria-live="polite"></p></form></div></div></section>`; }
 async function submitErrorReport(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
@@ -762,7 +877,7 @@ function renderApp(){
   const userPanel=document.querySelector('#user-panel');
   if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
   const tabs=allowedMainTabs();
-  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''} ${tab.id==='employees'&&isAdmin()?'admin-visible':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
+  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''} ${tab.id==='employees'&&hasAccess('employees')?'admin-visible':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
   document.querySelector('#panels').innerHTML=
     renderHome()+
     (hasAccess('method')?renderMethod():'')+
@@ -777,6 +892,7 @@ function renderApp(){
   bindEvents();
   if(!state.tasks) loadTasks();
   if(!state.taskAssignees) loadTaskAssignees();
+  if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions();
   if(isAdmin() && !state.employees) loadEmployees();
   if(state.activeTop==='schedule' && !state.scheduleEvents) loadScheduleEvents();
   if(state.activeTop==='employees' && !state.employees) loadEmployees();
@@ -792,7 +908,7 @@ function setTop(target){
   if(target==='home'){ loadTasks(); if(!state.taskAssignees) loadTaskAssignees(); }
   if(target==='schedule') loadScheduleEvents();
   if(target==='control'){ loadControlRecords(); loadRevisionRecords(); if(state.activeControl==='errors') loadErrorReports(); }
-  if(target==='employees') loadEmployees();
+  if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
 }
 function bindEvents(){
   document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
@@ -808,6 +924,7 @@ function bindEvents(){
   document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
   document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
   document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  bindRolePermissionEvents();
   document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
   document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
   document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
@@ -817,7 +934,7 @@ function bindEvents(){
   document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
   document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
   document.querySelector('#task-form')?.addEventListener('submit',submitTask);
-  document.querySelectorAll('[data-task-complete]').forEach(btn=>btn.addEventListener('click',()=>completeTask(btn.dataset.taskComplete)));
+  document.querySelectorAll('[data-task-complete]').forEach(btn=>btn.addEventListener('click',(event)=>{ event.preventDefault(); event.stopPropagation(); completeTask(btn.dataset.taskComplete, btn); }));
   document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
   document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
   document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
@@ -873,19 +990,20 @@ async function listActiveProfiles(){ const res = await supa.from('profiles').sel
 async function findEmployeeByLogin(login){ const rows = state.taskAssignees || state.employees || await listActiveProfiles(); const key = String(login || '').trim().toLowerCase(); return rows.find(e => String(e.login || '').toLowerCase() === key) || null; }
 function mapChecklistRow(row){ return { id: row.id, checklistId: row.checklist_id || '', checklistTitle: row.checklist_title || '', employeeName: row.employee_name || '', createdAt: row.created_at, tasks: Array.isArray(row.items) ? row.items : [], completed: row.completed_count, total: row.total_count, percent: row.percent ? `${row.percent}%` : '' }; }
 function mapCoffeeRow(row){ return { id:`coffee-${row.revision_date}`, dateKey: normalizeDateKey(row.revision_date), date: displayDateFromKey(normalizeDateKey(row.revision_date)), employeeName: row.employee_name || '', hopperWeight: row.hopper_weight ?? '', openedPacks: row.opened_packs ?? '', writeOffs: row.write_offs ?? '', iikoSales: row.iiko_sales ?? '', checked: row.checked || '', cleanHopperWeight: row.clean_hopper_weight ?? '', totalCoffeeUsage: row.total_coffee_usage ?? '', difference: row.difference ?? '', losses: row.losses_percent === null || row.losses_percent === undefined ? '' : `${row.losses_percent}%`, createdAt: row.created_at || row.updated_at || new Date().toISOString() }; }
-function mapTaskRow(row, profiles){ const byId = profiles || new Map(); const assignee = byId.get(row.assignee_id) || {}; const creator = byId.get(row.creator_id) || {}; return { id: row.id, createdAt: row.created_at, authorName: creator.name || '', assignee: assignee.name || '', assigneeName: assignee.name || '', assigneeLogin: assignee.login || '', title: row.title || '', description: row.description || '', deadline: normalizeDateKey(row.due_date || ''), status: row.status === 'done' ? 'Выполнена' : 'Актуальная', priority: row.is_vip ? 'VIP' : '', completedAt: row.completed_at || '', completedBy: '' }; }
+function mapTaskRow(row, profiles){ const byId = profiles || new Map(); const assignee = byId.get(row.assignee_id) || {}; const creator = byId.get(row.creator_id) || {}; const deadlineAt = row.due_at || (row.due_date ? `${row.due_date}T23:59:00` : ''); return { id: row.id, createdAt: row.created_at, authorName: creator.name || '', assignee: assignee.name || '', assigneeName: assignee.name || '', assigneeLogin: assignee.login || '', title: row.title || '', description: row.description || '', deadlineAt, deadline: normalizeDateKey(row.due_date || (deadlineAt ? String(deadlineAt).slice(0,10) : '')), status: row.status === 'done' ? 'Выполнена' : 'Актуальная', priority: row.is_vip ? 'VIP' : '', completedAt: row.completed_at || '', completedBy: '' }; }
 function mapErrorRow(row){ return { id: row.id, createdAt: row.created_at, employeeName: row.employee_name || '', text: row.message || '' }; }
 function mapScheduleRow(row){ return { id: row.id, eventDate: normalizeDateKey(row.event_date), createdAt: row.created_at, type: row.event_type || 'Мероприятие', title: row.title || '', description: row.description || '', employeeName: row.employee_name || '' }; }
 
 async function fetchFromSheets(view){
   if(view === 'employees' || view === 'employeeOptions') return await listActiveProfiles();
+  if(view === 'rolePermissions') { const res = await supa.from('role_permissions').select('role, sections'); if(res.error) throw res.error; return res.data || []; }
   if(view === 'checklists') { const res = await supa.from('checklist_submissions').select('*').order('created_at', { ascending:false }); if(res.error) throw res.error; return (res.data || []).map(mapChecklistRow); }
   if(view === 'coffeeRevision') { const res = await supa.from('coffee_revision_report').select('*').order('revision_date', { ascending:true }); if(res.error) throw res.error; return (res.data || []).map(mapCoffeeRow); }
   if(view === 'errors') { const res = await supa.from('error_reports').select('*').order('created_at', { ascending:false }); if(res.error) throw res.error; return (res.data || []).map(mapErrorRow); }
   if(view === 'schedule') { const res = await supa.from('schedule_events').select('*').order('event_date', { ascending:true }); if(res.error) throw res.error; return (res.data || []).map(mapScheduleRow); }
   if(view === 'tasks') {
     const profiles = await listActiveProfiles(); const map = new Map(profiles.map(p=>[p.id,p]));
-    const res = await supa.from('tasks').select('*').order('is_vip', { ascending:false }).order('due_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false });
+    const res = await supa.from('tasks').select('*').order('is_vip', { ascending:false }).order('due_at', { ascending:true, nullsFirst:false }).order('due_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false });
     if(res.error) throw res.error; return (res.data || []).map(row => mapTaskRow(row, map));
   }
   return [];
@@ -920,8 +1038,9 @@ async function sendPayloadToSheets(payload){
   }
   if(payload.payloadType === 'employeeAdd') { return await callEmployeeFunction({ action:'create', name: payload.employee.name, role: normalizeRole(payload.employee.role), login: payload.employee.login, password: payload.employee.password }); }
   if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id }); }
-  if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null }).select().single(); if(res.error) throw res.error; return res.data; }
-  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'rolePermissionsSave') { const res = await supa.from('role_permissions').upsert({ role: normalizeRole(payload.role), sections: payload.sections || [], updated_by: user.id }, { onConflict:'role' }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null, due_at: payload.deadlineAt ? new Date(payload.deadlineAt).toISOString() : null }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select('id,status,completed_at').maybeSingle(); if(res.error) throw res.error; if(!res.data) throw new Error('Задача уже завершена или нет доступа.'); return res.data; }
   if(payload.payloadType === 'errorReport') { const res = await supa.from('error_reports').insert({ employee_id: user.id, employee_name: payload.employeeName || user.name, message: payload.text || '' }).select().single(); if(res.error) throw res.error; return res.data; }
   if(payload.payloadType === 'scheduleAdd') { const res = await supa.from('schedule_events').insert({ event_date: normalizeDateKey(payload.eventDate), event_type: payload.type || 'Мероприятие', title: payload.title || '', description: payload.description || '', employee_name: payload.employeeName || user.name, source: 'manual', created_by: user.id }).select().single(); if(res.error) throw res.error; return res.data; }
   throw new Error('Неизвестный тип операции.');

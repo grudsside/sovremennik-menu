@@ -308,3 +308,18 @@ tr:last-child td { border-bottom:0; }
   }
   .main-tab{font-size:14px !important; min-height:42px !important; padding:0 14px !important;}
 }
+
+/* v18: roles, task timer and permissions UI */
+.role-permissions-card{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:0 12px 34px rgba(83,89,60,.08);padding:18px;}
+.role-permissions-form{display:grid;gap:14px;margin-top:12px;}
+.role-permissions-form>label{display:grid;gap:7px;color:var(--olive-dark);font-weight:900;}
+.role-permissions-form select{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 14px;font:inherit;background:#fffdf7;outline:none;}
+.permissions-grid{display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:10px;}
+.permission-check{display:flex !important;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:#fffdf7;color:#2d4b38;font-weight:800;}
+.permission-check input{width:auto !important;}
+.task-timer{border-radius:999px;background:#eef3df;color:#35513b;padding:5px 10px;font-weight:900;font-size:.82rem;white-space:nowrap;}
+.task-timer.vip-timer{background:#d84949;color:#fff;}
+.task-complete[disabled]{opacity:.65;cursor:wait;}
+.task-form-card input[type="datetime-local"]{min-height:44px;}
+@media(max-width:920px){.permissions-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:620px){.permissions-grid{grid-template-columns:1fr;}.task-timer{font-size:.78rem;}}

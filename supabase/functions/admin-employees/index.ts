@@ -21,8 +21,9 @@ function json(data: unknown, status = 200) {
 
 function normalizeRole(role: string) {
   const value = String(role || "").trim().toLowerCase();
-  if (["admin", "barista", "waiter"].includes(value)) return value;
+  if (["admin", "manager", "barista", "waiter"].includes(value)) return value;
   if (value === "администратор") return "admin";
+  if (value === "руководитель" || value === "менеджер") return "manager";
   if (value === "бариста") return "barista";
   if (value === "официант") return "waiter";
   return "waiter";

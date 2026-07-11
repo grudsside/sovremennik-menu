@@ -7,13 +7,13 @@
 create extension if not exists pgcrypto;
 
 -- Roles are stored as text so you can change labels in the frontend without recreating enum types.
--- Allowed roles: admin, barista, waiter.
+-- Allowed roles: admin, manager, barista, waiter.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   login text not null unique,
   name text not null,
-  role text not null check (role in ('admin', 'barista', 'waiter')),
+  role text not null check (role in ('admin', 'manager', 'barista', 'waiter')),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -27,6 +27,7 @@ create table if not exists public.tasks (
   assignee_id uuid references public.profiles(id) on delete set null,
   is_vip boolean not null default false,
   due_date date,
+  due_at timestamptz,
   status text not null default 'open' check (status in ('open','done','cancelled')),
   completed_at timestamptz,
   created_at timestamptz not null default now(),
@@ -84,9 +85,18 @@ create table if not exists public.schedule_events (
 
 create index if not exists profiles_login_idx on public.profiles(login);
 create index if not exists tasks_assignee_status_idx on public.tasks(assignee_id, status, is_vip, due_date);
+create index if not exists tasks_due_at_idx on public.tasks(is_vip, due_at, created_at);
 create index if not exists checklist_submissions_created_idx on public.checklist_submissions(created_at desc);
 create index if not exists error_reports_created_idx on public.error_reports(created_at desc);
 create index if not exists schedule_events_date_idx on public.schedule_events(event_date);
+
+create table if not exists public.role_permissions (
+  role text primary key check (role in ('admin', 'manager', 'barista', 'waiter')),
+  sections text[] not null default '{}',
+  updated_by uuid references public.profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
 
 create or replace function public.touch_updated_at()
 returns trigger
@@ -194,6 +204,7 @@ alter table public.checklist_submissions enable row level security;
 alter table public.coffee_revisions enable row level security;
 alter table public.error_reports enable row level security;
 alter table public.schedule_events enable row level security;
+alter table public.role_permissions enable row level security;
 
 -- Profiles / employee directory.
 -- Any authenticated employee can read active profiles so tasks can be assigned by employee name.
@@ -219,7 +230,7 @@ create policy "tasks_select_visible"
 on public.tasks
 for select
 to authenticated
-using (public.is_admin() or assignee_id = auth.uid() or creator_id = auth.uid());
+using (public.is_admin() or assignee_id = auth.uid());
 
 drop policy if exists "tasks_insert_authenticated" on public.tasks;
 create policy "tasks_insert_authenticated"
@@ -233,8 +244,8 @@ create policy "tasks_update_visible"
 on public.tasks
 for update
 to authenticated
-using (public.is_admin() or assignee_id = auth.uid() or creator_id = auth.uid())
-with check (public.is_admin() or assignee_id = auth.uid() or creator_id = auth.uid());
+using (public.is_admin() or assignee_id = auth.uid())
+with check (public.is_admin() or assignee_id = auth.uid());
 
 drop policy if exists "tasks_delete_admin" on public.tasks;
 create policy "tasks_delete_admin"
@@ -304,6 +315,45 @@ for update
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+
+-- Role permissions: all authenticated employees can read current access map; only admins can edit.
+drop policy if exists "role_permissions_select_authenticated" on public.role_permissions;
+create policy "role_permissions_select_authenticated"
+on public.role_permissions
+for select
+to authenticated
+using (true);
+
+drop policy if exists "role_permissions_insert_admin" on public.role_permissions;
+create policy "role_permissions_insert_admin"
+on public.role_permissions
+for insert
+to authenticated
+with check (public.is_admin());
+
+drop policy if exists "role_permissions_update_admin" on public.role_permissions;
+create policy "role_permissions_update_admin"
+on public.role_permissions
+for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "role_permissions_delete_admin" on public.role_permissions;
+create policy "role_permissions_delete_admin"
+on public.role_permissions
+for delete
+to authenticated
+using (public.is_admin());
+
+insert into public.role_permissions(role, sections)
+values
+  ('admin', array['home','method','theory','checklists','revisions','techcards','schedule','reportError','employees','control']),
+  ('manager', array['home','method','theory','checklists','revisions','techcards','schedule','reportError','control']),
+  ('barista', array['home','method','theory','checklists','revisions','techcards','schedule','reportError']),
+  ('waiter', array['home','method','theory','schedule','reportError'])
+on conflict (role) do nothing;
 
 -- Schedule: all authenticated employees can read; admins can create/edit/delete events.
 drop policy if exists "schedule_select_authenticated" on public.schedule_events;
