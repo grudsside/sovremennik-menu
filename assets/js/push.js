@@ -148,19 +148,34 @@
       <p class="push-hint">iPhone: сначала откройте сайт в Safari → Поделиться → На экран «Домой», потом запускайте с иконки и включайте уведомления.</p>
     </section>`;
   }
+  let isInjectingPushBox = false;
+
+  function removeDuplicatePushBoxes(){
+    const cards = Array.from(document.querySelectorAll('#push-card, .push-card'));
+    if(cards.length <= 1) return;
+    cards.slice(1).forEach(card => card.remove());
+  }
+
   async function injectPushBox(){
+    if(isInjectingPushBox) return;
     if(!document.body || document.body.classList.contains('login-mode')) return;
     const home = document.querySelector('#top-home .home-dashboard') || document.querySelector('#top-home');
     if(!home) return;
+    removeDuplicatePushBoxes();
     if(document.querySelector('#push-card')) return;
-    const holder = document.createElement('div');
-    holder.innerHTML = await renderPushBox();
-    const node = holder.firstElementChild;
-    if(node) home.appendChild(node);
+    isInjectingPushBox = true;
+    try {
+      const holder = document.createElement('div');
+      holder.innerHTML = await renderPushBox();
+      const node = holder.firstElementChild;
+      removeDuplicatePushBoxes();
+      if(node && !document.querySelector('#push-card')) home.appendChild(node);
+    } finally {
+      isInjectingPushBox = false;
+    }
   }
   async function refreshPushBox(){
-    const old = document.querySelector('#push-card');
-    if(old) old.remove();
+    Array.from(document.querySelectorAll('#push-card, .push-card')).forEach(card => card.remove());
     await injectPushBox();
   }
   document.addEventListener('click', async (event) => {
