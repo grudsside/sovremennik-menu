@@ -107,10 +107,12 @@ function renderLessonBlock(block) { if(block.type==='lead') return `<p class="le
 function renderLessonCard(lesson) { const blocks=(lesson.blocks||[]).map(renderLessonBlock).join(''); return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}"><div class="lesson-content"><div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category||'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div><p class="lesson-summary">${esc(lesson.summary||'')}</p><div class="facts lesson-facts"><div class="fact"><span>Время</span><b>${esc(lesson.duration||'уточнить')}</b></div><div class="fact"><span>Уровень</span><b>${esc(lesson.level||'для сотрудников')}</b></div></div><details class="lesson-details"><summary>Открыть обучение</summary><div class="lesson-body">${blocks}</div></details></div></article>`; }
 
 function renderTheoryTopPanel() { const lessons=state.menu.lessons||[]; const groups=categoryGroups(lessons); const nav=groups.map(group=>`<a class="nav-pill" href="#theory-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="lesson-section" id="theory-${slugify(group.category)}"><div class="section-heading"><p>Обучение</p><h2>${esc(group.category)}</h2></div><div class="lesson-grid">${group.items.map(renderLessonCard).join('')}</div></section>`).join(''); return `<section class="top-panel ${state.activeTop==='theory'?'active':''}" id="top-theory"><div class="section-heading"><p>Раздел</p><h2>Теория</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по темам обучения, кофе, эспрессо, молоку или латте-арту" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
-function renderMethodPanel(tab) { const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
+/* removed earlier duplicate function renderMethodPanel */
+
 
 function renderHomeCard(icon,title,text,target){ return `<article class="home-card"><div><div class="home-icon">${esc(icon)}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div><button type="button" data-top-jump="${esc(target)}">Открыть</button></article>`; }
-function renderMethod() { const tabs=state.menu.site.methodTabs||[]; if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
+/* removed earlier duplicate function renderMethod */
+
 
 function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
 function checklistRowLabel(row){ return [row.task, row.min?`Минимум: ${row.min}`:'', row.responsible?`Ответственный: ${row.responsible}`:''].filter(Boolean).join(' · '); }
@@ -454,15 +456,8 @@ async function submitEmployeeForm(event){
   try { await sendPayloadToSheets({ payloadType:'employeeAdd', employee }); if(status){ status.textContent=''; } alert('Сотрудник добавлен'); form.reset(); await loadEmployees(); }
   catch(error){ console.error(error); if(status){ status.textContent='Не удалось отправить данные.'; status.className='submit-status error'; } }
 }
-async function deleteEmployee(login){
-  if(!isAdmin()) return alert('Удалять сотрудников может только администратор.');
-  const normalized=(login||'').trim();
-  if(!normalized) return;
-  if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');
-  if(!confirm(`Удалить аккаунт «${normalized}»?`)) return;
-  try { await sendPayloadToSheets({ payloadType:'employeeDelete', login: normalized }); alert('Аккаунт удален'); await loadEmployees(); }
-  catch(error){ console.error(error); alert('Не удалось удалить аккаунт. Проверьте Supabase.'); }
-}
+/* removed earlier duplicate function deleteEmployee */
+
 
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
 function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
@@ -775,7 +770,7 @@ async function sendPayloadToSheets(payload){
     const res = await supa.from('coffee_revisions').upsert(row, { onConflict:'revision_date' }).select().single(); if(res.error) throw res.error; safeNotifyEvent('revision_submitted', { revision_id: res.data?.id, revision_date: row.revision_date, employee_name: row.employee_name }); return res.data;
   }
   if(payload.payloadType === 'employeeAdd') { return await callEmployeeFunction({ action:'create', name: payload.employee.name, role: normalizeRole(payload.employee.role), login: payload.employee.login, password: payload.employee.password }); }
-  if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id }); }
+  if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id, login: payload.login }); }
   if(payload.payloadType === 'rolePermissionsSave') { const res = await supa.from('role_permissions').upsert({ role: normalizeRole(payload.role), sections: payload.sections || [], updated_by: user.id }, { onConflict:'role' }).select().single(); if(res.error) throw res.error; return res.data; }
   if(payload.payloadType === 'taskAdd') { const assignee = await findEmployeeByLogin(payload.assigneeLogin); if(!assignee?.id) throw new Error('Сотрудник для задачи не найден.'); const res = await supa.from('tasks').insert({ title: payload.title, description: payload.description || '', creator_id: user.id, assignee_id: assignee.id, is_vip: Boolean(String(payload.priority || '').toLowerCase()==='vip' || payload.isVip), due_date: payload.deadline || null, due_at: payload.deadlineAt ? new Date(payload.deadlineAt).toISOString() : null }).select().single(); if(res.error) throw res.error; safeNotifyEvent('task_assigned', { task_id: res.data?.id }); return res.data; }
   if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId).select('id,status,completed_at').maybeSingle(); if(res.error) throw res.error; if(!res.data) throw new Error('Задача уже завершена или нет доступа.'); safeNotifyEvent('task_completed', { task_id: payload.taskId }); return res.data; }
@@ -807,9 +802,8 @@ function readStorageJsonV21(key, fallback){
 function saveStorageJsonV21(key, value){
   try { localStorage.setItem(key, JSON.stringify(value)); } catch(error){}
 }
-function menuItemKeyV21(item){
-  return [item.section || '', item.category || '', item.title || ''].join('::');
-}
+/* removed earlier duplicate function menuItemKeyV21 */
+
 function getMenuPhotoOverridesV21(){ return readStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, {}); }
 function getTechCardOverridesV21(){ return readStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, {}); }
 function parseIngredientsTextV21(text){
@@ -926,9 +920,8 @@ async function deleteTaskV21(taskId, button){
     if(button){ button.disabled = false; button.textContent = 'Удалить'; }
   }
 }
-function renderHome(){
-  return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><div class="home-head-actions"><button class="small-action secondary compact-action" type="button" data-refresh-service>Обновить</button><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`;
-}
+/* removed earlier duplicate function renderHome */
+
 
 function daysBackFilterV21(rows, days, getDate){
   const now = Date.now();
@@ -1015,30 +1008,10 @@ function findTechCardByKeyV21(key){
   }
   return null;
 }
-function renderTechEditModalV21(){
-  if(!isAdmin()) return '';
-  const firstDocIndex = 0;
-  const firstDoc = (state.menu?.techCards || [])[0] || { cards:[] };
-  const firstCard = (firstDoc.cards || [])[0];
-  const firstKey = firstCard ? techCardKeyV21(firstCard, firstDoc) : '';
-  return `<div class="task-modal" id="tech-edit-modal" aria-hidden="true"><div class="task-form-card tech-edit-card"><div class="card-head"><h3>Редактировать тех. карты</h3><button class="small-action secondary" type="button" data-close-tech-modal>Закрыть</button></div><form id="tech-edit-form"><div class="form-grid"><label>Документ<select name="docIndex" id="tech-doc-select">${techDocOptionsV21()}</select></label><label>Тех. карта<select name="cardKey" id="tech-card-select">${techCardOptionsV21(firstDocIndex, firstKey)}</select></label><label>Название<input name="title" type="text" value="${esc(firstCard?.title || '')}"></label><label>Категория<input name="category" type="text" value="${esc(firstCard?.category || '')}"></label><label>Выход<input name="output" type="text" value="${esc(firstCard?.output || '')}"></label></div><label>Технология<textarea name="technology" rows="4">${esc(firstCard?.technology || '')}</textarea></label><label>Ингредиенты<textarea name="ingredients" rows="8" placeholder="Ингредиент: количество">${esc(ingredientsTextFromListV21(firstCard?.ingredients || []))}</textarea></label><div class="task-form-actions"><button class="small-action ghost" type="button" data-tech-reset>Сбросить изменения</button><button class="small-action secondary" type="button" data-close-tech-modal>Отмена</button><button class="small-action" type="submit">Сохранить</button></div><p class="submit-status tech-edit-status" aria-live="polite"></p></form></div></div>`;
-}
-function fillTechEditorFormV21(){
-  const form = document.querySelector('#tech-edit-form');
-  if(!form) return;
-  const docIndex = Number(form.elements.docIndex.value || 0);
-  const select = form.elements.cardKey;
-  const currentSelected = select.value;
-  select.innerHTML = techCardOptionsV21(docIndex, currentSelected);
-  const pair = findTechCardByKeyV21(select.value) || findTechCardByKeyV21(select.options[0]?.value || '');
-  if(!pair) return;
-  form.elements.cardKey.value = techCardKeyV21(pair.card, pair.doc);
-  form.elements.title.value = pair.card.title || '';
-  form.elements.category.value = pair.card.category || '';
-  form.elements.output.value = pair.card.output || '';
-  form.elements.technology.value = pair.card.technology || '';
-  form.elements.ingredients.value = ingredientsTextFromListV21(pair.card.ingredients || []);
-}
+/* removed earlier duplicate function renderTechEditModalV21 */
+
+/* removed earlier duplicate function fillTechEditorFormV21 */
+
 function openTechEditModalV21(){
   const modal = document.querySelector('#tech-edit-modal');
   if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); }
@@ -1112,41 +1085,8 @@ function setTop(target){
   }
   if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
 }
-/* --- end v21 overrides --- */
+/* removed earlier duplicate function fetchRemoteContentOverridesV22 */
 
-/* --- v22 overrides: sync tech card edits and menu photos through Supabase --- */
-async function fetchRemoteContentOverridesV22(){
-  const empty = { photoOverrides: {}, techOverrides: {} };
-  try {
-    if(typeof supa === 'undefined') return empty;
-    const session = await getCurrentSession().catch(()=>null);
-    if(!session?.user?.id) return empty;
-    const [photoRes, techRes] = await Promise.all([
-      supa.from('menu_item_overrides').select('item_key,image_url,storage_path,updated_at'),
-      supa.from('tech_card_overrides').select('card_key,title,category,output,technology,ingredients,updated_at')
-    ]);
-    if(photoRes.error) throw photoRes.error;
-    if(techRes.error) throw techRes.error;
-    const photoOverrides = {};
-    (photoRes.data || []).forEach(row => { if(row.item_key && row.image_url) photoOverrides[row.item_key] = row.image_url; });
-    const techOverrides = {};
-    (techRes.data || []).forEach(row => {
-      if(row.card_key){
-        techOverrides[row.card_key] = {
-          title: row.title || '',
-          category: row.category || '',
-          output: row.output || '',
-          technology: row.technology || '',
-          ingredients: Array.isArray(row.ingredients) ? row.ingredients : []
-        };
-      }
-    });
-    return { photoOverrides, techOverrides };
-  } catch(error){
-    console.warn('Remote content overrides skipped. Run STEP_6_CONTENT_SYNC_TECHCARDS_PHOTOS.sql if this is the first setup.', error);
-    return empty;
-  }
-}
 async function loadMenu() {
   const embedded = readEmbeddedMenu();
   let base;
@@ -1266,39 +1206,8 @@ async function saveTechOverrideToSupabaseV22(cardKey, payload){
   saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, local);
   return res.data;
 }
-async function submitTechEditV21(event){
-  event.preventDefault();
-  if(!isAdmin()) return alert('Редактировать тех. карты может только администратор.');
-  const form = event.currentTarget;
-  const status = form.querySelector('.tech-edit-status');
-  const payload = {
-    title: (form.elements.title.value || '').trim(),
-    category: (form.elements.category.value || '').trim(),
-    output: (form.elements.output.value || '').trim(),
-    technology: (form.elements.technology.value || '').trim(),
-    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
-  };
-  const key = form.elements.cardKey.value;
-  if(!key || !payload.title){
-    if(status){ status.textContent = 'Нужно выбрать тех. карту и указать название.'; status.className='submit-status error'; }
-    return;
-  }
-  try{
-    if(status){ status.textContent = 'Сохраняю в Supabase…'; status.className = 'submit-status'; }
-    await saveTechOverrideToSupabaseV22(key, payload);
-    applyTechOverrideToStateV21(key, payload);
-    if(status){ status.textContent = ''; }
-    alert('Тех. карта сохранена в Supabase и будет видна всем сотрудникам.');
-    state.menu = await loadMenu();
-    renderApp();
-    setTop('techcards');
-    openTechEditModalV21();
-  } catch(error){
-    console.error(error);
-    if(status){ status.textContent = 'Не удалось сохранить в Supabase.'; status.className = 'submit-status error'; }
-    alert('Не удалось сохранить тех. карту: ' + (error.message || 'проверьте SQL STEP_6 и права администратора.'));
-  }
-}
+/* removed earlier duplicate function submitTechEditV21 */
+
 async function resetTechOverrideV21(){
   const form = document.querySelector('#tech-edit-form');
   if(!form) return;
@@ -1433,58 +1342,12 @@ function customTechDocIdFromKeyV23(key){
   const parts = String(key || '').split('::');
   return parts[0] === 'custom' ? parts[1] || '' : '';
 }
-function applyContentOverridesV23(menu, photoOverrides, techOverrides){
-  const cloned = JSON.parse(JSON.stringify(menu || {}));
-  const docMatches = (doc, docId) => {
-    const wanted = slugify(docId || '');
-    return [doc?.id, doc?.title, doc?.sourceFile].some(value => slugify(value || '') === wanted);
-  };
-  (cloned.items || []).forEach(item => {
-    const key = menuItemKeyV21(item);
-    if(photoOverrides && photoOverrides[key]) item.image = photoOverrides[key];
-  });
-  const seen = new Set();
-  (cloned.techCards || []).forEach(doc => {
-    (doc.cards || []).forEach(card => {
-      const key = techCardKeyV21(card, doc);
-      card.__cardKey = key;
-      seen.add(key);
-      const override = techOverrides ? techOverrides[key] : null;
-      if(override){
-        card.title = override.title || card.title;
-        card.category = override.category || card.category;
-        card.output = override.output || '';
-        card.technology = override.technology || '';
-        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
-      }
-    });
-  });
-  Object.entries(techOverrides || {}).forEach(([key, override]) => {
-    if(seen.has(key)) return;
-    const docId = customTechDocIdFromKeyV23(key);
-    if(!docId) return;
-    const doc = (cloned.techCards || []).find(item => docMatches(item, docId));
-    if(!doc) return;
-    doc.cards = doc.cards || [];
-    doc.cards.unshift({
-      __cardKey: key,
-      title: override.title || 'Новая тех. карта',
-      category: override.category || 'Без раздела',
-      output: override.output || '',
-      technology: override.technology || '',
-      ingredients: Array.isArray(override.ingredients) ? override.ingredients : [],
-      source: 'Добавлено в сервисе',
-      sourceFile: doc.sourceFile || doc.title || ''
-    });
-  });
-  return cloned;
-}
-function applyLocalContentOverridesV21(menu){
-  return applyContentOverridesV23(menu, getMenuPhotoOverridesV21(), getTechCardOverridesV21());
-}
-function applyRemoteContentOverridesV22(menu, remote){
-  return applyContentOverridesV23(menu, remote?.photoOverrides || {}, remote?.techOverrides || {});
-}
+/* removed earlier duplicate function applyContentOverridesV23 */
+
+/* removed earlier duplicate function applyLocalContentOverridesV21 */
+
+/* removed earlier duplicate function applyRemoteContentOverridesV22 */
+
 function techDocByIndexV23(index){
   return (state.menu?.techCards || [])[Number(index)] || null;
 }
@@ -1542,21 +1405,10 @@ async function submitTechCreateV23(event){
     alert('Не удалось добавить тех. карту: ' + (error.message || 'проверьте подключение к Supabase.'));
   }
 }
-function renderTechCards() {
-  const docs = state.menu.techCards || [];
-  return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><div class="toolbar-inline-actions"><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav>${isAdmin()?`<button class="small-action secondary" type="button" data-open-tech-create>Добавить тех. карту</button><button class="small-action" type="button" data-open-tech-edit>Редактировать тех. карты</button>`:''}</div></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>${renderTechEditModalV21()}${renderTechCreateModalV23()}</section>`;
-}
-function bindTechEditorEventsV21(){
-  document.querySelector('[data-open-tech-edit]')?.addEventListener('click', openTechEditModalV21);
-  document.querySelectorAll('[data-close-tech-modal]').forEach(btn => btn.addEventListener('click', closeTechEditModalV21));
-  document.querySelector('#tech-edit-form')?.addEventListener('submit', submitTechEditV21);
-  document.querySelector('#tech-doc-select')?.addEventListener('change', fillTechEditorFormV21);
-  document.querySelector('#tech-card-select')?.addEventListener('change', fillTechEditorFormV21);
-  document.querySelector('[data-tech-reset]')?.addEventListener('click', resetTechOverrideV21);
-  document.querySelector('[data-open-tech-create]')?.addEventListener('click', openTechCreateModalV23);
-  document.querySelectorAll('[data-close-tech-create]').forEach(btn => btn.addEventListener('click', closeTechCreateModalV23));
-  document.querySelector('#tech-create-form')?.addEventListener('submit', submitTechCreateV23);
-}
+/* removed earlier duplicate function renderTechCards */
+
+/* removed earlier duplicate function bindTechEditorEventsV21 */
+
 function getManualReportFilterV23(){
   if(!state.manualReportFilter){
     state.manualReportFilter = { source:'all', dateFrom:'', dateTo:'', employee:'' };
@@ -1664,11 +1516,545 @@ function refreshControl(){
   const err = document.querySelector('#error-records'); if(err) err.innerHTML = renderErrorReportsTable();
   bindControlSummaryEventsV23();
 }
+/* removed earlier duplicate function bindEvents */
+
+/* --- end v23 overrides --- */
+function exportManualReportV23(){
+  const rows = buildManualReportRowsV23();
+  const head = ['Источник','Дата','Дата и время','Сотрудник','Название','Детали','Статус','Значение'];
+  const body = rows.map(row => [row.source, displayDateFromKey(row.dateKey) || row.dateKey || '', row.dateTime || '', row.employee || '', row.name || '', row.details || '', row.status || '', row.value || '']);
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${head.map(item=>`<th>${esc(item)}</th>`).join('')}</tr></thead><tbody>${body.map(cols=>`<tr>${cols.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+  const blob = new Blob(['\ufeff', html], { type:'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'control_manual_report.xls';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Start application after all final overrides are registered.
+// init moved after v25 overrides.
+
+/* --- v25 overrides: employee delete fix, beta home card, unified editors --- */
+function menuItemKeyV21(item){
+  return item?.__itemKey || [item?.section || '', item?.category || '', item?.title || ''].join('::');
+}
+function normalizeArrayPayloadV25(value){
+  return Array.isArray(value) ? value : [];
+}
+function normalizeItemPayloadV25(payload, fallback = {}){
+  const kbju = payload?.kbju || {};
+  return {
+    __itemKey: payload.__itemKey || fallback.__itemKey || '',
+    id: payload.id || fallback.id || payload.section || fallback.section || 'custom',
+    section: payload.section || fallback.section || state.activeMethod || 'bar',
+    category: payload.category || fallback.category || 'Без раздела',
+    title: payload.title || fallback.title || 'Новая позиция',
+    price: payload.price ?? fallback.price ?? '',
+    volume: payload.volume ?? fallback.volume ?? '',
+    time: payload.time ?? fallback.time ?? '',
+    kbju: {
+      calories: kbju.calories ?? fallback.kbju?.calories ?? '____',
+      protein: kbju.protein ?? fallback.kbju?.protein ?? '____',
+      fat: kbju.fat ?? fallback.kbju?.fat ?? '____',
+      carbs: kbju.carbs ?? fallback.kbju?.carbs ?? '____'
+    },
+    description: payload.description ?? fallback.description ?? '',
+    descriptionCollapsed: Boolean(payload.descriptionCollapsed ?? fallback.descriptionCollapsed ?? false),
+    ingredients: normalizeArrayPayloadV25(payload.ingredients ?? fallback.ingredients).map(String).filter(Boolean),
+    image: payload.image ?? fallback.image ?? '',
+    isArchive: Boolean(payload.isArchive ?? fallback.isArchive ?? false),
+    note: payload.note ?? fallback.note ?? '',
+    tags: normalizeArrayPayloadV25(payload.tags ?? fallback.tags).map(String).filter(Boolean)
+  };
+}
+function overlayItemPayloadV25(item, payload, key){
+  const image = item.image || '';
+  const merged = normalizeItemPayloadV25({ ...payload, __itemKey:key }, item);
+  merged.image = image;
+  return merged;
+}
+async function fetchRemoteContentOverridesV22(){
+  const empty = { photoOverrides: {}, itemOverrides: {}, deletedItemKeys: new Set(), techOverrides: {}, deletedTechKeys: new Set() };
+  try {
+    if(typeof supa === 'undefined') return empty;
+    const session = await getCurrentSession().catch(()=>null);
+    if(!session?.user?.id) return empty;
+    let photoRes = await supa.from('menu_item_overrides').select('item_key,image_url,storage_path,payload,is_deleted,updated_at');
+    if(photoRes.error){
+      photoRes = await supa.from('menu_item_overrides').select('item_key,image_url,storage_path,updated_at');
+    }
+    let techRes = await supa.from('tech_card_overrides').select('card_key,title,category,output,technology,ingredients,is_deleted,updated_at');
+    if(techRes.error){
+      techRes = await supa.from('tech_card_overrides').select('card_key,title,category,output,technology,ingredients,updated_at');
+    }
+    if(photoRes.error) throw photoRes.error;
+    if(techRes.error) throw techRes.error;
+    const photoOverrides = {};
+    const itemOverrides = {};
+    const deletedItemKeys = new Set();
+    (photoRes.data || []).forEach(row => {
+      if(!row.item_key) return;
+      if(row.image_url) photoOverrides[row.item_key] = row.image_url;
+      if(row.payload && Object.keys(row.payload || {}).length) itemOverrides[row.item_key] = row.payload;
+      if(row.is_deleted) deletedItemKeys.add(row.item_key);
+    });
+    const techOverrides = {};
+    const deletedTechKeys = new Set();
+    (techRes.data || []).forEach(row => {
+      if(!row.card_key) return;
+      if(row.is_deleted){ deletedTechKeys.add(row.card_key); return; }
+      techOverrides[row.card_key] = {
+        title: row.title || '',
+        category: row.category || '',
+        output: row.output || '',
+        technology: row.technology || '',
+        ingredients: Array.isArray(row.ingredients) ? row.ingredients : []
+      };
+    });
+    return { photoOverrides, itemOverrides, deletedItemKeys, techOverrides, deletedTechKeys };
+  } catch(error){
+    console.warn('Remote content overrides skipped. Run STEP_8_CONTENT_EDITING.sql if this is the first setup.', error);
+    return empty;
+  }
+}
+function applyContentOverridesV23(menu, photoOverrides = {}, techOverrides = {}, extra = {}){
+  const cloned = JSON.parse(JSON.stringify(menu || {}));
+  const itemOverrides = extra.itemOverrides || {};
+  const deletedItemKeys = extra.deletedItemKeys || new Set();
+  const deletedTechKeys = extra.deletedTechKeys || new Set();
+  const finalItems = [];
+  const seenItemKeys = new Set();
+  (cloned.items || []).forEach(item => {
+    const key = menuItemKeyV21(item);
+    seenItemKeys.add(key);
+    if(deletedItemKeys.has(key)) return;
+    let next = { ...item, __itemKey:key };
+    if(itemOverrides[key]) next = overlayItemPayloadV25(next, itemOverrides[key], key);
+    if(photoOverrides[key]) next.image = photoOverrides[key];
+    finalItems.push(next);
+  });
+  Object.entries(itemOverrides || {}).forEach(([key, payload]) => {
+    if(seenItemKeys.has(key) || deletedItemKeys.has(key)) return;
+    if(!String(key).startsWith('custom-item::')) return;
+    const item = normalizeItemPayloadV25({ ...payload, __itemKey:key });
+    if(photoOverrides[key]) item.image = photoOverrides[key];
+    finalItems.push(item);
+  });
+  cloned.items = finalItems;
+  const docMatches = (doc, docId) => {
+    const wanted = slugify(docId || '');
+    return [doc?.id, doc?.title, doc?.sourceFile].some(value => slugify(value || '') === wanted);
+  };
+  (cloned.techCards || []).forEach(doc => {
+    const cards = [];
+    (doc.cards || []).forEach(card => {
+      const key = techCardKeyV21(card, doc);
+      if(deletedTechKeys.has(key)) return;
+      const override = techOverrides ? techOverrides[key] : null;
+      const next = { ...card, __cardKey:key };
+      if(override){
+        next.title = override.title || next.title;
+        next.category = override.category || next.category;
+        next.output = override.output || '';
+        next.technology = override.technology || '';
+        next.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (next.ingredients || []);
+      }
+      cards.push(next);
+    });
+    doc.cards = cards;
+  });
+  Object.entries(techOverrides || {}).forEach(([key, override]) => {
+    if(deletedTechKeys.has(key)) return;
+    if((cloned.techCards || []).some(doc => (doc.cards || []).some(card => techCardKeyV21(card, doc) === key))) return;
+    const docId = customTechDocIdFromKeyV23(key);
+    if(!docId) return;
+    const doc = (cloned.techCards || []).find(item => docMatches(item, docId));
+    if(!doc) return;
+    doc.cards = doc.cards || [];
+    doc.cards.unshift({
+      __cardKey: key,
+      title: override.title || 'Новая тех. карта',
+      category: override.category || 'Без раздела',
+      output: override.output || '',
+      technology: override.technology || '',
+      ingredients: Array.isArray(override.ingredients) ? override.ingredients : [],
+      source: 'Добавлено в сервисе',
+      sourceFile: doc.sourceFile || doc.title || ''
+    });
+  });
+  return cloned;
+}
+function applyLocalContentOverridesV21(menu){
+  return applyContentOverridesV23(menu, getMenuPhotoOverridesV21(), getTechCardOverridesV21(), { itemOverrides:{}, deletedItemKeys:new Set(), deletedTechKeys:new Set() });
+}
+function applyRemoteContentOverridesV22(menu, remote){
+  return applyContentOverridesV23(menu, remote?.photoOverrides || {}, remote?.techOverrides || {}, {
+    itemOverrides: remote?.itemOverrides || {},
+    deletedItemKeys: remote?.deletedItemKeys || new Set(),
+    deletedTechKeys: remote?.deletedTechKeys || new Set()
+  });
+}
+function getMethodItemsV25(){ return Array.isArray(state.menu?.items) ? state.menu.items : []; }
+function methodSectionOptionsV25(selected = state.activeMethod){
+  return (state.menu?.site?.methodTabs || []).map(tab => `<option value="${esc(tab.id)}" ${tab.id===selected?'selected':''}>${esc(tab.title)}</option>`).join('');
+}
+function methodItemOptionsV25(section, selectedKey=''){
+  const rows = getMethodItemsV25().filter(item => item.section === section);
+  return rows.map(item => {
+    const key = menuItemKeyV21(item);
+    return `<option value="${esc(key)}" ${key===selectedKey?'selected':''}>${esc(item.title)} · ${esc(item.category || 'Без раздела')}</option>`;
+  }).join('');
+}
+function findMenuItemByKeyV25(key){
+  return getMethodItemsV25().find(item => menuItemKeyV21(item) === key) || null;
+}
+function ingredientsTextFromItemV25(item){
+  return (item?.ingredients || []).join('\n');
+}
+function itemPayloadFromMethodFormV25(form){
+  return {
+    section: form.elements.section.value || state.activeMethod || 'bar',
+    category: (form.elements.category.value || '').trim() || 'Без раздела',
+    title: (form.elements.title.value || '').trim(),
+    price: (form.elements.price.value || '').trim(),
+    volume: (form.elements.volume.value || '').trim(),
+    time: (form.elements.time.value || '').trim(),
+    description: (form.elements.description.value || '').trim(),
+    ingredients: String(form.elements.ingredients.value || '').split(/\r?\n/).map(v=>v.trim()).filter(Boolean),
+    kbju: {
+      calories: (form.elements.calories.value || '').trim() || '____',
+      protein: (form.elements.protein.value || '').trim() || '____',
+      fat: (form.elements.fat.value || '').trim() || '____',
+      carbs: (form.elements.carbs.value || '').trim() || '____'
+    },
+    note: (form.elements.note.value || '').trim(),
+    tags: String(form.elements.tags.value || '').split(',').map(v=>v.trim()).filter(Boolean),
+    isArchive: Boolean(form.elements.isArchive?.checked)
+  };
+}
+function fillMethodEditorFormV25(itemKey){
+  const form = document.querySelector('#method-edit-form');
+  if(!form) return;
+  const item = findMenuItemByKeyV25(itemKey) || getMethodItemsV25().find(i=>i.section===form.elements.section.value) || getMethodItemsV25()[0] || {};
+  const key = itemKey || menuItemKeyV21(item) || '';
+  form.dataset.mode = key ? 'edit' : 'create';
+  form.elements.itemKey.value = key;
+  form.elements.section.value = item.section || state.activeMethod || 'bar';
+  form.elements.itemKey.innerHTML = methodItemOptionsV25(form.elements.section.value, key);
+  if(key) form.elements.itemKey.value = key;
+  form.elements.title.value = item.title || '';
+  form.elements.category.value = item.category || '';
+  form.elements.price.value = item.price || '';
+  form.elements.volume.value = item.volume || '';
+  form.elements.time.value = item.time || '';
+  form.elements.description.value = item.description || '';
+  form.elements.ingredients.value = ingredientsTextFromItemV25(item);
+  form.elements.calories.value = item.kbju?.calories || '';
+  form.elements.protein.value = item.kbju?.protein || '';
+  form.elements.fat.value = item.kbju?.fat || '';
+  form.elements.carbs.value = item.kbju?.carbs || '';
+  form.elements.note.value = item.note || '';
+  form.elements.tags.value = (item.tags || []).join(', ');
+  if(form.elements.isArchive) form.elements.isArchive.checked = Boolean(item.isArchive);
+  const title = document.querySelector('#method-edit-title');
+  if(title) title.textContent = form.dataset.mode === 'create' ? 'Добавить позицию' : 'Редактировать позиции';
+}
+function resetMethodEditorForCreateV25(){
+  const form = document.querySelector('#method-edit-form');
+  if(!form) return;
+  form.dataset.mode = 'create';
+  form.elements.itemKey.value = '';
+  form.elements.title.value = '';
+  form.elements.category.value = '';
+  form.elements.price.value = '';
+  form.elements.volume.value = '';
+  form.elements.time.value = '';
+  form.elements.description.value = '';
+  form.elements.ingredients.value = '';
+  form.elements.calories.value = '';
+  form.elements.protein.value = '';
+  form.elements.fat.value = '';
+  form.elements.carbs.value = '';
+  form.elements.note.value = '';
+  form.elements.tags.value = '';
+  if(form.elements.isArchive) form.elements.isArchive.checked = false;
+  const title = document.querySelector('#method-edit-title');
+  if(title) title.textContent = 'Добавить позицию';
+}
+function createMenuItemKeyV25(payload){
+  const section = slugify(payload.section || 'method');
+  const title = slugify(payload.title || 'new-item').slice(0,60) || 'new-item';
+  return `custom-item::${section}::${Date.now()}-${title}`;
+}
+async function saveMenuItemOverrideV25(itemKey, payload, isDeleted = false){
+  if(!isAdmin()) throw new Error('Редактировать позиции может только администратор.');
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт администратора.');
+  const current = findMenuItemByKeyV25(itemKey) || {};
+  const row = {
+    item_key: itemKey,
+    image_url: current.image || null,
+    payload: payload || {},
+    is_deleted: Boolean(isDeleted),
+    updated_by: user.id
+  };
+  const res = await supa.from('menu_item_overrides').upsert(row, { onConflict:'item_key' }).select().single();
+  if(res.error) throw res.error;
+  return res.data;
+}
+async function submitMethodEditV25(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Редактировать позиции может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.method-edit-status');
+  const payload = itemPayloadFromMethodFormV25(form);
+  if(!payload.title){
+    if(status){ status.textContent = 'Укажите название позиции.'; status.className = 'submit-status error'; }
+    return;
+  }
+  let key = form.elements.itemKey.value || '';
+  if(form.dataset.mode === 'create' || !key) key = createMenuItemKeyV25(payload);
+  try{
+    if(status){ status.textContent = 'Сохраняю в Supabase…'; status.className = 'submit-status'; }
+    await saveMenuItemOverrideV25(key, payload, false);
+    state.menu = await loadMenu();
+    renderApp();
+    state.activeMethod = payload.section || state.activeMethod;
+    setTop('method');
+    alert('Позиция сохранена.');
+  }catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось сохранить позицию.'; status.className = 'submit-status error'; }
+    alert('Не удалось сохранить позицию: ' + (error.message || 'проверьте STEP_8_CONTENT_EDITING.sql и права администратора.'));
+  }
+}
+async function deleteMethodItemV25(){
+  if(!isAdmin()) return alert('Удалять позиции может только администратор.');
+  const form = document.querySelector('#method-edit-form');
+  if(!form) return;
+  const key = form.elements.itemKey.value;
+  const item = findMenuItemByKeyV25(key);
+  if(!key || !item) return alert('Выберите позицию для удаления.');
+  if(!confirm(`Удалить позицию «${item.title}»?`)) return;
+  try{
+    await saveMenuItemOverrideV25(key, {}, true);
+    state.menu = await loadMenu();
+    renderApp();
+    setTop('method');
+    alert('Позиция удалена.');
+  }catch(error){
+    console.error(error);
+    alert('Не удалось удалить позицию: ' + (error.message || 'проверьте Supabase.'));
+  }
+}
+function openMethodEditModalV25(){
+  const modal = document.querySelector('#method-edit-modal');
+  if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); }
+  const form = document.querySelector('#method-edit-form');
+  if(form){
+    form.elements.section.value = state.activeMethod || form.elements.section.value;
+    form.elements.itemKey.innerHTML = methodItemOptionsV25(form.elements.section.value);
+    const firstKey = form.elements.itemKey.options[0]?.value || '';
+    fillMethodEditorFormV25(firstKey);
+  }
+}
+function closeMethodEditModalV25(){
+  const modal = document.querySelector('#method-edit-modal');
+  if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+}
+function renderMethodEditModalV25(){
+  if(!isAdmin()) return '';
+  const section = state.activeMethod || 'bar';
+  return `<div class="task-modal" id="method-edit-modal" aria-hidden="true"><div class="task-form-card method-edit-card"><div class="card-head"><h3 id="method-edit-title">Редактировать позиции</h3><button class="small-action secondary" type="button" data-close-method-edit>Закрыть</button></div><form id="method-edit-form" data-mode="edit"><div class="form-grid"><label>Раздел<select name="section" id="method-section-select">${methodSectionOptionsV25(section)}</select></label><label>Позиция<select name="itemKey" id="method-item-select">${methodItemOptionsV25(section)}</select></label><label>Название<input name="title" type="text" required></label><label>Категория<input name="category" type="text"></label><label>Цена<input name="price" type="text"></label><label>Объем<input name="volume" type="text"></label><label>Время<input name="time" type="text"></label><label>Теги через запятую<input name="tags" type="text"></label></div><label>Описание<textarea name="description" rows="3"></textarea></label><label>Состав<textarea name="ingredients" rows="7" placeholder="Каждый ингредиент с новой строки"></textarea></label><div class="form-grid compact-kbju"><label>Ккал<input name="calories" type="text"></label><label>Белки<input name="protein" type="text"></label><label>Жиры<input name="fat" type="text"></label><label>Углеводы<input name="carbs" type="text"></label></div><label>Заметка<textarea name="note" rows="2"></textarea></label><label class="permission-check"><input name="isArchive" type="checkbox"> <span>Архивная позиция</span></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-method-new>Новая позиция</button><button class="small-action ghost" type="button" data-method-delete>Удалить</button><button class="small-action" type="submit">Сохранить</button></div><p class="submit-status method-edit-status" aria-live="polite"></p></form></div></div>`;
+}
+function renderMethodPanel(tab) {
+  const allItems = state.menu.items.filter(item=>item.section===tab.id);
+  const groups = categoryGroups(allItems);
+  const nav = groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join('');
+  const sections = groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join('');
+  return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`;
+}
+function renderMethod(){
+  const tabs = state.menu.site.methodTabs || [];
+  if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id;
+  const subtabs = tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
+  return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading method-heading"><div><p>Раздел</p><h2>Методичка</h2></div>${isAdmin()?`<button class="small-action" type="button" data-open-method-edit>Редактировать позиции</button>`:''}</div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div>${renderMethodEditModalV25()}</section>`;
+}
+function bindMethodEditorEventsV25(){
+  document.querySelector('[data-open-method-edit]')?.addEventListener('click', openMethodEditModalV25);
+  document.querySelectorAll('[data-close-method-edit]').forEach(btn=>btn.addEventListener('click', closeMethodEditModalV25));
+  document.querySelector('#method-edit-form')?.addEventListener('submit', submitMethodEditV25);
+  document.querySelector('[data-method-new]')?.addEventListener('click', resetMethodEditorForCreateV25);
+  document.querySelector('[data-method-delete]')?.addEventListener('click', deleteMethodItemV25);
+  document.querySelector('#method-section-select')?.addEventListener('change', event => {
+    const form = document.querySelector('#method-edit-form');
+    if(!form) return;
+    form.elements.itemKey.innerHTML = methodItemOptionsV25(event.target.value);
+    fillMethodEditorFormV25(form.elements.itemKey.value);
+  });
+  document.querySelector('#method-item-select')?.addEventListener('change', event => fillMethodEditorFormV25(event.target.value));
+}
+function renderBetaWelcomeCardV25(){
+  return `<section class="beta-welcome-card"><div><p class="section-kicker">Добро пожаловать</p><h2>Сервис сотрудников «Современник»</h2><p>Здесь собраны задачи, методичка, тех. карты, чек-листы, ревизии, расписание и сообщения об ошибках.</p><strong>БЕТА-ВЕРСИЯ</strong><p>Возможны ошибки. Если вы нашли проблему, сообщите о ней в раздел <b>«Сообщить об ошибке»</b> — она будет исправлена как можно скорее.</p></div><button class="small-action secondary" type="button" data-top-jump="reportError">Сообщить об ошибке</button></section>`;
+}
+function renderHome(){
+  return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home">${renderBetaWelcomeCardV25()}<div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><div class="home-head-actions"><button class="small-action secondary compact-action" type="button" data-refresh-service>Обновить</button><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`;
+}
+function renderTechEditModalV21(){
+  if(!isAdmin()) return '';
+  const firstDocIndex = 0;
+  const firstDoc = (state.menu?.techCards || [])[0] || { cards:[] };
+  const firstCard = (firstDoc.cards || [])[0];
+  const firstKey = firstCard ? techCardKeyV21(firstCard, firstDoc) : '';
+  return `<div class="task-modal" id="tech-edit-modal" aria-hidden="true"><div class="task-form-card tech-edit-card"><div class="card-head"><h3 id="tech-edit-title">Редактировать тех. карты</h3><button class="small-action secondary" type="button" data-close-tech-modal>Закрыть</button></div><form id="tech-edit-form" data-mode="edit"><div class="form-grid"><label>Документ<select name="docIndex" id="tech-doc-select">${techDocOptionsV21()}</select></label><label>Тех. карта<select name="cardKey" id="tech-card-select">${techCardOptionsV21(firstDocIndex, firstKey)}</select></label><label>Название<input name="title" type="text" value="${esc(firstCard?.title || '')}"></label><label>Категория<input name="category" type="text" value="${esc(firstCard?.category || '')}"></label><label>Выход<input name="output" type="text" value="${esc(firstCard?.output || '')}"></label></div><label>Технология<textarea name="technology" rows="4">${esc(firstCard?.technology || '')}</textarea></label><label>Ингредиенты<textarea name="ingredients" rows="8" placeholder="Ингредиент: количество">${esc(ingredientsTextFromListV21(firstCard?.ingredients || []))}</textarea></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-tech-new>Новая тех. карта</button><button class="small-action ghost" type="button" data-tech-delete>Удалить</button><button class="small-action ghost" type="button" data-tech-reset>Сбросить изменения</button><button class="small-action" type="submit">Сохранить</button></div><p class="submit-status tech-edit-status" aria-live="polite"></p></form></div></div>`;
+}
+function resetTechEditorForCreateV25(){
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  form.dataset.mode = 'create';
+  form.elements.cardKey.value = '';
+  form.elements.title.value = '';
+  form.elements.category.value = '';
+  form.elements.output.value = '';
+  form.elements.technology.value = '';
+  form.elements.ingredients.value = '';
+  const title = document.querySelector('#tech-edit-title');
+  if(title) title.textContent = 'Добавить тех. карту';
+}
+function fillTechEditorFormV21(){
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  const docIndex = Number(form.elements.docIndex.value || 0);
+  const select = form.elements.cardKey;
+  const currentSelected = select.value;
+  select.innerHTML = techCardOptionsV21(docIndex, currentSelected);
+  const pair = findTechCardByKeyV21(select.value) || findTechCardByKeyV21(select.options[0]?.value || '');
+  if(!pair) return;
+  form.dataset.mode = 'edit';
+  form.elements.cardKey.value = techCardKeyV21(pair.card, pair.doc);
+  form.elements.title.value = pair.card.title || '';
+  form.elements.category.value = pair.card.category || '';
+  form.elements.output.value = pair.card.output || '';
+  form.elements.technology.value = pair.card.technology || '';
+  form.elements.ingredients.value = ingredientsTextFromListV21(pair.card.ingredients || []);
+  const title = document.querySelector('#tech-edit-title');
+  if(title) title.textContent = 'Редактировать тех. карты';
+}
+async function submitTechEditV21(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Редактировать тех. карты может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.tech-edit-status');
+  const payload = {
+    title: (form.elements.title.value || '').trim(),
+    category: (form.elements.category.value || '').trim(),
+    output: (form.elements.output.value || '').trim(),
+    technology: (form.elements.technology.value || '').trim(),
+    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
+  };
+  if(!payload.title){
+    if(status){ status.textContent = 'Укажите название тех. карты.'; status.className='submit-status error'; }
+    return;
+  }
+  let key = form.elements.cardKey.value;
+  if(form.dataset.mode === 'create' || !key){
+    const doc = techDocByIndexV23(form.elements.docIndex.value);
+    key = createTechCardKeyV23(doc, payload.title);
+  }
+  try{
+    if(status){ status.textContent = 'Сохраняю в Supabase…'; status.className = 'submit-status'; }
+    await saveTechOverrideToSupabaseV25(key, payload, false);
+    state.menu = await loadMenu();
+    renderApp();
+    setTop('techcards');
+    openTechEditModalV21();
+    alert('Тех. карта сохранена.');
+  } catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось сохранить в Supabase.'; status.className = 'submit-status error'; }
+    alert('Не удалось сохранить тех. карту: ' + (error.message || 'проверьте Supabase.'));
+  }
+}
+async function saveTechOverrideToSupabaseV25(cardKey, payload, isDeleted = false){
+  if(!isAdmin()) throw new Error('Редактировать тех. карты может только администратор.');
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт администратора.');
+  const row = {
+    card_key: cardKey,
+    title: payload.title || 'Удаленная тех. карта',
+    category: payload.category || '',
+    output: payload.output || '',
+    technology: payload.technology || '',
+    ingredients: Array.isArray(payload.ingredients) ? payload.ingredients : [],
+    is_deleted: Boolean(isDeleted),
+    updated_by: user.id
+  };
+  const res = await supa.from('tech_card_overrides').upsert(row, { onConflict:'card_key' }).select().single();
+  if(res.error) throw res.error;
+  return res.data;
+}
+async function deleteTechCardV25(){
+  if(!isAdmin()) return alert('Удалять тех. карты может только администратор.');
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  const key = form.elements.cardKey.value;
+  const pair = findTechCardByKeyV21(key);
+  if(!key || !pair) return alert('Выберите тех. карту для удаления.');
+  if(!confirm(`Удалить тех. карту «${pair.card.title}»?`)) return;
+  try{
+    await saveTechOverrideToSupabaseV25(key, { title: pair.card.title, category: pair.card.category || '', output: pair.card.output || '', technology: pair.card.technology || '', ingredients: pair.card.ingredients || [] }, true);
+    state.menu = await loadMenu();
+    renderApp();
+    setTop('techcards');
+    alert('Тех. карта удалена.');
+  }catch(error){
+    console.error(error);
+    alert('Не удалось удалить тех. карту: ' + (error.message || 'проверьте Supabase.'));
+  }
+}
+function renderTechCards() {
+  const docs = state.menu.techCards || [];
+  return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading method-heading"><div><p>Рабочие документы</p><h2>Тех. карты</h2></div>${isAdmin()?`<button class="small-action" type="button" data-open-tech-edit>Редактировать тех. карты</button>`:''}</div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>${renderTechEditModalV21()}</section>`;
+}
+function bindTechEditorEventsV21(){
+  document.querySelector('[data-open-tech-edit]')?.addEventListener('click', openTechEditModalV21);
+  document.querySelectorAll('[data-close-tech-modal]').forEach(btn => btn.addEventListener('click', closeTechEditModalV21));
+  document.querySelector('#tech-edit-form')?.addEventListener('submit', submitTechEditV21);
+  document.querySelector('#tech-doc-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('#tech-card-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('[data-tech-reset]')?.addEventListener('click', resetTechOverrideV21);
+  document.querySelector('[data-tech-new]')?.addEventListener('click', resetTechEditorForCreateV25);
+  document.querySelector('[data-tech-delete]')?.addEventListener('click', deleteTechCardV25);
+}
+async function deleteEmployee(login){
+  if(!isAdmin()) return alert('Удалять сотрудников может только администратор.');
+  const normalized=(login||'').trim();
+  if(!normalized) return;
+  if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');
+  if(!confirm(`Удалить аккаунт «${normalized}»?`)) return;
+  const button = document.querySelector(`[data-employee-delete="${CSS.escape(normalized)}"]`);
+  if(button){ button.disabled = true; button.textContent = 'Удаляю…'; }
+  try {
+    await sendPayloadToSheets({ payloadType:'employeeDelete', login: normalized });
+    state.employees = (state.employees || []).filter(e => String(e.login || '').toLowerCase() !== normalized.toLowerCase());
+    refreshEmployees();
+    alert('Аккаунт удален');
+    await loadEmployees();
+  } catch(error){
+    console.error(error);
+    alert('Не удалось удалить аккаунт: ' + (error.message || 'проверьте Supabase и обновите Edge Function admin-employees.'));
+    if(button){ button.disabled = false; button.textContent = 'Удалить'; }
+  }
+}
 function bindEvents(){
   document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
   document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
   document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
-  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
+  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`); bindMethodEditorEventsV25();}); });
   document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
   document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
   bindSearch(document.querySelector('#top-theory'),'.lesson-card');
@@ -1700,23 +2086,9 @@ function bindEvents(){
   bindPhotoAdminEventsV21();
   bindPhotoToggleEventsV23();
   bindTechEditorEventsV21();
+  bindMethodEditorEventsV25();
 }
-/* --- end v23 overrides --- */
-function exportManualReportV23(){
-  const rows = buildManualReportRowsV23();
-  const head = ['Источник','Дата','Дата и время','Сотрудник','Название','Детали','Статус','Значение'];
-  const body = rows.map(row => [row.source, displayDateFromKey(row.dateKey) || row.dateKey || '', row.dateTime || '', row.employee || '', row.name || '', row.details || '', row.status || '', row.value || '']);
-  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${head.map(item=>`<th>${esc(item)}</th>`).join('')}</tr></thead><tbody>${body.map(cols=>`<tr>${cols.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
-  const blob = new Blob(['\ufeff', html], { type:'application/vnd.ms-excel;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'control_manual_report.xls';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+/* --- end v25 overrides --- */
 
-// Start application after all final overrides are registered.
+// Start application after v25 overrides are registered.
 init();

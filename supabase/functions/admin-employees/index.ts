@@ -95,15 +95,22 @@ serve(async (req) => {
 
   if (action === "delete") {
     const userId = String(body.userId || "").trim();
-    if (!userId) return json({ ok: false, error: "userId is required" }, 400);
+    const login = String(body.login || "").trim().toLowerCase();
+    if (!userId && !login) return json({ ok: false, error: "userId or login is required" }, 400);
 
-    const { data: target } = await admin.from("profiles").select("login").eq("id", userId).single();
-    if (target?.login === "grigory") return json({ ok: false, error: "Cannot delete start admin" }, 400);
+    let targetQuery = admin.from("profiles").select("id, login");
+    targetQuery = userId ? targetQuery.eq("id", userId) : targetQuery.eq("login", login);
+    const { data: target, error: targetError } = await targetQuery.single();
+    if (targetError || !target?.id) return json({ ok: false, error: "Employee not found" }, 404);
+    if (target.login === "grigory") return json({ ok: false, error: "Cannot delete start admin" }, 400);
 
-    await admin.from("profiles").update({ is_active: false }).eq("id", userId);
-    const deleted = await admin.auth.admin.deleteUser(userId);
-    if (deleted.error) return json({ ok: false, error: deleted.error.message }, 400);
-    return json({ ok: true });
+    const softDelete = await admin.from("profiles").update({ is_active: false }).eq("id", target.id);
+    if (softDelete.error) return json({ ok: false, error: softDelete.error.message }, 400);
+
+    // Auth deletion can fail for legacy/manual profiles. The profile is already deactivated,
+    // so the employee disappears from the service even if the auth user cannot be removed.
+    const deleted = await admin.auth.admin.deleteUser(target.id);
+    return json({ ok: true, warning: deleted.error ? deleted.error.message : null });
   }
 
   return json({ ok: false, error: "Unknown action" }, 400);
