@@ -53,15 +53,10 @@ function normalizeRole(role){ return ROLE_ALIASES[String(role || '').trim().toLo
 function roleLabel(role){ const normalized=normalizeRole(role); return ROLE_LABELS[normalized] || ROLE_LABELS[role] || role || '—'; }
 function currentUser(){ return state.auth?.user || null; }
 function currentUserName(){ return currentUser()?.name || ''; }
-function getAuthToken(){ return state.auth?.token || ''; }
 function isAuthenticated(){ return Boolean(getAuthToken() && currentUser()); }
 function isAdmin(){ return normalizeRole(currentUser()?.role) === 'admin'; }
-function saveAuth(auth){ state.auth=auth; localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth)); }
-function readSavedAuth(){ try { const saved=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || 'null'); return saved && saved.token && saved.user ? saved : null; } catch(e){ return null; } }
-function clearAuth(){ state.auth=null; localStorage.removeItem(AUTH_STORAGE_KEY); }
 function effectiveAccessByRole(){ return state.rolePermissions || DEFAULT_ACCESS_BY_ROLE; }
 function hasAccess(target){ if(target==='home') return true; const role=normalizeRole(currentUser()?.role); if(role === 'admin') return true; return (effectiveAccessByRole()[role] || []).includes(target); }
-function allMainTabs(){ const tabs=[...(state.menu?.site?.mainTabs || [])]; if(!tabs.some(t=>t.id==='employees')){ const controlIndex=tabs.findIndex(t=>t.id==='control'); tabs.splice(controlIndex>=0?controlIndex:tabs.length, 0, {id:'employees', title:'Сотрудники'}); } return tabs; }
 function allowedMainTabs(){ return allMainTabs().filter(tab=>hasAccess(tab.id)); }
 function ensureAllowedTop(){ const allowed=allowedMainTabs().map(t=>t.id); if(!allowed.includes(state.activeTop)) state.activeTop = allowed.includes('home') ? 'home' : (allowed[0] || 'home'); }
 function showLogin(){
@@ -92,40 +87,6 @@ function fetchJsonp(params){
     document.body.appendChild(script);
   });
 }
-async function handleLogin(event){
-  event.preventDefault();
-  const form=event.currentTarget;
-  const errorEl=document.querySelector('#login-error');
-  const login=(form.elements.login.value||'').trim();
-  const password=(form.elements.password.value||'').trim();
-  if(errorEl) errorEl.textContent='Проверяю данные…';
-
-  // Гарантированный вход для стартового администратора.
-  // Сначала пробуем серверный вход, чтобы получить нормальный токен Supabase.
-  // Если сервер еще не обновлен или временно недоступен, входим локально, чтобы сайт не блокировался.
-  if(isBuiltinAdminCredentials(login, password)){
-    try {
-      const response=await fetchJsonp({ action:'login', login, password });
-      saveAuth({ token: response.token, user: response.user });
-    } catch(error) {
-      console.warn('Серверный вход для стартового администратора не сработал, включен локальный вход:', error);
-      saveAuth(builtinAdminAuth());
-    }
-    state.activeTop='home';
-    renderApp();
-    return;
-  }
-
-  try {
-    const response=await fetchJsonp({ action:'login', login, password });
-    saveAuth({ token: response.token, user: response.user });
-    state.activeTop='home';
-    renderApp();
-  } catch(error){
-    if(errorEl) errorEl.textContent=error.message || 'Не удалось войти.';
-  }
-}
-function handleLogout(){ clearAuth(); state.controlRecords=null; state.revisionRecords=null; state.employees=null; showLogin(); }
 
 function esc(value) { return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
 function slugify(text) { const map={'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}; return String(text).toLowerCase().split('').map(ch=>map[ch]??ch).join('').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
@@ -136,13 +97,11 @@ function categoryGroups(items) { const map=new Map(); for(const item of items){c
 function validChecklistTitles(){ return new Set((state.menu?.checklists||[]).map(doc=>doc.title)); }
 function isRealChecklistRecord(record){ const titles=validChecklistTitles(); return titles.has(record.checklistTitle) && ((record.tasks||[]).length > 0 || Number(record.total||0) > 0); }
 
-function renderPhoto(item) { if(item.image) return `<div class="photo-frame has-image"><img src="${esc(item.image)}" alt="${esc(item.title)}" loading="lazy"></div>`; return `<div class="photo-frame"><div><div class="photo-icon">+</div><div class="photo-text">место для фото</div></div></div>`; }
 function renderDescription(item) { if(!item.description) return ''; if(item.descriptionCollapsed) return `<details class="description-block"><summary>Описание</summary><p>${esc(item.description)}</p></details>`; return `<p class="description">${esc(item.description)}</p>`; }
 function renderFacts(item) { const facts=[]; if(item.volume) facts.push(['Объем',item.volume]); if(item.category && item.section!=='bar') facts.push(['Раздел',item.category]); facts.push(['Время приготовления',item.time||'__________']); return `<div class="facts">${facts.map(([l,v])=>`<div class="fact"><span>${esc(l)}</span><b>${esc(v)}</b></div>`).join('')}</div>`; }
 function renderIngredients(item) { const ingredients=item.ingredients&&item.ingredients.length?item.ingredients:['Состав уточнить']; return `<div class="ingredients"><h4>Состав</h4><ul>${ingredients.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`; }
 function renderTags(item) { const tags=[...(item.tags||[])]; if(item.isArchive&&!tags.some(t=>t.toLowerCase().includes('архив'))) tags.push('архив'); if(!tags.length) return ''; return `<div class="tag-row">${tags.map(t=>`<span class="tag ${t.toLowerCase().includes('архив')?'archive':''}">${esc(t)}</span>`).join('')}</div>`; }
 function renderNote(item) { if(!item.note) return ''; return `<details class="note"><summary>На заметку</summary><p>${esc(item.note)}</p></details>`; }
-function renderCard(item) { return `<article class="product-card" data-search="${esc(itemSearchText(item))}">${renderPhoto(item)}<div class="card-body">${renderTags(item)}<div class="card-head"><h3>${esc(item.title)}</h3>${item.price?`<span class="price-badge">${esc(item.price)}</span>`:''}</div>${renderDescription(item)}${renderFacts(item)}<div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>${renderIngredients(item)}${renderNote(item)}</div></article>`; }
 
 function renderLessonBlock(block) { if(block.type==='lead') return `<p class="lesson-lead">${esc(block.text)}</p>`; if(block.type==='cards') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><div class="mini-card-grid">${(block.cards||[]).map(card=>`<div class="mini-card"><h5>${esc(card.title)}</h5><p>${esc(card.text)}</p></div>`).join('')}</div></section>`; if(block.type==='steps') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><ol class="lesson-list">${(block.items||[]).map(i=>`<li>${esc(i)}</li>`).join('')}</ol></section>`; if(block.type==='checklist') return `<section class="lesson-block checklist"><h4>${esc(block.title||'')}</h4><ul class="lesson-checklist">${(block.items||[]).map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`; if(block.type==='callout') return `<aside class="lesson-callout"><h4>${esc(block.title||'Важно')}</h4><p>${esc(block.text)}</p></aside>`; if(block.type==='table') return `<section class="lesson-block"><h4>${esc(block.title||'')}</h4><div class="lesson-table-wrap"><table class="lesson-table"><thead><tr>${(block.headers||[]).map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${(block.rows||[]).map(row=>`<tr>${row.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`; return ''; }
 function renderLessonCard(lesson) { const blocks=(lesson.blocks||[]).map(renderLessonBlock).join(''); return `<article class="lesson-card" data-search="${esc(lessonSearchText(lesson))}" id="lesson-${esc(lesson.id)}"><div class="lesson-content"><div class="lesson-head"><div><p class="lesson-category">${esc(lesson.category||'Теория')}</p><h3>${esc(lesson.title)}</h3></div></div><p class="lesson-summary">${esc(lesson.summary||'')}</p><div class="facts lesson-facts"><div class="fact"><span>Время</span><b>${esc(lesson.duration||'уточнить')}</b></div><div class="fact"><span>Уровень</span><b>${esc(lesson.level||'для сотрудников')}</b></div></div><details class="lesson-details"><summary>Открыть обучение</summary><div class="lesson-body">${blocks}</div></details></div></article>`; }
@@ -151,18 +110,6 @@ function renderTheoryTopPanel() { const lessons=state.menu.lessons||[]; const gr
 function renderMethodPanel(tab) { const allItems=state.menu.items.filter(item=>item.section===tab.id); const groups=categoryGroups(allItems); const nav=groups.map(group=>`<a class="nav-pill" href="#${tab.id}-${slugify(group.category)}">${esc(group.category)}<span>${group.items.length}</span></a>`).join(''); const sections=groups.map(group=>`<section class="product-section" id="${tab.id}-${slugify(group.category)}"><div class="section-heading"><p>Раздел</p><h2>${esc(group.category)}</h2></div><div class="cards-grid">${group.items.map(renderCard).join('')}</div></section>`).join(''); return `<section class="tab-panel ${tab.id===state.activeMethod?'active':''}" id="panel-${tab.id}"><div class="toolbar"><div class="search-row"><input class="search" placeholder="${esc(tab.searchPlaceholder||'Поиск')}" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${nav}</nav></div><main>${sections}</main><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 function renderHomeCard(icon,title,text,target){ return `<article class="home-card"><div><div class="home-icon">${esc(icon)}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div><button type="button" data-top-jump="${esc(target)}">Открыть</button></article>`; }
-function renderHome(){
-  const cards=[
-    ['М','Методичка','Карточки напитков, кухня, десерты и архив. Основной раздел для изучения меню.','method'],
-    ['Т','Теория','Обучающие материалы: кофе, молоко, латте-арт и настройка эспрессо.','theory'],
-    ['✓','Чек-листы','Открытие и закрытие смены, заготовки, генеральная уборка.','checklists'],
-    ['Р','Ревизии','Ежедневная ревизия кофе: вес бункера, вскрытые пачки и ответственный сотрудник.','revisions'],
-    ['ТК','Тех. карты','Технологические карты напитков и заготовок: состав, количество и технология.','techcards'],
-    ['С','Сотрудники','Аккаунты сотрудников, роли, логины и пароли. Доступно администратору.','employees'],
-    ['К','Контроль','Общий журнал чек-листов и ревизий, отправленных сотрудниками со всех устройств.','control']
-  ].filter(([, , , target])=>hasAccess(target));
-  return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-grid">${cards.map(c=>renderHomeCard(...c)).join('')}</div></section>`;
-}
 function renderMethod() { const tabs=state.menu.site.methodTabs||[]; if(!tabs.some(t=>t.id===state.activeMethod) && tabs.length) state.activeMethod=tabs[0].id; const subtabs=tabs.map(tab=>`<button class="subtab ${tab.id===state.activeMethod?'active':''}" data-method-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join(''); return `<section class="top-panel ${state.activeTop==='method'?'active':''}" id="top-method"><div class="section-heading"><p>Раздел</p><h2>Методичка</h2></div><div class="subtabs">${subtabs}</div><div id="method-panels">${tabs.map(renderMethodPanel).join('')}</div></section>`; }
 
 function rowSearch(row) { return Object.values(row||{}).join(' ').toLowerCase(); }
@@ -276,22 +223,6 @@ function enrichRevisionCalculations(records){
   });
 }
 
-function fetchFromSheets(view){
-  if(!GOOGLE_SCRIPT_URL) return Promise.resolve([]);
-  return new Promise((resolve, reject)=>{
-    const callbackName = `sovremennikCallback_${view}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    const script = document.createElement('script');
-    script.charset='UTF-8';
-    const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
-    const timer = setTimeout(()=>{ cleanup(); reject(new Error('Не удалось получить данные: превышено время ожидания.')); }, 12000);
-    function cleanup(){ clearTimeout(timer); delete window[callbackName]; script.remove(); }
-    window[callbackName] = (response)=>{ cleanup(); if(response && response.ok){ resolve(response.rows || []); } else { reject(new Error(response?.error || 'Supabase вернул ошибку.')); } };
-    script.onerror = ()=>{ cleanup(); reject(new Error('Не удалось подключиться к Supabase.')); };
-    const tokenParam = getAuthToken() ? `&authToken=${encodeURIComponent(getAuthToken())}` : '';
-    script.src = `${GOOGLE_SCRIPT_URL}${sep}view=${encodeURIComponent(view)}&callback=${encodeURIComponent(callbackName)}${tokenParam}&_=${Date.now()}`;
-    document.body.appendChild(script);
-  });
-}
 async function loadControlRecords(){
   state.controlLoading = true; state.controlError = ''; refreshControl();
   try { const records = (await fetchFromSheets('checklists')).map(normalizeRemoteRecord).filter(isRealChecklistRecord); state.controlRecords = records; setLocalControlRecords(records); }
@@ -315,7 +246,6 @@ function encodePayloadBase64(payload){
   }
   return btoa(unescape(encodeURIComponent(json)));
 }
-function sendPayloadToSheets(payload){ const withAuth={...payload, authToken:getAuthToken()}; const body = new URLSearchParams({ payloadB64: encodePayloadBase64(withAuth) }); return fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body }); }
 function renderRecordDetails(record){ const tasks=record.tasks||[]; return `<details class="control-details"><summary>Показать заполненный чек-лист</summary><ul>${tasks.map(t=>`<li class="${t.checked?'done':'not-done'}"><span>${t.checked?'✓':'—'}</span>${esc(t.text)}</li>`).join('')}</ul></details>`; }
 function recordDoneTotal(record){ const total=(record.tasks||[]).length || Number(record.total || 0); const done=(record.tasks||[]).filter(t=>t.checked).length || Number(record.completed || 0); return {done,total}; }
 function renderControlRecordsTable(){
@@ -349,9 +279,6 @@ function renderRevisionManualForm(){
   const today=new Date().toISOString().slice(0,10);
   return `<details class="revision-manual"><summary>Внести списания и продажи вручную</summary><form class="revision-form" id="revision-manual-form"><div class="form-grid"><label class="employee-field">Дата ревизии<input name="revisionDate" type="date" value="${today}" required></label><label class="employee-field">Списания, кг<input name="writeOffs" type="number" min="0" step="0.001" placeholder="Например, 0.180"></label><label class="employee-field">Продажи в iiko, кг<input name="iikoSales" type="number" min="0" step="0.001" placeholder="Например, 4.140"></label><label class="employee-field">Проверено<input name="checked" type="text" placeholder="Например, управляющий"></label></div><button class="submit-revision submit-revision-manual" type="submit">Сохранить данные</button><p class="submit-status revision-manual-status" aria-live="polite"></p></form></details>`;
 }
-function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств. Ревизии в эту таблицу не попадают.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе. Данные сотрудника и ручные данные синхронизируются в одну колонку по дате ревизии.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div></section>`; }
-function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); }
-function setControlTab(target){ state.activeControl=target; document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target)); document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`)); if(target==='checklists') loadControlRecords(); if(target==='revisions') loadRevisionRecords(); }
 async function submitChecklist(docId){
   const doc=(state.menu.checklists||[]).find(d=>d.id===docId);
   const card=Array.from(document.querySelectorAll('.doc-card')).find(el=>el.dataset.checklistId===docId);
@@ -401,12 +328,9 @@ function downloadCsv(filename, rows){ const csv=rows.map(row=>row.map(cell=>`"${
 
 function techSearch(card) { return [card.title, card.category, card.source, card.technology, card.output, ...(card.ingredients||[]).map(i=>`${i.name} ${i.amount}`)].join(' ').toLowerCase(); }
 function renderTechCard(card) { return `<article class="tech-card" data-search="${esc(techSearch(card))}"><div class="tech-content"><div class="card-head"><h3>${esc(card.title)}</h3><span class="source-badge">${esc(card.source)}</span></div><div class="tech-meta"><span>${esc(card.category||'Без раздела')}</span>${card.output?`<span>Выход: ${esc(card.output)}</span>`:''}</div>${card.technology?`<p class="description">${esc(card.technology)}</p>`:''}<details class="tech-details"><summary>Ингредиенты</summary><div class="lesson-table-wrap"><table class="ingredient-table"><thead><tr><th>Ингредиент</th><th>Кол-во</th></tr></thead><tbody>${(card.ingredients||[]).map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.amount||'')}</td></tr>`).join('')}</tbody></table></div></details></div></article>`; }
-function renderTechDocument(doc) { const groups=categoryGroups(doc.cards||[]); return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(renderTechCard).join('')}</div></section>`).join('')}</section>`; }
-function renderTechCards() { const docs=state.menu.techCards||[]; return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div></section>`; }
 
 
 
-function normalizeEmployee(row){ return { id: row.id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
 function dedupeEmployees(rows){
   const map=new Map();
   (rows||[]).forEach(row=>{
@@ -540,80 +464,8 @@ async function deleteEmployee(login){
   catch(error){ console.error(error); alert('Не удалось удалить аккаунт. Проверьте Supabase.'); }
 }
 
-function renderApp(){
-  if(!isAuthenticated()) return showLogin();
-  document.body.classList.remove('login-mode');
-  const {site}=state.menu;
-  ensureAllowedTop();
-  if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id;
-  document.title=`${site.title} — база сотрудников`;
-  document.querySelector('.brand').textContent=site.title;
-  document.querySelector('.kicker').textContent=site.subtitle;
-  document.querySelector('.muted').textContent=site.description;
-  const user=currentUser();
-  const userPanel=document.querySelector('#user-panel');
-  if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
-  const tabs=allowedMainTabs();
-  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
-  document.querySelector('#panels').innerHTML=
-    renderHome()+
-    (hasAccess('method')?renderMethod():'')+
-    (hasAccess('theory')?renderTheoryTopPanel():'')+
-    (hasAccess('checklists')?renderChecklists():'')+
-    (hasAccess('revisions')?renderRevisions():'')+
-    (hasAccess('techcards')?renderTechCards():'')+
-    (hasAccess('employees')?renderEmployees():'')+
-    (hasAccess('control')?renderControl():'');
-  bindEvents();
-  if(state.activeTop==='employees' && !state.employees) loadEmployees();
-  if(state.activeTop==='control'){ loadControlRecords(); loadRevisionRecords(); }
-}
-function setTop(target){
-  if(!hasAccess(target)) target='home';
-  state.activeTop=target;
-  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target));
-  document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`));
-  history.replaceState(null,'',`#${target}`);
-  window.scrollTo({top:0,behavior:'smooth'});
-  if(target==='control'){ loadControlRecords(); loadRevisionRecords(); }
-  if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
-}
 function bindSearch(panel, selector) { const input=panel?.querySelector('.search'); if(!input) return; const clear=panel.querySelector('.clear-btn'); const searchableCards=Array.from(panel.querySelectorAll(selector)); const empty=panel.querySelector('.empty-state'); const filter=()=>{ const q=(input.value||'').trim().toLowerCase(); let visible=0; searchableCards.forEach(card=>{const ok=!q||(card.dataset.search||card.textContent).toLowerCase().includes(q); card.classList.toggle('hidden',!ok); if(ok) visible+=1;}); if(empty) empty.classList.toggle('show', visible===0); }; input.addEventListener('input',filter); clear&&clear.addEventListener('click',()=>{input.value='';filter();input.focus();}); }
-function bindEvents(){
-  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
-  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
-  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
-  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
-  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
-  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
-  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
-  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
-  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
-  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
-  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
-  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
-  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
-  bindRolePermissionEvents();
-  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
-  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
-  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
-  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
-  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
-}
 function readEmbeddedMenu() { const el=document.getElementById('menu-data'); if(!el) return null; try {return JSON.parse(el.textContent);} catch(error){console.error('Не удалось прочитать встроенные данные', error); return null;} }
-async function loadMenu() { const embedded=readEmbeddedMenu(); if(location.protocol==='file:' && embedded) return embedded; try { const res=await fetch('data/menu.json',{cache:'no-cache'}); if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`); return await res.json(); } catch(error) { console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error); if(embedded) return embedded; throw error; } }
-async function init(){
-  try {
-    state.menu=await loadMenu();
-    state.auth=readSavedAuth();
-    const hash=location.hash.replace('#','');
-    if(hash.includes('/')) { const [top, method]=hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top) || top==='employees') state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; }
-    else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash) || hash==='employees') { state.activeTop=hash; }
-    renderApp();
-  } catch(error) {
-    document.querySelector('#panels').innerHTML=`<div class="error">Сайт загружен, но не удалось прочитать данные. Проверьте, что рядом с index.html есть папка <b>data</b> с файлом <b>menu.json</b>. Детали: ${esc(error.message)}</div>`; console.error(error);
-  }
-}
 
 /* --- v12: задачи, ошибки, расписание, обновленная главная --- */
 Object.assign(state, {
@@ -659,10 +511,6 @@ function mergeById(rows){
   const map=new Map();
   (rows||[]).forEach(row=>{ if(row && row.id) map.set(row.id, row); });
   return Array.from(map.values());
-}
-function getScheduleEvents(){ 
-  const dynamic = Array.isArray(state.scheduleEvents) ? state.scheduleEvents : getLocalArray(SCHEDULE_STORAGE_KEY);
-  return mergeById([...(getInitialScheduleEvents()||[]), ...(dynamic||[])]);
 }
 function getTaskAssignees(){
   const rows = Array.isArray(state.taskAssignees) ? state.taskAssignees : getLocalArray(TASK_ASSIGNEES_STORAGE_KEY);
@@ -754,26 +602,6 @@ function displayTaskDeadline(task){
   if(!d) return 'без срока';
   return d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
 }
-function renderTaskItem(task){ 
-  const vip=isVipTask(task);
-  const deadlineText=taskDeadlineLabel(task);
-  const deadlineFull=displayTaskDeadline(task);
-  const assignedTo=task.assigneeName || task.assignee || task.assigneeLogin || 'не указано';
-  return `<article class="task-item task-compact ${vip?'vip':''}" data-task-id="${esc(task.id)}">
-    <details class="task-details">
-      <summary>
-        <span class="task-main">
-          <span class="task-title">${esc(task.title||'Задача')}</span>
-          <span class="task-mini-meta">${vip?'<b class="vip-mark">VIP</b>':''}<span>${esc(deadlineFull)}</span><span>кому: ${esc(assignedTo)}</span></span>
-        </span>
-        <span class="task-timer ${vip?'vip-timer':''}">${esc(deadlineText)}</span>
-      </summary>
-      ${task.description?`<p class="description">${esc(task.description)}</p>`:''}
-      <div class="task-meta"><span>Поставил: ${esc(task.authorName||'—')}</span><span>Создано: ${esc(formatDateTime(task.createdAt))}</span></div>
-      ${canCompleteTask(task)?`<button class="small-action task-complete" type="button" data-task-complete="${esc(task.id)}">Завершить задачу</button>`:''}
-    </details>
-  </article>`; 
-}
 function renderTasksList(){ 
   if(state.taskLoading) return `<div class="task-empty">Загружаю задачи…</div>`; 
   const tasks=activeTasks(); 
@@ -794,8 +622,6 @@ function renderTaskModal(){
   const user=currentUser(); 
   return `<div class="task-modal" id="task-modal" aria-hidden="true"><div class="task-form-card"><div class="card-head"><h3>Поставить задачу</h3><button class="small-action secondary" type="button" data-close-task-modal>Закрыть</button></div><form id="task-form"><div class="form-grid"><label>Название задачи<input name="title" type="text" required placeholder="Например, проверить витрину"></label><label>Кому поставить задачу<span id="task-assignee-select-wrap">${employeeOptionsSelect()}</span></label><label>Дедлайн<input name="deadline" type="datetime-local"></label><label>Поставил<input name="authorName" type="text" value="${esc(user?.name||'')}" required></label></div><label>Описание<textarea name="description" rows="4" placeholder="Что нужно сделать и на что обратить внимание"></textarea></label><label class="vip-checkbox"><input name="isVip" type="checkbox"> <span>VIP-приоритет: сделать как можно скорее</span></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-close-task-modal>Отмена</button><button class="small-action" type="submit">Поставить задачу</button></div><p class="submit-status task-status" aria-live="polite"></p></form></div></div>`; 
 }
-function renderHome(){ return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`; }
-function refreshTasks(){ const el=document.querySelector('#tasks-list'); if(el) el.innerHTML=renderTasksList(); }
 function openTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); } loadTaskAssignees(); }
 function closeTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); } }
 async function submitTask(event){ 
@@ -827,18 +653,6 @@ async function submitTask(event){
     form.reset(); form.elements.authorName.value=currentUserName()||''; closeTaskModal(); loadTasks(); 
   } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить задачу.'; status.className='submit-status error';} } 
 }
-async function completeTask(taskId, button){
-  const task=getTasks().find(t=>String(t.id)===String(taskId));
-  if(!task) return;
-  if(!confirm(`Завершить задачу «${task.title || 'Задача'}»?`)) return;
-  if(button){ button.disabled = true; button.textContent = 'Завершаю…'; }
-  try{
-    await sendPayloadToSheets({payloadType:'taskComplete', taskId, completedBy: currentUserName()||''});
-    const rows=getTasks().filter(t=>String(t.id)!==String(taskId));
-    setLocalArray(TASKS_STORAGE_KEY, rows); state.tasks=rows; refreshTasks();
-    await loadTasks();
-  }catch(error){ console.error(error); alert('Не удалось завершить задачу: ' + (error.message || 'проверьте доступ и подключение.')); if(button){ button.disabled = false; button.textContent = 'Завершить задачу'; } }
-}
 function renderReportError(){ return `<section class="top-panel ${state.activeTop==='reportError'?'active':''}" id="top-reportError"><div class="section-heading"><p>Обратная связь</p><h2>Сообщить об ошибке</h2></div><div class="report-layout"><div class="report-card"><p class="description">Напишите, что не работает или что нужно исправить в методичке, чек-листах, техкартах или сервисе.</p><form class="report-form" id="error-report-form"><label>Описание ошибки<textarea name="text" required placeholder="Например: в карточке Айс латте неверный состав…"></textarea></label><button class="small-action" type="submit">Отправить</button><p class="submit-status error-report-status" aria-live="polite"></p></form></div></div></section>`; }
 async function submitErrorReport(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
 function renderErrorReportsTable(){ const rows=getErrorReports(); if(state.errorReportsLoading) return `<div class="empty-control"><h3>Загружаю ошибки…</h3><p>Подключаюсь к Supabase.</p></div>`; if(!rows.length) return `<div class="empty-control"><h3>Ошибок пока нет</h3><p>Сообщения сотрудников появятся здесь.</p>${state.errorReportsError?`<p class="employees-error">${esc(state.errorReportsError)}</p>`:''}</div>`; return `<div class="employee-table-wrap"><table class="employee-table errors-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Сообщение</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(formatDateTime(r.createdAt)||[r.date,r.time].filter(Boolean).join(' '))}</td><td>${esc(r.employeeName||'—')}</td><td class="error-text">${esc(r.text||'')}</td></tr>`).join('')}</tbody></table></div>`; }
@@ -859,88 +673,7 @@ function renderSchedule(){ const today=new Date().toISOString().slice(0,10); ret
 function refreshSchedule(){ const wrap=document.querySelector('#schedule-grid-wrap'); if(wrap) wrap.innerHTML=renderScheduleGrid(); const title=document.querySelector('.schedule-month-title'); if(title) title.textContent=monthTitle(state.scheduleMonth); }
 async function submitScheduleEvent(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.schedule-status'); const record={ id:`event-${Date.now()}-${Math.random().toString(16).slice(2)}`, eventDate:normalizeDateKey(form.elements.eventDate.value), type:(form.elements.type.value||'Мероприятие').trim(), title:(form.elements.title.value||'').trim(), description:(form.elements.description.value||'').trim(), employeeName:(form.elements.employeeName.value||currentUserName()||'').trim(), createdAt:new Date().toISOString() }; if(!record.eventDate || !record.title){ if(status){status.textContent='Заполните дату и название.'; status.className='submit-status error';} return; } try{ await sendPayloadToSheets({payloadType:'scheduleAdd', ...record}); const rows=[record,...getLocalArray(SCHEDULE_STORAGE_KEY)]; setLocalArray(SCHEDULE_STORAGE_KEY, rows); state.scheduleEvents=rows; refreshSchedule(); if(status) status.textContent=''; alert('Отлично! Мероприятие добавлено'); form.reset(); form.elements.eventDate.value=new Date().toISOString().slice(0,10); form.elements.employeeName.value=currentUserName()||''; loadScheduleEvents(); }catch(error){ console.error(error); if(status){status.textContent='Не удалось добавить мероприятие.'; status.className='submit-status error';} } }
 
-function renderControl(){ return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button><button class="subtab ${state.activeControl==='errors'?'active':''}" data-control-target="errors" type="button">Ошибки</button></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='errors'?'active':''}" id="control-errors"><div class="control-note"><p>Здесь отображаются сообщения сотрудников об ошибках.</p><div class="doc-actions"><button type="button" class="refresh-errors">Обновить данные</button></div></div><div id="error-records">${renderErrorReportsTable()}</div></div></section>`; }
-function refreshControl(){ const el=document.querySelector('#control-records'); if(el) el.innerHTML=renderControlRecordsTable(); const rev=document.querySelector('#revision-records'); if(rev) rev.innerHTML=renderRevisionRecordsTable(); const err=document.querySelector('#error-records'); if(err) err.innerHTML=renderErrorReportsTable(); }
-function setControlTab(target){ state.activeControl=target; document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target)); document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`)); if(target==='checklists') loadControlRecords(); if(target==='revisions') loadRevisionRecords(); if(target==='errors') loadErrorReports(); }
 
-function renderApp(){
-  if(!isAuthenticated()) return showLogin();
-  document.body.classList.remove('login-mode');
-  const {site}=state.menu;
-  ensureAllowedTop();
-  if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id;
-  document.title=`${site.title} — база сотрудников`;
-  document.querySelector('.brand').textContent=site.title;
-  document.querySelector('.kicker').textContent=site.subtitle;
-  document.querySelector('.muted').textContent=site.description;
-  const user=currentUser();
-  const userPanel=document.querySelector('#user-panel');
-  if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
-  const tabs=allowedMainTabs();
-  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''} ${tab.id==='employees'&&hasAccess('employees')?'admin-visible':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
-  document.querySelector('#panels').innerHTML=
-    renderHome()+
-    (hasAccess('method')?renderMethod():'')+
-    (hasAccess('theory')?renderTheoryTopPanel():'')+
-    (hasAccess('checklists')?renderChecklists():'')+
-    (hasAccess('revisions')?renderRevisions():'')+
-    (hasAccess('techcards')?renderTechCards():'')+
-    (hasAccess('schedule')?renderSchedule():'')+
-    (hasAccess('reportError')?renderReportError():'')+
-    (hasAccess('employees')?renderEmployees():'')+
-    (hasAccess('control')?renderControl():'');
-  bindEvents();
-  if(!state.tasks) loadTasks();
-  if(!state.taskAssignees) loadTaskAssignees();
-  if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions();
-  if(isAdmin() && !state.employees) loadEmployees();
-  if(state.activeTop==='schedule' && !state.scheduleEvents) loadScheduleEvents();
-  if(state.activeTop==='employees' && !state.employees) loadEmployees();
-  if(state.activeTop==='control'){ loadControlRecords(); loadRevisionRecords(); if(state.activeControl==='errors') loadErrorReports(); }
-}
-function setTop(target){
-  if(!hasAccess(target)) target='home';
-  state.activeTop=target;
-  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target));
-  document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`));
-  history.replaceState(null,'',`#${target}`);
-  window.scrollTo({top:0,behavior:'smooth'});
-  if(target==='home'){ loadTasks(); if(!state.taskAssignees) loadTaskAssignees(); }
-  if(target==='schedule') loadScheduleEvents();
-  if(target==='control'){ loadControlRecords(); loadRevisionRecords(); if(state.activeControl==='errors') loadErrorReports(); }
-  if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
-}
-function bindEvents(){
-  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
-  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
-  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
-  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
-  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
-  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
-  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
-  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
-  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
-  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
-  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
-  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
-  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
-  bindRolePermissionEvents();
-  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
-  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
-  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
-  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
-  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
-  document.querySelector('.refresh-errors')?.addEventListener('click',loadErrorReports);
-  document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
-  document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
-  document.querySelector('#task-form')?.addEventListener('submit',submitTask);
-  document.querySelectorAll('[data-task-complete]').forEach(btn=>btn.addEventListener('click',(event)=>{ event.preventDefault(); event.stopPropagation(); completeTask(btn.dataset.taskComplete, btn); }));
-  document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
-  document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
-  document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
-  document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
-  document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
-}
 
 
 /* --- Supabase backend override: replaces Supabase data layer --- */
@@ -964,25 +697,6 @@ async function restoreSupabaseSession(){ try { const profile = await getCurrentP
 function getAuthToken(){ return state.auth?.token || state.auth?.session?.access_token || ''; }
 function normalizeEmployee(row){ return { id: row.id || row.user_id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
 
-async function handleLogin(event){
-  event.preventDefault();
-  const form = event.currentTarget;
-  const errorEl = document.querySelector('#login-error');
-  const login = (form.elements.login.value || '').trim().toLowerCase();
-  const password = (form.elements.password.value || '').trim();
-  if(errorEl) errorEl.textContent = 'Проверяю данные…';
-  try {
-    const email = loginToEmail(login);
-    const result = await supa.auth.signInWithPassword({ email, password });
-    if(result.error) throw result.error;
-    const profile = await getCurrentProfile();
-    saveAuth({ token: result.data.session?.access_token || '', session: result.data.session, user: profile });
-    state.activeTop = 'home';
-    renderApp();
-  } catch(error) {
-    if(errorEl) errorEl.textContent = 'Не удалось войти: ' + (error.message || 'проверьте логин и пароль.');
-  }
-}
 async function handleLogout(){ try { await supa.auth.signOut(); } catch(e) {} clearAuth(); state.controlRecords=null; state.revisionRecords=null; state.employees=null; showLogin(); }
 function clearAuth(){ state.auth = null; try { localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY); } catch(e) {} }
 
@@ -1070,24 +784,9 @@ async function sendPayloadToSheets(payload){
   throw new Error('Неизвестный тип операции.');
 }
 
-async function init(){
-  try {
-    state.menu = await loadMenu();
-    state.auth = readSavedAuth();
-    await restoreSupabaseSession();
-    const hash = location.hash.replace('#','');
-    if(hash.includes('/')) { const [top, method] = hash.split('/'); if((state.menu.site.mainTabs||[]).some(t=>t.id===top) || top==='employees') state.activeTop=top; if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method; }
-    else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash) || hash==='employees') { state.activeTop=hash; }
-    renderApp();
-  } catch(error) {
-    document.querySelector('#panels').innerHTML = `<div class="error">Сайт загружен, но не удалось подключиться к Supabase или прочитать данные. Детали: ${esc(error.message)}</div>`;
-    console.error(error);
-  }
-}
 
 /* --- End Supabase override --- */
 
-init();
 
 /* --- v21 overrides: admin tools, task fixes, summaries, photos, refresh --- */
 const MENU_PHOTO_OVERRIDES_KEY_V21 = 'sovremennikMenuPhotoOverridesV21';
@@ -1111,9 +810,6 @@ function saveStorageJsonV21(key, value){
 function menuItemKeyV21(item){
   return [item.section || '', item.category || '', item.title || ''].join('::');
 }
-function techCardKeyV21(card, doc){
-  return [doc?.sourceFile || card?.sourceFile || doc?.title || '', card?.title || ''].join('::');
-}
 function getMenuPhotoOverridesV21(){ return readStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, {}); }
 function getTechCardOverridesV21(){ return readStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, {}); }
 function parseIngredientsTextV21(text){
@@ -1125,47 +821,6 @@ function parseIngredientsTextV21(text){
 }
 function ingredientsTextFromListV21(list){
   return (list || []).map(item => `${item.name || ''}: ${item.amount || ''}`.trim()).join('\n');
-}
-function applyLocalContentOverridesV21(menu){
-  const cloned = JSON.parse(JSON.stringify(menu || {}));
-  const photoOverrides = getMenuPhotoOverridesV21();
-  const techOverrides = getTechCardOverridesV21();
-  (cloned.items || []).forEach(item => {
-    const key = menuItemKeyV21(item);
-    if(photoOverrides[key]) item.image = photoOverrides[key];
-  });
-  (cloned.techCards || []).forEach(doc => {
-    (doc.cards || []).forEach(card => {
-      const key = techCardKeyV21(card, doc);
-      const override = techOverrides[key];
-      if(override){
-        card.title = override.title || card.title;
-        card.category = override.category || card.category;
-        card.output = override.output || '';
-        card.technology = override.technology || '';
-        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
-      }
-    });
-  });
-  return cloned;
-}
-async function loadMenu() {
-  const embedded = readEmbeddedMenu();
-  let base;
-  if(location.protocol === 'file:' && embedded){
-    base = embedded;
-  } else {
-    try {
-      const res = await fetch('data/menu.json', { cache:'no-cache' });
-      if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`);
-      base = await res.json();
-    } catch(error) {
-      console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error);
-      if(!embedded) throw error;
-      base = embedded;
-    }
-  }
-  return applyLocalContentOverridesV21(base);
 }
 function applyPhotoOverrideToStateV21(itemKey, dataUrl){
   (state.menu?.items || []).forEach(item => {
@@ -1185,43 +840,10 @@ function applyTechOverrideToStateV21(cardKey, payload){
     });
   });
 }
-function ensurePhotoInputV21(){
-  let input = document.getElementById('admin-photo-input-v21');
-  if(input) return input;
-  input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.id = 'admin-photo-input-v21';
-  input.hidden = true;
-  input.addEventListener('change', () => {
-    const file = input.files?.[0];
-    if(!file || !pendingPhotoTargetKeyV21) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const overrides = getMenuPhotoOverridesV21();
-      overrides[pendingPhotoTargetKeyV21] = String(reader.result || '');
-      saveStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, overrides);
-      applyPhotoOverrideToStateV21(pendingPhotoTargetKeyV21, String(reader.result || ''));
-      pendingPhotoTargetKeyV21 = '';
-      input.value = '';
-      alert('Фото обновлено');
-      renderApp();
-      setTop('method');
-    };
-    reader.readAsDataURL(file);
-  });
-  document.body.appendChild(input);
-  return input;
-}
 function openPhotoPickerV21(itemKey){
   if(!isAdmin()) return alert('Редактировать фото может только администратор.');
   pendingPhotoTargetKeyV21 = itemKey;
   ensurePhotoInputV21().click();
-}
-function renderCard(item) {
-  const itemKey = menuItemKeyV21(item);
-  const adminPhotoButton = isAdmin() ? `<button class="mini-admin-btn" type="button" data-photo-edit="${esc(itemKey)}">${item.image ? 'Изменить фото' : 'Добавить фото'}</button>` : '';
-  return `<article class="product-card" data-search="${esc(itemSearchText(item))}">${renderPhoto(item)}<div class="card-body">${renderTags(item)}<div class="card-head"><h3>${esc(item.title)}</h3>${item.price?`<span class="price-badge">${esc(item.price)}</span>`:''}</div>${renderDescription(item)}${renderFacts(item)}<div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>${renderIngredients(item)}${renderNote(item)}${adminPhotoButton?`<div class="admin-card-actions">${adminPhotoButton}</div>`:''}</div></article>`;
 }
 
 function renderTaskItem(task){
@@ -1365,16 +987,6 @@ function renderControlSummaryV21(){
     <section class="summary-card"><div class="card-head"><h3>Сообщения об ошибках</h3><span class="source-badge">обратная связь</span></div><div class="summary-metrics">${summaryMetricCardV21('За 30 дней', `${errors30.length}`, 'сообщений')}${summaryMetricCardV21('Всего', `${errorRows.length}`, 'сообщений')}</div><h4>Кто чаще сообщает об ошибках</h4>${renderTopEmployeesV21(topErrorEmployees)}</section>
   </div>`;
 }
-function renderControl(){
-  return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='summary'?'active':''}" data-control-target="summary" type="button">Сводка</button><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button><button class="subtab ${state.activeControl==='errors'?'active':''}" data-control-target="errors" type="button">Ошибки</button></div><div class="control-folder ${state.activeControl==='summary'?'active':''}" id="control-summary"><div class="control-note"><p>Сводка автоматически собирает данные из раздела «Контроль» и помогает быстро смотреть короткие отчеты за неделю и за месяц.</p></div><div id="control-summary-wrap">${renderControlSummaryV21()}</div></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='errors'?'active':''}" id="control-errors"><div class="control-note"><p>Здесь отображаются сообщения сотрудников об ошибках.</p><div class="doc-actions"><button type="button" class="refresh-errors">Обновить данные</button></div></div><div id="error-records">${renderErrorReportsTable()}</div></div></section>`;
-}
-function refreshControl(){
-  const summary = document.querySelector('#control-summary-wrap');
-  if(summary) summary.innerHTML = renderControlSummaryV21();
-  const el = document.querySelector('#control-records'); if(el) el.innerHTML = renderControlRecordsTable();
-  const rev = document.querySelector('#revision-records'); if(rev) rev.innerHTML = renderRevisionRecordsTable();
-  const err = document.querySelector('#error-records'); if(err) err.innerHTML = renderErrorReportsTable();
-}
 function setControlTab(target){
   state.activeControl = target;
   document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target));
@@ -1436,100 +1048,14 @@ function closeTechEditModalV21(){
   const modal = document.querySelector('#tech-edit-modal');
   if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
 }
-function resetTechOverrideV21(){
-  const form = document.querySelector('#tech-edit-form');
-  if(!form) return;
-  const key = form.elements.cardKey.value;
-  if(!key) return;
-  if(!confirm('Сбросить локальные изменения для этой тех. карты?')) return;
-  const overrides = getTechCardOverridesV21();
-  delete overrides[key];
-  saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, overrides);
-  const basePromise = loadMenu();
-  Promise.resolve(basePromise).then(menu => { state.menu = menu; renderApp(); setTop('techcards'); openTechEditModalV21(); }).catch(console.error);
-}
-async function submitTechEditV21(event){
-  event.preventDefault();
-  if(!isAdmin()) return alert('Редактировать тех. карты может только администратор.');
-  const form = event.currentTarget;
-  const status = form.querySelector('.tech-edit-status');
-  const payload = {
-    title: (form.elements.title.value || '').trim(),
-    category: (form.elements.category.value || '').trim(),
-    output: (form.elements.output.value || '').trim(),
-    technology: (form.elements.technology.value || '').trim(),
-    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
-  };
-  const key = form.elements.cardKey.value;
-  if(!key || !payload.title){
-    if(status){ status.textContent = 'Нужно выбрать тех. карту и указать название.'; status.className='submit-status error'; }
-    return;
-  }
-  const overrides = getTechCardOverridesV21();
-  overrides[key] = payload;
-  saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, overrides);
-  applyTechOverrideToStateV21(key, payload);
-  if(status){ status.textContent = ''; }
-  alert('Тех. карта обновлена');
-  renderApp();
-  setTop('techcards');
-  openTechEditModalV21();
-}
 function renderTechDocument(doc) {
   const groups = categoryGroups(doc.cards || []);
   return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(card=>renderTechCard(card)).join('')}</div></section>`).join('')}</section>`;
-}
-function renderTechCards() {
-  const docs = state.menu.techCards || [];
-  return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><div class="toolbar-inline-actions"><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav>${isAdmin()?`<button class="small-action" type="button" data-open-tech-edit>Редактировать тех. карты</button>`:''}</div></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>${renderTechEditModalV21()}</section>`;
 }
 function bindPhotoAdminEventsV21(){
   document.querySelectorAll('[data-photo-edit]').forEach(btn => {
     btn.onclick = () => openPhotoPickerV21(btn.dataset.photoEdit);
   });
-}
-function bindTechEditorEventsV21(){
-  document.querySelector('[data-open-tech-edit]')?.addEventListener('click', openTechEditModalV21);
-  document.querySelectorAll('[data-close-tech-modal]').forEach(btn => btn.addEventListener('click', closeTechEditModalV21));
-  document.querySelector('#tech-edit-form')?.addEventListener('submit', submitTechEditV21);
-  document.querySelector('#tech-doc-select')?.addEventListener('change', fillTechEditorFormV21);
-  document.querySelector('#tech-card-select')?.addEventListener('change', fillTechEditorFormV21);
-  document.querySelector('[data-tech-reset]')?.addEventListener('click', resetTechOverrideV21);
-}
-function bindEvents(){
-  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
-  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
-  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
-  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
-  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
-  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
-  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
-  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
-  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
-  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
-  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
-  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
-  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
-  bindRolePermissionEvents();
-  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
-  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
-  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
-  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
-  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
-  document.querySelector('.refresh-errors')?.addEventListener('click',loadErrorReports);
-  document.querySelector('[data-control-summary-refresh]')?.addEventListener('click',()=>{ loadControlRecords(); loadRevisionRecords(); loadErrorReports(); });
-  document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
-  document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
-  document.querySelector('#task-form')?.addEventListener('submit',submitTask);
-  bindTaskCardEventsV21();
-  document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
-  document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
-  document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
-  document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
-  document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
-  document.querySelector('[data-refresh-service]')?.addEventListener('click',()=>location.reload());
-  bindPhotoAdminEventsV21();
-  bindTechEditorEventsV21();
 }
 function renderApp(){
   if(!isAuthenticated()) return showLogin();
@@ -1620,29 +1146,6 @@ async function fetchRemoteContentOverridesV22(){
     console.warn('Remote content overrides skipped. Run STEP_6_CONTENT_SYNC_TECHCARDS_PHOTOS.sql if this is the first setup.', error);
     return empty;
   }
-}
-function applyRemoteContentOverridesV22(menu, remote){
-  const cloned = JSON.parse(JSON.stringify(menu || {}));
-  const photoOverrides = remote?.photoOverrides || {};
-  const techOverrides = remote?.techOverrides || {};
-  (cloned.items || []).forEach(item => {
-    const key = menuItemKeyV21(item);
-    if(photoOverrides[key]) item.image = photoOverrides[key];
-  });
-  (cloned.techCards || []).forEach(doc => {
-    (doc.cards || []).forEach(card => {
-      const key = techCardKeyV21(card, doc);
-      const override = techOverrides[key];
-      if(override){
-        card.title = override.title || card.title;
-        card.category = override.category || card.category;
-        card.output = override.output || '';
-        card.technology = override.technology || '';
-        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
-      }
-    });
-  });
-  return cloned;
 }
 async function loadMenu() {
   const embedded = readEmbeddedMenu();
@@ -2131,12 +1634,6 @@ function renderManualReportBuilderV23(){
   const filters = getManualReportFilterV23();
   return `<section class="summary-card report-builder-card"><div class="card-head"><h3>Ручной отчет</h3><span class="source-badge">конструктор</span></div><form class="report-builder-form" id="report-builder-form"><div class="form-grid"><label>Источник<select name="source"><option value="all" ${filters.source==='all'?'selected':''}>Все разделы</option><option value="checklists" ${filters.source==='checklists'?'selected':''}>Чек-листы</option><option value="revisions" ${filters.source==='revisions'?'selected':''}>Ревизии</option><option value="errors" ${filters.source==='errors'?'selected':''}>Ошибки</option></select></label><label>Сотрудник<input type="text" name="employee" value="${esc(filters.employee)}" placeholder="Имя сотрудника"></label><label>Дата от<input type="date" name="dateFrom" value="${esc(filters.dateFrom)}"></label><label>Дата до<input type="date" name="dateTo" value="${esc(filters.dateTo)}"></label></div><div class="task-form-actions"><button class="small-action secondary" type="button" data-report-reset>Сбросить</button><button class="small-action" type="submit">Сформировать отчет</button><button class="small-action secondary" type="button" data-report-export>Скачать Excel</button></div></form><div id="manual-report-table">${renderManualReportTableV23()}</div></section>`;
 }
-function exportManualReportV23(){
-  const rows = buildManualReportRowsV23();
-  const csvRows = [['Источник','Дата','Дата и время','Сотрудник','Название','Детали','Статус','Значение']];
-  rows.forEach(row => csvRows.push([row.source, displayDateFromKey(row.dateKey) || row.dateKey || '', row.dateTime || '', row.employee || '', row.name || '', row.details || '', row.status || '', row.value || '']));
-  downloadCsv('control_manual_report.csv', csvRows);
-}
 function bindControlSummaryEventsV23(){
   document.querySelector('#report-builder-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -2220,3 +1717,6 @@ function exportManualReportV23(){
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// Start application after all final overrides are registered.
+init();
