@@ -1858,3 +1858,365 @@ async function init(){
   }
 }
 /* --- end v22 overrides --- */
+
+/* --- v23 overrides: icon, photos, reports, tech-card creation, schedule dedupe --- */
+function techCardKeyV21(card, doc){
+  return card?.__cardKey || [doc?.sourceFile || card?.sourceFile || doc?.title || '', card?.title || ''].join('::');
+}
+function normalizeTextV23(value){ return String(value ?? '').trim().toLowerCase(); }
+function scheduleEventFingerprintV23(row){
+  return [
+    normalizeDateKey(row?.eventDate || row?.date || ''),
+    normalizeTextV23(row?.type),
+    normalizeTextV23(row?.title),
+    normalizeTextV23(row?.employeeName || row?.authorName),
+    normalizeTextV23(row?.description)
+  ].join('|');
+}
+function getScheduleEvents(){
+  const dynamic = Array.isArray(state.scheduleEvents) ? state.scheduleEvents : getLocalArray(SCHEDULE_STORAGE_KEY);
+  const merged = [...(getInitialScheduleEvents() || []), ...(dynamic || [])];
+  const map = new Map();
+  merged.forEach(row => {
+    if(!row) return;
+    const fp = scheduleEventFingerprintV23(row);
+    const idKey = row.id ? `id:${row.id}` : '';
+    const key = idKey || fp;
+    if(!key) return;
+    if(!map.has(key)) { map.set(key, row); return; }
+    const prev = map.get(key) || {};
+    map.set(key, { ...prev, ...row, id: prev.id || row.id || '' });
+  });
+  const fpSeen = new Set();
+  const deduped = [];
+  Array.from(map.values()).forEach(row => {
+    const fp = scheduleEventFingerprintV23(row);
+    if(fpSeen.has(fp)) return;
+    fpSeen.add(fp);
+    deduped.push(row);
+  });
+  return deduped.sort((a,b)=>{
+    const ad = String(a?.eventDate || '');
+    const bd = String(b?.eventDate || '');
+    if(ad !== bd) return ad.localeCompare(bd);
+    return `${a?.type||''} ${a?.title||''}`.localeCompare(`${b?.type||''} ${b?.title||''}`, 'ru');
+  });
+}
+function renderPhoto(item) {
+  if(item.image) {
+    return `<button class="photo-frame has-image expandable" type="button" data-photo-toggle aria-expanded="false"><img src="${esc(item.image)}" alt="${esc(item.title)}" loading="lazy"><span class="photo-expand-hint">Нажмите, чтобы развернуть фото</span></button>`;
+  }
+  return `<div class="photo-frame"><div><div class="photo-icon">+</div><div class="photo-text">место для фото</div></div></div>`;
+}
+function renderCard(item) {
+  const itemKey = menuItemKeyV21(item);
+  const adminPhotoButton = isAdmin() ? `<button class="mini-admin-btn" type="button" data-photo-edit="${esc(itemKey)}">${item.image ? 'Изменить фото' : 'Добавить фото'}</button>` : '';
+  return `<article class="product-card" data-search="${esc(itemSearchText(item))}">${renderPhoto(item)}<div class="card-body">${renderTags(item)}<div class="card-head"><h3>${esc(item.title)}</h3>${item.price?`<span class="price-badge">${esc(item.price)}</span>`:''}</div>${renderDescription(item)}${renderFacts(item)}<div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>${renderIngredients(item)}${renderNote(item)}${adminPhotoButton?`<div class="admin-card-actions">${adminPhotoButton}</div>`:''}</div></article>`;
+}
+function bindPhotoToggleEventsV23(){
+  document.querySelectorAll('[data-photo-toggle]').forEach(btn => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      const card = btn.closest('.product-card');
+      if(!card) return;
+      const expanded = card.classList.toggle('photo-expanded');
+      btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      const hint = btn.querySelector('.photo-expand-hint');
+      if(hint) hint.textContent = expanded ? 'Нажмите, чтобы свернуть фото' : 'Нажмите, чтобы развернуть фото';
+    };
+  });
+}
+function customTechDocIdFromKeyV23(key){
+  const parts = String(key || '').split('::');
+  return parts[0] === 'custom' ? parts[1] || '' : '';
+}
+function applyContentOverridesV23(menu, photoOverrides, techOverrides){
+  const cloned = JSON.parse(JSON.stringify(menu || {}));
+  const docMatches = (doc, docId) => {
+    const wanted = slugify(docId || '');
+    return [doc?.id, doc?.title, doc?.sourceFile].some(value => slugify(value || '') === wanted);
+  };
+  (cloned.items || []).forEach(item => {
+    const key = menuItemKeyV21(item);
+    if(photoOverrides && photoOverrides[key]) item.image = photoOverrides[key];
+  });
+  const seen = new Set();
+  (cloned.techCards || []).forEach(doc => {
+    (doc.cards || []).forEach(card => {
+      const key = techCardKeyV21(card, doc);
+      card.__cardKey = key;
+      seen.add(key);
+      const override = techOverrides ? techOverrides[key] : null;
+      if(override){
+        card.title = override.title || card.title;
+        card.category = override.category || card.category;
+        card.output = override.output || '';
+        card.technology = override.technology || '';
+        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
+      }
+    });
+  });
+  Object.entries(techOverrides || {}).forEach(([key, override]) => {
+    if(seen.has(key)) return;
+    const docId = customTechDocIdFromKeyV23(key);
+    if(!docId) return;
+    const doc = (cloned.techCards || []).find(item => docMatches(item, docId));
+    if(!doc) return;
+    doc.cards = doc.cards || [];
+    doc.cards.unshift({
+      __cardKey: key,
+      title: override.title || 'Новая тех. карта',
+      category: override.category || 'Без раздела',
+      output: override.output || '',
+      technology: override.technology || '',
+      ingredients: Array.isArray(override.ingredients) ? override.ingredients : [],
+      source: 'Добавлено в сервисе',
+      sourceFile: doc.sourceFile || doc.title || ''
+    });
+  });
+  return cloned;
+}
+function applyLocalContentOverridesV21(menu){
+  return applyContentOverridesV23(menu, getMenuPhotoOverridesV21(), getTechCardOverridesV21());
+}
+function applyRemoteContentOverridesV22(menu, remote){
+  return applyContentOverridesV23(menu, remote?.photoOverrides || {}, remote?.techOverrides || {});
+}
+function techDocByIndexV23(index){
+  return (state.menu?.techCards || [])[Number(index)] || null;
+}
+function renderTechCreateModalV23(){
+  if(!isAdmin()) return '';
+  const docs = state.menu?.techCards || [];
+  const firstDocIndex = 0;
+  return `<div class="task-modal" id="tech-create-modal" aria-hidden="true"><div class="task-form-card tech-edit-card"><div class="card-head"><h3>Добавить новую тех. карту</h3><button class="small-action secondary" type="button" data-close-tech-create>Закрыть</button></div><form id="tech-create-form"><div class="form-grid"><label>Документ<select name="docIndex">${docs.map((doc,index)=>`<option value="${index}">${esc(doc.title)}</option>`).join('')}</select></label><label>Название<input name="title" type="text" required placeholder="Название тех. карты"></label><label>Категория<input name="category" type="text" placeholder="Например, Лимонады"></label><label>Выход<input name="output" type="text" placeholder="Например, 250 мл"></label></div><label>Технология<textarea name="technology" rows="4" placeholder="Опишите технологию приготовления"></textarea></label><label>Ингредиенты<textarea name="ingredients" rows="8" placeholder="Ингредиент: количество"></textarea></label><div class="task-form-actions"><button class="small-action secondary" type="button" data-close-tech-create>Отмена</button><button class="small-action" type="submit">Добавить</button></div><p class="submit-status tech-create-status" aria-live="polite"></p></form></div></div>`;
+}
+function openTechCreateModalV23(){
+  const modal = document.querySelector('#tech-create-modal');
+  if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); }
+}
+function closeTechCreateModalV23(){
+  const modal = document.querySelector('#tech-create-modal');
+  if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+}
+function createTechCardKeyV23(doc, title){
+  const docId = slugify(doc?.id || doc?.title || doc?.sourceFile || 'tech-doc');
+  const titleSlug = slugify(title || 'new-card').slice(0, 60) || 'new-card';
+  return `custom::${docId}::${Date.now()}-${titleSlug}`;
+}
+async function submitTechCreateV23(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Добавлять тех. карты может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.tech-create-status');
+  const doc = techDocByIndexV23(form.elements.docIndex.value);
+  const payload = {
+    title: (form.elements.title.value || '').trim(),
+    category: (form.elements.category.value || '').trim(),
+    output: (form.elements.output.value || '').trim(),
+    technology: (form.elements.technology.value || '').trim(),
+    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
+  };
+  if(!doc || !payload.title){
+    if(status){ status.textContent = 'Выберите документ и укажите название тех. карты.'; status.className = 'submit-status error'; }
+    return;
+  }
+  const key = createTechCardKeyV23(doc, payload.title);
+  try{
+    if(status){ status.textContent = 'Сохраняю в Supabase…'; status.className = 'submit-status'; }
+    await saveTechOverrideToSupabaseV22(key, payload);
+    const local = getTechCardOverridesV21();
+    local[key] = payload;
+    saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, local);
+    state.menu = await loadMenu();
+    closeTechCreateModalV23();
+    renderApp();
+    setTop('techcards');
+    alert('Новая тех. карта добавлена.');
+  } catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось сохранить тех. карту.'; status.className = 'submit-status error'; }
+    alert('Не удалось добавить тех. карту: ' + (error.message || 'проверьте подключение к Supabase.'));
+  }
+}
+function renderTechCards() {
+  const docs = state.menu.techCards || [];
+  return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><div class="toolbar-inline-actions"><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav>${isAdmin()?`<button class="small-action secondary" type="button" data-open-tech-create>Добавить тех. карту</button><button class="small-action" type="button" data-open-tech-edit>Редактировать тех. карты</button>`:''}</div></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>${renderTechEditModalV21()}${renderTechCreateModalV23()}</section>`;
+}
+function bindTechEditorEventsV21(){
+  document.querySelector('[data-open-tech-edit]')?.addEventListener('click', openTechEditModalV21);
+  document.querySelectorAll('[data-close-tech-modal]').forEach(btn => btn.addEventListener('click', closeTechEditModalV21));
+  document.querySelector('#tech-edit-form')?.addEventListener('submit', submitTechEditV21);
+  document.querySelector('#tech-doc-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('#tech-card-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('[data-tech-reset]')?.addEventListener('click', resetTechOverrideV21);
+  document.querySelector('[data-open-tech-create]')?.addEventListener('click', openTechCreateModalV23);
+  document.querySelectorAll('[data-close-tech-create]').forEach(btn => btn.addEventListener('click', closeTechCreateModalV23));
+  document.querySelector('#tech-create-form')?.addEventListener('submit', submitTechCreateV23);
+}
+function getManualReportFilterV23(){
+  if(!state.manualReportFilter){
+    state.manualReportFilter = { source:'all', dateFrom:'', dateTo:'', employee:'' };
+  }
+  return state.manualReportFilter;
+}
+function dateKeyFromDateTimeV23(value){
+  if(!value) return '';
+  try { return new Date(value).toISOString().slice(0,10); } catch(error){ return ''; }
+}
+function passesDateFilterV23(dateKey, filters){
+  if(filters.dateFrom && String(dateKey || '') < filters.dateFrom) return false;
+  if(filters.dateTo && String(dateKey || '') > filters.dateTo) return false;
+  return true;
+}
+function buildManualReportRowsV23(filters = getManualReportFilterV23()){
+  const employeeNeedle = normalizeTextV23(filters.employee);
+  const rows = [];
+  const pushIfMatch = (row) => {
+    if(employeeNeedle && !normalizeTextV23(row.employee).includes(employeeNeedle)) return;
+    if(!passesDateFilterV23(row.dateKey, filters)) return;
+    rows.push(row);
+  };
+  if(filters.source === 'all' || filters.source === 'checklists'){
+    getControlRecords().forEach(record => {
+      const totals = recordDoneTotal(record);
+      pushIfMatch({
+        source: 'Чек-листы',
+        dateKey: dateKeyFromDateTimeV23(record.createdAt),
+        dateTime: formatDateTime(record.createdAt),
+        employee: record.employeeName || '—',
+        name: record.checklistTitle || 'Чек-лист',
+        details: (record.tasks || []).map(task => `${task.checked ? '✓' : '—'} ${task.text}`).join(' | '),
+        status: `${totals.done}/${totals.total}`,
+        value: totals.total ? `${Math.round((totals.done / totals.total) * 100)}%` : '—'
+      });
+    });
+  }
+  if(filters.source === 'all' || filters.source === 'revisions'){
+    getRevisionRecords().forEach(record => {
+      pushIfMatch({
+        source: 'Ревизии',
+        dateKey: record.dateKey || dateKeyFromDateTimeV23(record.createdAt),
+        dateTime: formatDateTime(record.createdAt),
+        employee: record.employeeName || '—',
+        name: 'Ревизия кофе',
+        details: `Бункер: ${record.hopperWeight || '—'} кг · Вскрыто: ${record.openedPacks || '—'} · Продажи: ${record.iikoSales || '—'} кг · Списания: ${record.writeOffs || '—'} кг`,
+        status: record.checked || '—',
+        value: `Потери: ${record.losses || '—'}`
+      });
+    });
+  }
+  if(filters.source === 'all' || filters.source === 'errors'){
+    getErrorReports().forEach(record => {
+      pushIfMatch({
+        source: 'Ошибки',
+        dateKey: dateKeyFromDateTimeV23(record.createdAt),
+        dateTime: formatDateTime(record.createdAt),
+        employee: record.employeeName || '—',
+        name: 'Сообщение об ошибке',
+        details: record.text || '',
+        status: '—',
+        value: '—'
+      });
+    });
+  }
+  return rows.sort((a,b)=> `${b.dateKey || ''} ${b.dateTime || ''}`.localeCompare(`${a.dateKey || ''} ${a.dateTime || ''}`, 'ru'));
+}
+function renderManualReportTableV23(){
+  const rows = buildManualReportRowsV23();
+  if(!rows.length) return `<div class="empty-control"><h3>Данных пока нет</h3><p>Выберите параметры и сформируйте отчет.</p></div>`;
+  return `<div class="employee-table-wrap"><table class="employee-table report-export-table"><thead><tr><th>Источник</th><th>Дата</th><th>Дата и время</th><th>Сотрудник</th><th>Название</th><th>Детали</th><th>Статус</th><th>Значение</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.source)}</td><td>${esc(displayDateFromKey(row.dateKey) || row.dateKey || '—')}</td><td>${esc(row.dateTime || '—')}</td><td>${esc(row.employee || '—')}</td><td>${esc(row.name || '—')}</td><td>${esc(row.details || '—')}</td><td>${esc(row.status || '—')}</td><td>${esc(row.value || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderManualReportBuilderV23(){
+  const filters = getManualReportFilterV23();
+  return `<section class="summary-card report-builder-card"><div class="card-head"><h3>Ручной отчет</h3><span class="source-badge">конструктор</span></div><form class="report-builder-form" id="report-builder-form"><div class="form-grid"><label>Источник<select name="source"><option value="all" ${filters.source==='all'?'selected':''}>Все разделы</option><option value="checklists" ${filters.source==='checklists'?'selected':''}>Чек-листы</option><option value="revisions" ${filters.source==='revisions'?'selected':''}>Ревизии</option><option value="errors" ${filters.source==='errors'?'selected':''}>Ошибки</option></select></label><label>Сотрудник<input type="text" name="employee" value="${esc(filters.employee)}" placeholder="Имя сотрудника"></label><label>Дата от<input type="date" name="dateFrom" value="${esc(filters.dateFrom)}"></label><label>Дата до<input type="date" name="dateTo" value="${esc(filters.dateTo)}"></label></div><div class="task-form-actions"><button class="small-action secondary" type="button" data-report-reset>Сбросить</button><button class="small-action" type="submit">Сформировать отчет</button><button class="small-action secondary" type="button" data-report-export>Скачать Excel</button></div></form><div id="manual-report-table">${renderManualReportTableV23()}</div></section>`;
+}
+function exportManualReportV23(){
+  const rows = buildManualReportRowsV23();
+  const csvRows = [['Источник','Дата','Дата и время','Сотрудник','Название','Детали','Статус','Значение']];
+  rows.forEach(row => csvRows.push([row.source, displayDateFromKey(row.dateKey) || row.dateKey || '', row.dateTime || '', row.employee || '', row.name || '', row.details || '', row.status || '', row.value || '']));
+  downloadCsv('control_manual_report.csv', csvRows);
+}
+function bindControlSummaryEventsV23(){
+  document.querySelector('#report-builder-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    state.manualReportFilter = {
+      source: form.elements.source.value || 'all',
+      dateFrom: form.elements.dateFrom.value || '',
+      dateTo: form.elements.dateTo.value || '',
+      employee: (form.elements.employee.value || '').trim()
+    };
+    const table = document.querySelector('#manual-report-table');
+    if(table) table.innerHTML = renderManualReportTableV23();
+  });
+  document.querySelector('[data-report-reset]')?.addEventListener('click', () => {
+    state.manualReportFilter = { source:'all', dateFrom:'', dateTo:'', employee:'' };
+    refreshControl();
+  });
+  document.querySelector('[data-report-export]')?.addEventListener('click', exportManualReportV23);
+}
+function renderControl(){
+  return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='summary'?'active':''}" data-control-target="summary" type="button">Сводка</button><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button><button class="subtab ${state.activeControl==='errors'?'active':''}" data-control-target="errors" type="button">Ошибки</button></div><div class="control-folder ${state.activeControl==='summary'?'active':''}" id="control-summary"><div class="control-note"><p>Сводка автоматически собирает данные из раздела «Контроль». Ниже можно вручную сформировать отчет по нужным параметрам и выгрузить его в Excel.</p></div><div id="control-summary-wrap">${renderControlSummaryV21()}${renderManualReportBuilderV23()}</div></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='errors'?'active':''}" id="control-errors"><div class="control-note"><p>Здесь отображаются сообщения сотрудников об ошибках.</p><div class="doc-actions"><button type="button" class="refresh-errors">Обновить данные</button></div></div><div id="error-records">${renderErrorReportsTable()}</div></div></section>`;
+}
+function refreshControl(){
+  const summary = document.querySelector('#control-summary-wrap');
+  if(summary) summary.innerHTML = renderControlSummaryV21() + renderManualReportBuilderV23();
+  const el = document.querySelector('#control-records'); if(el) el.innerHTML = renderControlRecordsTable();
+  const rev = document.querySelector('#revision-records'); if(rev) rev.innerHTML = renderRevisionRecordsTable();
+  const err = document.querySelector('#error-records'); if(err) err.innerHTML = renderErrorReportsTable();
+  bindControlSummaryEventsV23();
+}
+function bindEvents(){
+  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
+  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
+  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
+  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
+  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
+  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
+  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
+  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
+  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
+  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
+  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
+  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
+  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  bindRolePermissionEvents();
+  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
+  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
+  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
+  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
+  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
+  document.querySelector('.refresh-errors')?.addEventListener('click',loadErrorReports);
+  document.querySelector('[data-control-summary-refresh]')?.addEventListener('click',()=>{ loadControlRecords(); loadRevisionRecords(); loadErrorReports(); });
+  bindControlSummaryEventsV23();
+  document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
+  document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
+  document.querySelector('#task-form')?.addEventListener('submit',submitTask);
+  bindTaskCardEventsV21();
+  document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
+  document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
+  document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
+  document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
+  document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
+  document.querySelector('[data-refresh-service]')?.addEventListener('click',()=>location.reload());
+  bindPhotoAdminEventsV21();
+  bindPhotoToggleEventsV23();
+  bindTechEditorEventsV21();
+}
+/* --- end v23 overrides --- */
+function exportManualReportV23(){
+  const rows = buildManualReportRowsV23();
+  const head = ['Источник','Дата','Дата и время','Сотрудник','Название','Детали','Статус','Значение'];
+  const body = rows.map(row => [row.source, displayDateFromKey(row.dateKey) || row.dateKey || '', row.dateTime || '', row.employee || '', row.name || '', row.details || '', row.status || '', row.value || '']);
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table border="1"><thead><tr>${head.map(item=>`<th>${esc(item)}</th>`).join('')}</tr></thead><tbody>${body.map(cols=>`<tr>${cols.map(cell=>`<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+  const blob = new Blob(['\ufeff', html], { type:'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'control_manual_report.xls';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
