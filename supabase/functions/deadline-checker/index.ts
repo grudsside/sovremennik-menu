@@ -1,4 +1,4 @@
-import { corsHeaders, json, adminClient, sendPushToUsers, listAdminManagerIds } from '../_shared/push.ts';
+import { corsHeaders, json, adminClient, sendPushToUsers } from '../_shared/push.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -18,7 +18,6 @@ Deno.serve(async (req) => {
       .lte('due_at', in24h);
     if (error) throw error;
 
-    const admins = await listAdminManagerIds(supabase);
     const allResults: any[] = [];
     for (const task of tasks || []) {
       const due = new Date(task.due_at);
@@ -26,14 +25,13 @@ Deno.serve(async (req) => {
       let eventType = '';
       let title = '';
       let text = '';
-      let recipients = [task.assignee_id];
+      const recipients = [task.assignee_id];
       let requireInteraction = false;
 
       if (diff < 0) {
         eventType = 'task_overdue';
         title = 'Задача просрочена';
         text = task.title || 'Просрочена задача';
-        recipients.push(...admins);
         requireInteraction = true;
       } else if (diff <= 60*60*1000) {
         eventType = 'task_deadline_1h';
@@ -57,7 +55,7 @@ Deno.serve(async (req) => {
         sourceId: task.id,
         extra: { is_vip: Boolean(task.is_vip), requireInteraction }
       });
-      allResults.push({ task_id: task.id, eventType, results });
+      allResults.push({ task_id: task.id, eventType, recipients, results });
     }
 
     return json({ ok: true, checked: (tasks || []).length, results: allResults });

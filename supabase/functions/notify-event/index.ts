@@ -1,8 +1,9 @@
-import { corsHeaders, json, requireUser, adminClient, sendPushToUsers, listAdminManagerIds, listAllActiveIds } from '../_shared/push.ts';
+import { corsHeaders, json, requireUser, adminClient, sendPushToUsers, listAdminManagerIds } from '../_shared/push.ts';
 
 function taskUrl() { return '/#home'; }
 function controlUrl() { return '/#control'; }
 function scheduleUrl() { return '/#schedule'; }
+function unique(ids: string[]) { return Array.from(new Set((ids || []).filter(Boolean))); }
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -25,17 +26,21 @@ Deno.serve(async (req) => {
       const taskId = data.task_id || data.taskId;
       const { data: task, error } = await supabase.from('tasks').select('*').eq('id', taskId).maybeSingle();
       if (error || !task) throw error || new Error('Task not found');
-      sourceTable = 'tasks'; sourceId = task.id; url = taskUrl();
+      sourceTable = 'tasks';
+      sourceId = task.id;
+      url = taskUrl();
       extra = { is_vip: Boolean(task.is_vip), requireInteraction: Boolean(task.is_vip) };
+
       if (eventType === 'task_assigned') {
+        // Targeted notification: only the employee assigned to this exact task.
         userIds = [task.assignee_id];
-        if (task.is_vip) userIds.push(...await listAdminManagerIds(supabase));
         title = task.is_vip ? 'VIP-задача' : 'Новая задача';
         text = task.title || 'Вам назначена новая задача';
       } else {
-        userIds = [task.creator_id, ...await listAdminManagerIds(supabase)];
+        // Targeted notification: task creator and task assignee only.
+        userIds = unique([task.creator_id, task.assignee_id]);
         title = 'Задача завершена';
-        text = task.title || 'Сотрудник завершил задачу';
+        text = task.title || 'Задача завершена';
       }
     } else if (eventType === 'checklist_submitted') {
       userIds = await listAdminManagerIds(supabase);
@@ -57,7 +62,8 @@ Deno.serve(async (req) => {
       url = controlUrl();
       extra = { requireInteraction: true };
     } else if (eventType === 'schedule_event_added') {
-      userIds = await listAllActiveIds(supabase);
+      // No explicit participants are stored for schedule events yet, so avoid broadcasting to all employees.
+      userIds = await listAdminManagerIds(supabase);
       sourceTable = 'schedule_events'; sourceId = data.event_id || data.id || '';
       title = 'Обновлено расписание';
       text = data.title ? `${data.title}${data.event_date ? ' · ' + data.event_date : ''}` : 'Добавлено событие в расписание';
@@ -68,7 +74,7 @@ Deno.serve(async (req) => {
 
     const eventKeyBase = `${eventType}:${sourceId || crypto.randomUUID()}`;
     const results = await sendPushToUsers({ userIds, eventType, eventKeyBase, title, body: text, url, sourceTable, sourceId, extra });
-    return json({ ok: true, results });
+    return json({ ok: true, recipients: unique(userIds), results });
   } catch (error) {
     return json({ ok: false, error: error?.message || String(error) }, 400);
   }

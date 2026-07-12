@@ -619,7 +619,7 @@ function renderTaskModal(){
 }
 function openTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); } loadTaskAssignees(); }
 function closeTaskModal(){ const modal=document.querySelector('#task-modal'); if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); } }
-async function submitTask(event){ 
+async function legacySubmitTaskBeforeV26(event){ 
   event.preventDefault(); 
   const form=event.currentTarget; 
   const status=form.querySelector('.task-status'); 
@@ -649,7 +649,7 @@ async function submitTask(event){
   } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить задачу.'; status.className='submit-status error';} } 
 }
 function renderReportError(){ return `<section class="top-panel ${state.activeTop==='reportError'?'active':''}" id="top-reportError"><div class="section-heading"><p>Обратная связь</p><h2>Сообщить об ошибке</h2></div><div class="report-layout"><div class="report-card"><p class="description">Напишите, что не работает или что нужно исправить в методичке, чек-листах, техкартах или сервисе.</p><form class="report-form" id="error-report-form"><label>Описание ошибки<textarea name="text" required placeholder="Например: в карточке Айс латте неверный состав…"></textarea></label><button class="small-action" type="submit">Отправить</button><p class="submit-status error-report-status" aria-live="polite"></p></form></div></div></section>`; }
-async function submitErrorReport(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
+async function legacySubmitErrorReportBeforeV26(event){ event.preventDefault(); const form=event.currentTarget; const status=form.querySelector('.error-report-status'); const text=(form.elements.text.value||'').trim(); if(!text){ if(status){status.textContent='Опишите ошибку.'; status.className='submit-status error';} return; } const record={ id:`err-${Date.now()}-${Math.random().toString(16).slice(2)}`, text, employeeName:currentUserName(), createdAt:new Date().toISOString() }; try{ await sendPayloadToSheets({payloadType:'errorReport', text, employeeName:currentUserName()}); const rows=[record,...getLocalArray(ERROR_REPORTS_STORAGE_KEY)]; setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows); state.errorReports=rows; if(status) status.textContent=''; alert('Отлично! Сообщение отправлено'); form.reset(); } catch(error){ console.error(error); if(status){status.textContent='Не удалось отправить сообщение.'; status.className='submit-status error';} } }
 function renderErrorReportsTable(){ const rows=getErrorReports(); if(state.errorReportsLoading) return `<div class="empty-control"><h3>Загружаю ошибки…</h3><p>Подключаюсь к Supabase.</p></div>`; if(!rows.length) return `<div class="empty-control"><h3>Ошибок пока нет</h3><p>Сообщения сотрудников появятся здесь.</p>${state.errorReportsError?`<p class="employees-error">${esc(state.errorReportsError)}</p>`:''}</div>`; return `<div class="employee-table-wrap"><table class="employee-table errors-table"><thead><tr><th>Дата и время</th><th>Сотрудник</th><th>Сообщение</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(formatDateTime(r.createdAt)||[r.date,r.time].filter(Boolean).join(' '))}</td><td>${esc(r.employeeName||'—')}</td><td class="error-text">${esc(r.text||'')}</td></tr>`).join('')}</tbody></table></div>`; }
 
 function monthTitle(ym){ const d=new Date(`${ym}-01T00:00:00`); return d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'}); }
@@ -750,7 +750,7 @@ function safeNotifyEvent(eventType, data = {}){
 }
 
 
-async function sendPayloadToSheets(payload){
+async function legacySendPayloadToSheetsBeforeV26(payload){
   const user = currentUser();
   if(!user?.id) throw new Error('Нужно войти в аккаунт.');
   if(payload.payloadType === 'checklist') {
@@ -2090,5 +2090,168 @@ function bindEvents(){
 }
 /* --- end v25 overrides --- */
 
-// Start application after v25 overrides are registered.
+/* --- v26 overrides: mobile submit fixes and targeted notifications --- */
+function toLocalIsoFromDatetimeInputV26(value){
+  const raw = String(value || '').trim();
+  if(!raw) return null;
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(match){
+    const [, y, mo, d, h, mi, s] = match;
+    const date = new Date(Number(y), Number(mo)-1, Number(d), Number(h), Number(mi), Number(s || 0));
+    if(!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  const date = new Date(raw);
+  if(Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+function makeUuidV26(){
+  if(window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+function taskPayloadToDbRowV26(payload, user, assignee){
+  const deadlineAtIso = toLocalIsoFromDatetimeInputV26(payload.deadlineAt || '');
+  return {
+    id: payload.id && isUuidLikeV21(payload.id) ? payload.id : makeUuidV26(),
+    title: payload.title || '',
+    description: payload.description || '',
+    creator_id: user.id,
+    assignee_id: assignee.id,
+    is_vip: Boolean(String(payload.priority || '').toLowerCase() === 'vip' || payload.isVip),
+    due_date: payload.deadline || (deadlineAtIso ? deadlineAtIso.slice(0,10) : null),
+    due_at: deadlineAtIso
+  };
+}
+async function sendPayloadToSheets(payload){
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт.');
+  if(payload.payloadType === 'checklist') {
+    const items = payload.items || [];
+    const completed = items.filter(i=>i.checked).length;
+    const total = items.length;
+    const row = { id: makeUuidV26(), checklist_id: payload.checklistId || '', checklist_title: payload.checklistType || payload.checklistTitle || '', employee_id: user.id, employee_name: payload.employeeName || user.name, items, completed_count: completed, total_count: total, percent: total ? Math.round(completed / total * 100) : 0 };
+    const res = await supa.from('checklist_submissions').insert(row);
+    if(res.error) throw res.error;
+    safeNotifyEvent('checklist_submitted', { submission_id: row.id, checklist_title: row.checklist_title, employee_name: row.employee_name });
+    return row;
+  }
+  if(payload.payloadType === 'coffeeRevision' || payload.payloadType === 'coffeeRevisionManual') {
+    const row = { revision_date: normalizeDateKey(payload.revisionDate), employee_id: user.id, employee_name: payload.employeeName || user.name };
+    if(payload.hopperWeight !== undefined && payload.hopperWeight !== '') row.hopper_weight = Number(payload.hopperWeight);
+    if(payload.openedPacks !== undefined && payload.openedPacks !== '') row.opened_packs = Number(payload.openedPacks);
+    if(payload.writeOffs !== undefined && payload.writeOffs !== '') row.write_offs = Number(payload.writeOffs);
+    if(payload.iikoSales !== undefined && payload.iikoSales !== '') row.iiko_sales = Number(payload.iikoSales);
+    if(payload.checked !== undefined && payload.checked !== '') row.checked = payload.checked;
+    const res = await supa.from('coffee_revisions').upsert(row, { onConflict:'revision_date' });
+    if(res.error) throw res.error;
+    safeNotifyEvent('revision_submitted', { revision_id: row.revision_date, revision_date: row.revision_date, employee_name: row.employee_name });
+    return row;
+  }
+  if(payload.payloadType === 'employeeAdd') return await callEmployeeFunction({ action:'create', name: payload.employee.name, role: normalizeRole(payload.employee.role), login: payload.employee.login, password: payload.employee.password });
+  if(payload.payloadType === 'employeeDelete') { const employee = await findEmployeeByLogin(payload.login); if(!employee?.id) throw new Error('Сотрудник не найден.'); return await callEmployeeFunction({ action:'delete', userId: employee.id, login: payload.login }); }
+  if(payload.payloadType === 'rolePermissionsSave') { const res = await supa.from('role_permissions').upsert({ role: normalizeRole(payload.role), sections: payload.sections || [], updated_by: user.id }, { onConflict:'role' }).select().single(); if(res.error) throw res.error; return res.data; }
+  if(payload.payloadType === 'taskAdd') {
+    const assignee = await findEmployeeByLogin(payload.assigneeLogin);
+    if(!assignee?.id) throw new Error('Сотрудник для задачи не найден. Откройте список сотрудников или обновите страницу.');
+    const row = taskPayloadToDbRowV26(payload, user, assignee);
+    const res = await supa.from('tasks').insert(row);
+    if(res.error) throw res.error;
+    safeNotifyEvent('task_assigned', { task_id: row.id, assignee_id: assignee.id });
+    return { ...row, assigneeLogin: assignee.login, assigneeName: assignee.name };
+  }
+  if(payload.payloadType === 'taskComplete') { const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', payload.taskId); if(res.error) throw res.error; safeNotifyEvent('task_completed', { task_id: payload.taskId }); return { id: payload.taskId, status:'done' }; }
+  if(payload.payloadType === 'errorReport') {
+    const row = { id: makeUuidV26(), employee_id: user.id, employee_name: payload.employeeName || user.name, message: payload.text || '' };
+    const res = await supa.from('error_reports').insert(row);
+    if(res.error) throw res.error;
+    safeNotifyEvent('error_report_submitted', { report_id: row.id, employee_name: row.employee_name });
+    return row;
+  }
+  if(payload.payloadType === 'scheduleAdd') { const row = { id: makeUuidV26(), event_date: normalizeDateKey(payload.eventDate), event_type: payload.type || 'Мероприятие', title: payload.title || '', description: payload.description || '', employee_name: payload.employeeName || user.name, source: 'manual', created_by: user.id }; const res = await supa.from('schedule_events').insert(row); if(res.error) throw res.error; safeNotifyEvent('schedule_event_added', { event_id: row.id, title: row.title, event_date: row.event_date }); return row; }
+  throw new Error('Неизвестный тип операции.');
+}
+async function submitTask(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector('.task-status');
+  const submitButton = form.querySelector('button[type="submit"]');
+  const assigneeLogin = (form.elements.assigneeLogin.value || '').trim();
+  const assigneeRow = dedupeEmployees(getTaskAssignees()).find(e => String(e.login || '') === assigneeLogin);
+  const task = {
+    id: makeUuidV26(),
+    title: (form.elements.title.value || '').trim(),
+    description: (form.elements.description.value || '').trim(),
+    assigneeLogin,
+    assigneeName: assigneeRow?.name || '',
+    assignee: assigneeRow?.name || assigneeLogin,
+    deadlineAt: (form.elements.deadline.value || ''),
+    deadline: normalizeDateKey((form.elements.deadline.value || '').slice(0,10)),
+    authorName: (form.elements.authorName.value || currentUserName() || '').trim(),
+    status: 'Актуальная',
+    priority: form.elements.isVip.checked ? 'VIP' : '',
+    createdAt: new Date().toISOString()
+  };
+  if(!task.title || !task.assigneeLogin || !task.authorName){
+    if(status){ status.textContent='Заполните название, сотрудника и автора.'; status.className='submit-status error'; }
+    return;
+  }
+  if(status){ status.textContent='Сохраняю задачу…'; status.className='submit-status'; }
+  if(submitButton) submitButton.disabled = true;
+  try{
+    const saved = await sendPayloadToSheets({ payloadType:'taskAdd', ...task });
+    if(saved?.id) task.id = saved.id;
+    const rows = [task, ...getLocalArray(TASKS_STORAGE_KEY).filter(item => String(item.id) !== String(task.id))];
+    setLocalArray(TASKS_STORAGE_KEY, rows);
+    state.tasks = rows;
+    refreshTasks();
+    if(status) status.textContent='';
+    alert('Отлично! Задача поставлена');
+    form.reset();
+    form.elements.authorName.value = currentUserName() || '';
+    closeTaskModal();
+    loadTasks();
+  } catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось поставить задачу: ' + (error.message || 'проверьте интернет и права доступа.'); status.className='submit-status error'; }
+    alert('Не удалось поставить задачу: ' + (error.message || 'проверьте интернет и права доступа.'));
+  } finally {
+    if(submitButton) submitButton.disabled = false;
+  }
+}
+async function submitErrorReport(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = form.querySelector('.error-report-status');
+  const submitButton = form.querySelector('button[type="submit"]');
+  const text = (form.elements.text.value || '').trim();
+  if(!text){
+    if(status){ status.textContent='Опишите ошибку.'; status.className='submit-status error'; }
+    return;
+  }
+  const record = { id: makeUuidV26(), text, employeeName: currentUserName(), createdAt: new Date().toISOString() };
+  if(status){ status.textContent='Отправляю сообщение…'; status.className='submit-status'; }
+  if(submitButton) submitButton.disabled = true;
+  try{
+    const saved = await sendPayloadToSheets({ payloadType:'errorReport', id:record.id, text, employeeName:currentUserName() });
+    if(saved?.id) record.id = saved.id;
+    const rows = [record, ...getLocalArray(ERROR_REPORTS_STORAGE_KEY).filter(item => String(item.id) !== String(record.id))];
+    setLocalArray(ERROR_REPORTS_STORAGE_KEY, rows);
+    state.errorReports = rows;
+    if(status) status.textContent='';
+    alert('Отлично! Сообщение отправлено');
+    form.reset();
+  } catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось отправить сообщение: ' + (error.message || 'проверьте интернет и права доступа.'); status.className='submit-status error'; }
+    alert('Не удалось отправить сообщение: ' + (error.message || 'проверьте интернет и права доступа.'));
+  } finally {
+    if(submitButton) submitButton.disabled = false;
+  }
+}
+/* --- end v26 overrides --- */
+
+// Start application after v26 overrides are registered.
 init();
