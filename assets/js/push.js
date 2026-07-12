@@ -22,7 +22,7 @@
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } })
     : null;
 
-  function esc(value){ return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\\':'\\','\"':'&quot;'}[ch])); }
+  function esc(value){ return String(value ?? '').replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\\':'\\','"':'&quot;'}[ch])); }
   function unsupportedReason(){
     if(!('serviceWorker' in navigator)) return 'В этом браузере нет Service Worker.';
     if(!('PushManager' in window)) return 'В этом браузере нет Push API.';
@@ -49,6 +49,32 @@
     if(Notification.permission === 'denied') return 'запрещены';
     return 'не включены';
   }
+  function currentRole(){
+    try {
+      return typeof window.currentUser === 'function' ? String(window.currentUser()?.role || '').toLowerCase() : '';
+    } catch(error){
+      return '';
+    }
+  }
+  function hasSectionAccess(section){
+    try {
+      return typeof window.hasAccess === 'function' ? !!window.hasAccess(section) : false;
+    } catch(error){
+      return false;
+    }
+  }
+  function allowedPrefs(){
+    const role = currentRole();
+    const allowed = new Set(['task_assigned', 'vip_tasks', 'task_deadline_24h', 'task_deadline_1h', 'task_overdue', 'schedule_event_added']);
+    if(role === 'admin' || role === 'manager' || hasSectionAccess('employees')) allowed.add('task_completed');
+    if(hasSectionAccess('control')) {
+      allowed.add('checklist_submitted');
+      allowed.add('revision_submitted');
+      allowed.add('error_report_submitted');
+    }
+    return PREFS.filter(([key]) => allowed.has(key));
+  }
+
   async function saveSubscription(subscription){
     const userId = await getUserId();
     if(!userId) throw new Error('Сначала нужно войти в аккаунт.');
@@ -71,7 +97,10 @@
   async function ensurePrefs(){
     const userId = await getUserId();
     if(!userId) return;
-    const { error } = await pushClient.from('notification_preferences').upsert({ user_id: userId }, { onConflict: 'user_id' });
+    const baseRow = { user_id: userId };
+    PREFS.forEach(([key]) => { baseRow[key] = false; });
+    allowedPrefs().forEach(([key]) => { baseRow[key] = true; });
+    const { error } = await pushClient.from('notification_preferences').upsert(baseRow, { onConflict: 'user_id' });
     if(error) console.warn(error);
   }
   async function loadPrefs(){
@@ -86,7 +115,8 @@
     const userId = await getUserId();
     if(!userId) throw new Error('Нет активного пользователя.');
     const row = { user_id: userId };
-    PREFS.forEach(([key]) => row[key] = !!form.querySelector(`[name="${key}"]`)?.checked);
+    PREFS.forEach(([key]) => { row[key] = false; });
+    allowedPrefs().forEach(([key]) => row[key] = !!form.querySelector(`[name="${key}"]`)?.checked);
     const { error } = await pushClient.from('notification_preferences').upsert(row, { onConflict: 'user_id' });
     if(error) throw error;
   }
@@ -132,19 +162,20 @@
     let prefs = {};
     try { prefs = await loadPrefs(); } catch(e) { console.warn(e); }
     const permission = currentPermissionText();
-    const prefsHtml = PREFS.map(([key,label]) => {
+    const availablePrefs = allowedPrefs();
+    const prefsHtml = availablePrefs.map(([key,label]) => {
       const checked = prefs[key] !== false;
       return `<label class="push-pref"><input type="checkbox" name="${esc(key)}" ${checked?'checked':''}> <span>${esc(label)}</span></label>`;
     }).join('');
     return `<section class="push-card" id="push-card">
-      <div class="push-head"><div><p class="section-kicker">Уведомления</p><h3>Push на телефон</h3><p class="description">Задачи, дедлайны, чек-листы, ревизии, ошибки и расписание.</p></div><span class="push-status ${subscribed?'ok':''}">${subscribed?'включены':esc(permission)}</span></div>
+      <div class="push-head"><div><p class="section-kicker">Уведомления</p><h3>Push на телефон</h3><p class="description">Показываются только уведомления, доступные для вашей роли.</p></div><span class="push-status ${subscribed?'ok':''}">${subscribed?'включены':esc(permission)}</span></div>
       ${reason?`<p class="push-error">${esc(reason)}</p>`:''}
       <div class="push-actions">
         <button class="small-action" type="button" data-push-enable>${subscribed?'Обновить устройство':'Включить уведомления'}</button>
         <button class="small-action ghost" type="button" data-push-test ${subscribed?'':'disabled'}>Тест</button>
         <button class="small-action ghost" type="button" data-push-disable ${subscribed?'':'disabled'}>Отключить</button>
       </div>
-      <details class="push-details" ${subscribed?'open':''}><summary>Какие уведомления получать</summary><form id="push-preferences-form" class="push-prefs">${prefsHtml}<button class="small-action" type="submit">Сохранить настройки</button></form></details>
+      <details class="push-details" ${subscribed?'open':''}><summary>Какие уведомления получать</summary><form id="push-preferences-form" class="push-prefs">${prefsHtml || '<p class="description">Для вашей роли сейчас нет дополнительных категорий уведомлений.</p>'}<button class="small-action" type="submit">Сохранить настройки</button></form></details>
       <p class="push-hint">iPhone: сначала откройте сайт в Safari → Поделиться → На экран «Домой», потом запускайте с иконки и включайте уведомления.</p>
     </section>`;
   }

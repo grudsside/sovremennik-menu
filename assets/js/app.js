@@ -1088,3 +1088,773 @@ async function init(){
 /* --- End Supabase override --- */
 
 init();
+
+/* --- v21 overrides: admin tools, task fixes, summaries, photos, refresh --- */
+const MENU_PHOTO_OVERRIDES_KEY_V21 = 'sovremennikMenuPhotoOverridesV21';
+const TECH_CARD_OVERRIDES_KEY_V21 = 'sovremennikTechCardOverridesV21';
+let pendingPhotoTargetKeyV21 = '';
+
+function isUuidLikeV21(value){
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+function readStorageJsonV21(key, fallback){
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch(error){
+    return fallback;
+  }
+}
+function saveStorageJsonV21(key, value){
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch(error){}
+}
+function menuItemKeyV21(item){
+  return [item.section || '', item.category || '', item.title || ''].join('::');
+}
+function techCardKeyV21(card, doc){
+  return [doc?.sourceFile || card?.sourceFile || doc?.title || '', card?.title || ''].join('::');
+}
+function getMenuPhotoOverridesV21(){ return readStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, {}); }
+function getTechCardOverridesV21(){ return readStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, {}); }
+function parseIngredientsTextV21(text){
+  return String(text || '').split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+    const parts = line.split(/\s*[|:;-]\s*/);
+    if(parts.length >= 2) return { name: parts.shift().trim(), amount: parts.join(' - ').trim() };
+    return { name: line, amount: '' };
+  });
+}
+function ingredientsTextFromListV21(list){
+  return (list || []).map(item => `${item.name || ''}: ${item.amount || ''}`.trim()).join('\n');
+}
+function applyLocalContentOverridesV21(menu){
+  const cloned = JSON.parse(JSON.stringify(menu || {}));
+  const photoOverrides = getMenuPhotoOverridesV21();
+  const techOverrides = getTechCardOverridesV21();
+  (cloned.items || []).forEach(item => {
+    const key = menuItemKeyV21(item);
+    if(photoOverrides[key]) item.image = photoOverrides[key];
+  });
+  (cloned.techCards || []).forEach(doc => {
+    (doc.cards || []).forEach(card => {
+      const key = techCardKeyV21(card, doc);
+      const override = techOverrides[key];
+      if(override){
+        card.title = override.title || card.title;
+        card.category = override.category || card.category;
+        card.output = override.output || '';
+        card.technology = override.technology || '';
+        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
+      }
+    });
+  });
+  return cloned;
+}
+async function loadMenu() {
+  const embedded = readEmbeddedMenu();
+  let base;
+  if(location.protocol === 'file:' && embedded){
+    base = embedded;
+  } else {
+    try {
+      const res = await fetch('data/menu.json', { cache:'no-cache' });
+      if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`);
+      base = await res.json();
+    } catch(error) {
+      console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error);
+      if(!embedded) throw error;
+      base = embedded;
+    }
+  }
+  return applyLocalContentOverridesV21(base);
+}
+function applyPhotoOverrideToStateV21(itemKey, dataUrl){
+  (state.menu?.items || []).forEach(item => {
+    if(menuItemKeyV21(item) === itemKey) item.image = dataUrl;
+  });
+}
+function applyTechOverrideToStateV21(cardKey, payload){
+  (state.menu?.techCards || []).forEach(doc => {
+    (doc.cards || []).forEach(card => {
+      if(techCardKeyV21(card, doc) === cardKey){
+        card.title = payload.title || card.title;
+        card.category = payload.category || card.category;
+        card.output = payload.output || '';
+        card.technology = payload.technology || '';
+        card.ingredients = Array.isArray(payload.ingredients) ? payload.ingredients : [];
+      }
+    });
+  });
+}
+function ensurePhotoInputV21(){
+  let input = document.getElementById('admin-photo-input-v21');
+  if(input) return input;
+  input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.id = 'admin-photo-input-v21';
+  input.hidden = true;
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if(!file || !pendingPhotoTargetKeyV21) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const overrides = getMenuPhotoOverridesV21();
+      overrides[pendingPhotoTargetKeyV21] = String(reader.result || '');
+      saveStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, overrides);
+      applyPhotoOverrideToStateV21(pendingPhotoTargetKeyV21, String(reader.result || ''));
+      pendingPhotoTargetKeyV21 = '';
+      input.value = '';
+      alert('Фото обновлено');
+      renderApp();
+      setTop('method');
+    };
+    reader.readAsDataURL(file);
+  });
+  document.body.appendChild(input);
+  return input;
+}
+function openPhotoPickerV21(itemKey){
+  if(!isAdmin()) return alert('Редактировать фото может только администратор.');
+  pendingPhotoTargetKeyV21 = itemKey;
+  ensurePhotoInputV21().click();
+}
+function renderCard(item) {
+  const itemKey = menuItemKeyV21(item);
+  const adminPhotoButton = isAdmin() ? `<button class="mini-admin-btn" type="button" data-photo-edit="${esc(itemKey)}">${item.image ? 'Изменить фото' : 'Добавить фото'}</button>` : '';
+  return `<article class="product-card" data-search="${esc(itemSearchText(item))}">${renderPhoto(item)}<div class="card-body">${renderTags(item)}<div class="card-head"><h3>${esc(item.title)}</h3>${item.price?`<span class="price-badge">${esc(item.price)}</span>`:''}</div>${renderDescription(item)}${renderFacts(item)}<div class="nutrition"><h4>КБЖУ</h4><p>${esc(kbjuText(item.kbju))}</p></div>${renderIngredients(item)}${renderNote(item)}${adminPhotoButton?`<div class="admin-card-actions">${adminPhotoButton}</div>`:''}</div></article>`;
+}
+
+function renderTaskItem(task){
+  const vip = isVipTask(task);
+  const deadlineText = taskDeadlineLabel(task);
+  const deadlineFull = displayTaskDeadline(task);
+  const assignedTo = task.assigneeName || task.assignee || task.assigneeLogin || 'не указано';
+  const isLocalOnly = !isUuidLikeV21(task.id);
+  return `<article class="task-item task-compact ${vip?'vip':''}" data-task-id="${esc(task.id)}">
+    <details class="task-details">
+      <summary>
+        <span class="task-main">
+          <span class="task-title">${esc(task.title||'Задача')}</span>
+          <span class="task-mini-meta">${vip?'<b class="vip-mark">VIP</b>':''}<span>${esc(deadlineFull)}</span><span>кому: ${esc(assignedTo)}</span>${isLocalOnly?'<span class="local-task-note">локально</span>':''}</span>
+        </span>
+        <span class="task-timer ${vip?'vip-timer':''}">${esc(deadlineText)}</span>
+      </summary>
+      ${task.description?`<p class="description">${esc(task.description)}</p>`:''}
+      <div class="task-meta"><span>Поставил: ${esc(task.authorName||'—')}</span><span>Создано: ${esc(formatDateTime(task.createdAt))}</span></div>
+      <div class="task-actions-row">
+        ${canCompleteTask(task)?`<button class="small-action task-complete" type="button" data-task-complete="${esc(task.id)}">Завершить задачу</button>`:''}
+        ${isAdmin()?`<button class="small-action ghost task-delete" type="button" data-task-delete="${esc(task.id)}">Удалить</button>`:''}
+      </div>
+    </details>
+  </article>`;
+}
+function bindTaskCardEventsV21(){
+  document.querySelectorAll('[data-task-complete]').forEach(btn => {
+    btn.onclick = (event) => { event.preventDefault(); event.stopPropagation(); completeTask(btn.dataset.taskComplete, btn); };
+  });
+  document.querySelectorAll('[data-task-delete]').forEach(btn => {
+    btn.onclick = (event) => { event.preventDefault(); event.stopPropagation(); deleteTaskV21(btn.dataset.taskDelete, btn); };
+  });
+}
+function refreshTasks(){
+  const el = document.querySelector('#tasks-list');
+  if(el) el.innerHTML = renderTasksList();
+  bindTaskCardEventsV21();
+}
+async function completeTask(taskId, button){
+  const task = getTasks().find(t=>String(t.id)===String(taskId));
+  if(!task) return;
+  if(!confirm(`Завершить задачу «${task.title || 'Задача'}»?`)) return;
+  if(button){ button.disabled = true; button.textContent = 'Завершаю…'; }
+  try {
+    if(isUuidLikeV21(taskId) && currentUser()?.id){
+      const res = await supa.from('tasks').update({ status:'done', completed_at:new Date().toISOString() }).eq('id', taskId).select('id,status').maybeSingle();
+      if(res.error) throw res.error;
+    }
+    const rows = getTasks().filter(t=>String(t.id)!==String(taskId));
+    setLocalArray(TASKS_STORAGE_KEY, rows);
+    state.tasks = rows;
+    refreshTasks();
+    if(isUuidLikeV21(taskId) && currentUser()?.id) await loadTasks();
+  } catch(error){
+    console.error(error);
+    alert('Не удалось завершить задачу: ' + (error.message || 'проверьте доступ и подключение.'));
+    if(button){ button.disabled = false; button.textContent = 'Завершить задачу'; }
+  }
+}
+async function deleteTaskV21(taskId, button){
+  if(!isAdmin()) return alert('Удалять задачи может только администратор.');
+  const task = getTasks().find(t=>String(t.id)===String(taskId));
+  if(!task) return;
+  if(!confirm(`Удалить задачу «${task.title || 'Задача'}»?`)) return;
+  if(button){ button.disabled = true; button.textContent = 'Удаляю…'; }
+  try {
+    if(isUuidLikeV21(taskId) && currentUser()?.id){
+      const res = await supa.from('tasks').delete().eq('id', taskId);
+      if(res.error) throw res.error;
+    }
+    const rows = getTasks().filter(t=>String(t.id)!==String(taskId));
+    setLocalArray(TASKS_STORAGE_KEY, rows);
+    state.tasks = rows;
+    refreshTasks();
+    if(isUuidLikeV21(taskId) && currentUser()?.id) await loadTasks();
+  } catch(error){
+    console.error(error);
+    alert('Не удалось удалить задачу: ' + (error.message || 'проверьте доступ и подключение.'));
+    if(button){ button.disabled = false; button.textContent = 'Удалить'; }
+  }
+}
+function renderHome(){
+  return `<section class="top-panel ${state.activeTop==='home'?'active':''}" id="top-home"><div class="home-dashboard single"><div class="home-tasks-card"><div class="home-tasks-head compact"><div><p class="section-kicker">Главная</p><h2>Актуальные задачи</h2><p class="description">Здесь отображаются только ваши задачи. Администратор видит задачи всех сотрудников.</p></div><div class="home-head-actions"><button class="small-action secondary compact-action" type="button" data-refresh-service>Обновить</button><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div></div><div id="tasks-list">${renderTasksList()}</div></div></div>${renderTaskModal()}</section>`;
+}
+
+function daysBackFilterV21(rows, days, getDate){
+  const now = Date.now();
+  const ms = days * 24 * 60 * 60 * 1000;
+  return (rows || []).filter(row => {
+    const d = getDate(row);
+    return d && !isNaN(d.getTime()) && (now - d.getTime()) <= ms;
+  });
+}
+function avgV21(numbers){
+  const valid = numbers.filter(v => Number.isFinite(v));
+  if(!valid.length) return 0;
+  return valid.reduce((sum, n) => sum + n, 0) / valid.length;
+}
+function parsePercentV21(value){
+  const num = parseFloat(String(value || '').replace('%','').replace(',','.'));
+  return Number.isFinite(num) ? num : null;
+}
+function summaryMetricCardV21(title, value, note=''){
+  return `<div class="summary-metric"><span>${esc(title)}</span><b>${esc(value)}</b>${note?`<small>${esc(note)}</small>`:''}</div>`;
+}
+function renderTopEmployeesV21(rows){
+  if(!rows.length) return '<p class="description">Данных пока нет.</p>';
+  return `<div class="summary-table-wrap"><table class="employee-table summary-table"><thead><tr><th>Сотрудник</th><th>Кол-во</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.name)}</td><td>${esc(row.count)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderControlSummaryV21(){
+  const checklistRows = getControlRecords();
+  const revisionRows = getRevisionRecords();
+  const errorRows = getErrorReports();
+  const checks7 = daysBackFilterV21(checklistRows, 7, r => new Date(r.createdAt || Date.now()));
+  const checks30 = daysBackFilterV21(checklistRows, 30, r => new Date(r.createdAt || Date.now()));
+  const rev7 = daysBackFilterV21(revisionRows, 7, r => new Date(`${r.dateKey || new Date().toISOString().slice(0,10)}T00:00:00`));
+  const rev30 = daysBackFilterV21(revisionRows, 30, r => new Date(`${r.dateKey || new Date().toISOString().slice(0,10)}T00:00:00`));
+  const errors30 = daysBackFilterV21(errorRows, 30, r => new Date(r.createdAt || Date.now()));
+  const checkCompletion7 = avgV21(checks7.map(record => { const t = recordDoneTotal(record); return t.total ? (t.done / t.total) * 100 : null; }));
+  const checkCompletion30 = avgV21(checks30.map(record => { const t = recordDoneTotal(record); return t.total ? (t.done / t.total) * 100 : null; }));
+  const avgLoss7 = avgV21(rev7.map(r => parsePercentV21(r.losses)));
+  const avgLoss30 = avgV21(rev30.map(r => parsePercentV21(r.losses)));
+  const totalIiko7 = rev7.reduce((sum, row) => sum + Number(row.iikoSales || 0), 0);
+  const totalIiko30 = rev30.reduce((sum, row) => sum + Number(row.iikoSales || 0), 0);
+  const topChecklistEmployees = Object.values(checks30.reduce((acc, row) => {
+    const key = row.employeeName || 'Не указан';
+    acc[key] = acc[key] || { name:key, count:0 };
+    acc[key].count += 1;
+    return acc;
+  }, {})).sort((a,b)=>b.count-a.count).slice(0,5);
+  const topErrorEmployees = Object.values(errors30.reduce((acc, row) => {
+    const key = row.employeeName || 'Не указан';
+    acc[key] = acc[key] || { name:key, count:0 };
+    acc[key].count += 1;
+    return acc;
+  }, {})).sort((a,b)=>b.count-a.count).slice(0,5);
+  return `<div class="control-summary-grid">
+    <section class="summary-card"><div class="card-head"><h3>Чек-листы</h3><button class="small-action secondary" type="button" data-control-summary-refresh>Обновить</button></div><div class="summary-metrics">${summaryMetricCardV21('За 7 дней', `${checks7.length}`, 'отправок')}${summaryMetricCardV21('За 30 дней', `${checks30.length}`, 'отправок')}${summaryMetricCardV21('Среднее выполнение 7 дн.', `${Math.round(checkCompletion7)}%`)}${summaryMetricCardV21('Среднее выполнение 30 дн.', `${Math.round(checkCompletion30)}%`)}</div><h4>Кто чаще отправляет чек-листы</h4>${renderTopEmployeesV21(topChecklistEmployees)}</section>
+    <section class="summary-card"><div class="card-head"><h3>Ревизии кофе</h3><span class="source-badge">отчет</span></div><div class="summary-metrics">${summaryMetricCardV21('Ревизий за 7 дней', `${rev7.length}`)}${summaryMetricCardV21('Ревизий за 30 дней', `${rev30.length}`)}${summaryMetricCardV21('Средние потери 7 дн.', `${avgLoss7.toFixed(1)}%`)}${summaryMetricCardV21('Средние потери 30 дн.', `${avgLoss30.toFixed(1)}%`)}${summaryMetricCardV21('Продажи iiko за 7 дн.', `${totalIiko7.toFixed(3)} кг`)}${summaryMetricCardV21('Продажи iiko за 30 дн.', `${totalIiko30.toFixed(3)} кг`)}</div><p class="description">Можно быстро посмотреть недельную и месячную картину по ревизиям кофе.</p></section>
+    <section class="summary-card"><div class="card-head"><h3>Сообщения об ошибках</h3><span class="source-badge">обратная связь</span></div><div class="summary-metrics">${summaryMetricCardV21('За 30 дней', `${errors30.length}`, 'сообщений')}${summaryMetricCardV21('Всего', `${errorRows.length}`, 'сообщений')}</div><h4>Кто чаще сообщает об ошибках</h4>${renderTopEmployeesV21(topErrorEmployees)}</section>
+  </div>`;
+}
+function renderControl(){
+  return `<section class="top-panel ${state.activeTop==='control'?'active':''}" id="top-control"><div class="section-heading"><p>Журнал</p><h2>Контроль</h2></div><div class="subtabs control-subtabs"><button class="subtab ${state.activeControl==='summary'?'active':''}" data-control-target="summary" type="button">Сводка</button><button class="subtab ${state.activeControl==='checklists'?'active':''}" data-control-target="checklists" type="button">Чек-листы</button><button class="subtab ${state.activeControl==='revisions'?'active':''}" data-control-target="revisions" type="button">Ревизии</button><button class="subtab ${state.activeControl==='errors'?'active':''}" data-control-target="errors" type="button">Ошибки</button></div><div class="control-folder ${state.activeControl==='summary'?'active':''}" id="control-summary"><div class="control-note"><p>Сводка автоматически собирает данные из раздела «Контроль» и помогает быстро смотреть короткие отчеты за неделю и за месяц.</p></div><div id="control-summary-wrap">${renderControlSummaryV21()}</div></div><div class="control-folder ${state.activeControl==='checklists'?'active':''}" id="control-checklists"><div class="control-note"><p>Здесь отображаются только отправленные чек-листы со всех устройств.</p><div class="doc-actions"><button type="button" class="refresh-control">Обновить данные</button><button type="button" class="download-control-csv">Скачать CSV</button></div></div><div id="control-records">${renderControlRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='revisions'?'active':''}" id="control-revisions"><div class="control-note"><p>Здесь отображается ежедневная ревизия кофе.</p><div class="doc-actions"><button type="button" class="refresh-revisions">Обновить данные</button><button type="button" class="download-revisions-csv">Скачать CSV</button></div></div>${renderRevisionManualForm()}<div id="revision-records">${renderRevisionRecordsTable()}</div></div><div class="control-folder ${state.activeControl==='errors'?'active':''}" id="control-errors"><div class="control-note"><p>Здесь отображаются сообщения сотрудников об ошибках.</p><div class="doc-actions"><button type="button" class="refresh-errors">Обновить данные</button></div></div><div id="error-records">${renderErrorReportsTable()}</div></div></section>`;
+}
+function refreshControl(){
+  const summary = document.querySelector('#control-summary-wrap');
+  if(summary) summary.innerHTML = renderControlSummaryV21();
+  const el = document.querySelector('#control-records'); if(el) el.innerHTML = renderControlRecordsTable();
+  const rev = document.querySelector('#revision-records'); if(rev) rev.innerHTML = renderRevisionRecordsTable();
+  const err = document.querySelector('#error-records'); if(err) err.innerHTML = renderErrorReportsTable();
+}
+function setControlTab(target){
+  state.activeControl = target;
+  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.controlTarget===target));
+  document.querySelectorAll('.control-folder').forEach(folder=>folder.classList.toggle('active', folder.id===`control-${target}`));
+  if(target==='summary'){ loadControlRecords(); loadRevisionRecords(); loadErrorReports(); }
+  if(target==='checklists') loadControlRecords();
+  if(target==='revisions') loadRevisionRecords();
+  if(target==='errors') loadErrorReports();
+}
+
+function techDocOptionsV21(){
+  return (state.menu?.techCards || []).map((doc, index) => `<option value="${index}">${esc(doc.title)}</option>`).join('');
+}
+function techCardOptionsV21(docIndex, selectedKey=''){
+  const doc = (state.menu?.techCards || [])[Number(docIndex)] || { cards:[] };
+  return (doc.cards || []).map(card => {
+    const key = techCardKeyV21(card, doc);
+    return `<option value="${esc(key)}" ${key===selectedKey?'selected':''}>${esc(card.title)}</option>`;
+  }).join('');
+}
+function findTechCardByKeyV21(key){
+  for(const doc of (state.menu?.techCards || [])){
+    for(const card of (doc.cards || [])){
+      if(techCardKeyV21(card, doc) === key) return { doc, card };
+    }
+  }
+  return null;
+}
+function renderTechEditModalV21(){
+  if(!isAdmin()) return '';
+  const firstDocIndex = 0;
+  const firstDoc = (state.menu?.techCards || [])[0] || { cards:[] };
+  const firstCard = (firstDoc.cards || [])[0];
+  const firstKey = firstCard ? techCardKeyV21(firstCard, firstDoc) : '';
+  return `<div class="task-modal" id="tech-edit-modal" aria-hidden="true"><div class="task-form-card tech-edit-card"><div class="card-head"><h3>Редактировать тех. карты</h3><button class="small-action secondary" type="button" data-close-tech-modal>Закрыть</button></div><form id="tech-edit-form"><div class="form-grid"><label>Документ<select name="docIndex" id="tech-doc-select">${techDocOptionsV21()}</select></label><label>Тех. карта<select name="cardKey" id="tech-card-select">${techCardOptionsV21(firstDocIndex, firstKey)}</select></label><label>Название<input name="title" type="text" value="${esc(firstCard?.title || '')}"></label><label>Категория<input name="category" type="text" value="${esc(firstCard?.category || '')}"></label><label>Выход<input name="output" type="text" value="${esc(firstCard?.output || '')}"></label></div><label>Технология<textarea name="technology" rows="4">${esc(firstCard?.technology || '')}</textarea></label><label>Ингредиенты<textarea name="ingredients" rows="8" placeholder="Ингредиент: количество">${esc(ingredientsTextFromListV21(firstCard?.ingredients || []))}</textarea></label><div class="task-form-actions"><button class="small-action ghost" type="button" data-tech-reset>Сбросить изменения</button><button class="small-action secondary" type="button" data-close-tech-modal>Отмена</button><button class="small-action" type="submit">Сохранить</button></div><p class="submit-status tech-edit-status" aria-live="polite"></p></form></div></div>`;
+}
+function fillTechEditorFormV21(){
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  const docIndex = Number(form.elements.docIndex.value || 0);
+  const select = form.elements.cardKey;
+  const currentSelected = select.value;
+  select.innerHTML = techCardOptionsV21(docIndex, currentSelected);
+  const pair = findTechCardByKeyV21(select.value) || findTechCardByKeyV21(select.options[0]?.value || '');
+  if(!pair) return;
+  form.elements.cardKey.value = techCardKeyV21(pair.card, pair.doc);
+  form.elements.title.value = pair.card.title || '';
+  form.elements.category.value = pair.card.category || '';
+  form.elements.output.value = pair.card.output || '';
+  form.elements.technology.value = pair.card.technology || '';
+  form.elements.ingredients.value = ingredientsTextFromListV21(pair.card.ingredients || []);
+}
+function openTechEditModalV21(){
+  const modal = document.querySelector('#tech-edit-modal');
+  if(modal){ modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); }
+  fillTechEditorFormV21();
+}
+function closeTechEditModalV21(){
+  const modal = document.querySelector('#tech-edit-modal');
+  if(modal){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+}
+function resetTechOverrideV21(){
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  const key = form.elements.cardKey.value;
+  if(!key) return;
+  if(!confirm('Сбросить локальные изменения для этой тех. карты?')) return;
+  const overrides = getTechCardOverridesV21();
+  delete overrides[key];
+  saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, overrides);
+  const basePromise = loadMenu();
+  Promise.resolve(basePromise).then(menu => { state.menu = menu; renderApp(); setTop('techcards'); openTechEditModalV21(); }).catch(console.error);
+}
+async function submitTechEditV21(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Редактировать тех. карты может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.tech-edit-status');
+  const payload = {
+    title: (form.elements.title.value || '').trim(),
+    category: (form.elements.category.value || '').trim(),
+    output: (form.elements.output.value || '').trim(),
+    technology: (form.elements.technology.value || '').trim(),
+    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
+  };
+  const key = form.elements.cardKey.value;
+  if(!key || !payload.title){
+    if(status){ status.textContent = 'Нужно выбрать тех. карту и указать название.'; status.className='submit-status error'; }
+    return;
+  }
+  const overrides = getTechCardOverridesV21();
+  overrides[key] = payload;
+  saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, overrides);
+  applyTechOverrideToStateV21(key, payload);
+  if(status){ status.textContent = ''; }
+  alert('Тех. карта обновлена');
+  renderApp();
+  setTop('techcards');
+  openTechEditModalV21();
+}
+function renderTechDocument(doc) {
+  const groups = categoryGroups(doc.cards || []);
+  return `<section class="tech-document"><div class="doc-card"><div class="doc-content"><div class="card-head"><h3>${esc(doc.title)}</h3><span class="source-badge">${(doc.cards||[]).length} карт</span></div><p class="description">${esc(doc.description||'')}</p><div class="doc-actions"><a class="download-link" href="${esc(doc.file)}" download>Скачать Excel</a><span class="secondary-link">${esc(doc.sourceFile)}</span></div></div></div>${groups.map(group=>`<section class="product-section" id="tech-${slugify(doc.id)}-${slugify(group.category)}"><div class="section-heading"><p>Категория</p><h2>${esc(group.category)}</h2></div><div class="tech-grid">${group.items.map(card=>renderTechCard(card)).join('')}</div></section>`).join('')}</section>`;
+}
+function renderTechCards() {
+  const docs = state.menu.techCards || [];
+  return `<section class="top-panel ${state.activeTop==='techcards'?'active':''}" id="top-techcards"><div class="section-heading"><p>Рабочие документы</p><h2>Тех. карты</h2></div><div class="toolbar"><div class="search-row"><input class="search" placeholder="Поиск по тех. картам, ингредиентам или технологии" type="search"><button class="clear-btn" type="button">Сбросить</button></div><div class="toolbar-inline-actions"><nav class="nav">${docs.map(doc=>`<a class="nav-pill" href="#tech-${slugify(doc.id)}">${esc(doc.title)}<span>${(doc.cards||[]).length}</span></a>`).join('')}</nav>${isAdmin()?`<button class="small-action" type="button" data-open-tech-edit>Редактировать тех. карты</button>`:''}</div></div><div class="tech-docs">${docs.map(doc=>`<div id="tech-${slugify(doc.id)}">${renderTechDocument(doc)}</div>`).join('')}</div><div class="empty-state">Ничего не найдено. Попробуйте изменить запрос.</div>${renderTechEditModalV21()}</section>`;
+}
+function bindPhotoAdminEventsV21(){
+  document.querySelectorAll('[data-photo-edit]').forEach(btn => {
+    btn.onclick = () => openPhotoPickerV21(btn.dataset.photoEdit);
+  });
+}
+function bindTechEditorEventsV21(){
+  document.querySelector('[data-open-tech-edit]')?.addEventListener('click', openTechEditModalV21);
+  document.querySelectorAll('[data-close-tech-modal]').forEach(btn => btn.addEventListener('click', closeTechEditModalV21));
+  document.querySelector('#tech-edit-form')?.addEventListener('submit', submitTechEditV21);
+  document.querySelector('#tech-doc-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('#tech-card-select')?.addEventListener('change', fillTechEditorFormV21);
+  document.querySelector('[data-tech-reset]')?.addEventListener('click', resetTechOverrideV21);
+}
+function bindEvents(){
+  document.querySelectorAll('[data-top-target]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topTarget)));
+  document.querySelectorAll('[data-top-jump]').forEach(btn=>btn.addEventListener('click',()=>setTop(btn.dataset.topJump)));
+  document.querySelector('.logout-btn')?.addEventListener('click',handleLogout);
+  document.querySelectorAll('[data-method-target]').forEach(btn=>{ btn.addEventListener('click',()=>{state.activeMethod=btn.dataset.methodTarget; document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b===btn)); document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`panel-${state.activeMethod}`)); history.replaceState(null,'',`#method/${state.activeMethod}`);}); });
+  document.querySelectorAll('[data-control-target]').forEach(btn=>btn.addEventListener('click',()=>setControlTab(btn.dataset.controlTarget)));
+  document.querySelectorAll('#method-panels .tab-panel').forEach(panel=>bindSearch(panel,'.product-card, .lesson-card'));
+  bindSearch(document.querySelector('#top-theory'),'.lesson-card');
+  bindSearch(document.querySelector('#top-checklists'),'.doc-card');
+  bindSearch(document.querySelector('#top-techcards'),'.tech-card');
+  document.querySelectorAll('.submit-checklist').forEach(btn=>btn.addEventListener('click',()=>submitChecklist(btn.dataset.checklistId)));
+  document.querySelector('#coffee-revision-form')?.addEventListener('submit',submitCoffeeRevision);
+  document.querySelector('#revision-manual-form')?.addEventListener('submit',submitRevisionManual);
+  document.querySelector('#employee-form')?.addEventListener('submit',submitEmployeeForm);
+  bindRolePermissionEvents();
+  document.querySelectorAll('[data-employee-delete]').forEach(btn=>btn.addEventListener('click',()=>deleteEmployee(btn.dataset.employeeDelete)));
+  document.querySelector('.download-control-csv')?.addEventListener('click',exportControlCsv);
+  document.querySelector('.refresh-control')?.addEventListener('click',loadControlRecords);
+  document.querySelector('.download-revisions-csv')?.addEventListener('click',exportRevisionCsv);
+  document.querySelector('.refresh-revisions')?.addEventListener('click',loadRevisionRecords);
+  document.querySelector('.refresh-errors')?.addEventListener('click',loadErrorReports);
+  document.querySelector('[data-control-summary-refresh]')?.addEventListener('click',()=>{ loadControlRecords(); loadRevisionRecords(); loadErrorReports(); });
+  document.querySelector('[data-open-task-modal]')?.addEventListener('click',openTaskModal);
+  document.querySelectorAll('[data-close-task-modal]').forEach(btn=>btn.addEventListener('click',closeTaskModal));
+  document.querySelector('#task-form')?.addEventListener('submit',submitTask);
+  bindTaskCardEventsV21();
+  document.querySelector('#error-report-form')?.addEventListener('submit',submitErrorReport);
+  document.querySelector('[data-schedule-prev]')?.addEventListener('click',()=>shiftMonth(-1));
+  document.querySelector('[data-schedule-next]')?.addEventListener('click',()=>shiftMonth(1));
+  document.querySelector('[data-toggle-schedule-form]')?.addEventListener('click',()=>{ const d=document.querySelector('#schedule-form-wrap'); if(d) d.open=!d.open; });
+  document.querySelector('#schedule-event-form')?.addEventListener('submit',submitScheduleEvent);
+  document.querySelector('[data-refresh-service]')?.addEventListener('click',()=>location.reload());
+  bindPhotoAdminEventsV21();
+  bindTechEditorEventsV21();
+}
+function renderApp(){
+  if(!isAuthenticated()) return showLogin();
+  document.body.classList.remove('login-mode');
+  const {site}=state.menu;
+  ensureAllowedTop();
+  if(!(site.methodTabs||[]).some(t=>t.id===state.activeMethod) && (site.methodTabs||[]).length) state.activeMethod=site.methodTabs[0].id;
+  document.title=`${site.title} — база сотрудников`;
+  document.querySelector('.brand').textContent=site.title;
+  document.querySelector('.kicker').textContent=site.subtitle;
+  document.querySelector('.muted').textContent=site.description;
+  const user=currentUser();
+  const userPanel=document.querySelector('#user-panel');
+  if(userPanel) userPanel.innerHTML=`<span class="user-chip">${esc(user.name)} · ${esc(roleLabel(user.role))}</span><button type="button" class="logout-btn">Выйти</button>`;
+  const tabs=allowedMainTabs();
+  document.querySelector('.main-tabs').innerHTML=tabs.map(tab=>`<button class="main-tab ${tab.id===state.activeTop?'active':''} ${tab.id==='employees'&&hasAccess('employees')?'admin-visible':''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
+  document.querySelector('#panels').innerHTML=
+    renderHome()+
+    (hasAccess('method')?renderMethod():'')+
+    (hasAccess('theory')?renderTheoryTopPanel():'')+
+    (hasAccess('checklists')?renderChecklists():'')+
+    (hasAccess('revisions')?renderRevisions():'')+
+    (hasAccess('techcards')?renderTechCards():'')+
+    (hasAccess('schedule')?renderSchedule():'')+
+    (hasAccess('reportError')?renderReportError():'')+
+    (hasAccess('employees')?renderEmployees():'')+
+    (hasAccess('control')?renderControl():'');
+  bindEvents();
+  if(!state.tasks) loadTasks();
+  if(!state.taskAssignees) loadTaskAssignees();
+  if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions();
+  if(isAdmin() && !state.employees) loadEmployees();
+  if(state.activeTop==='schedule' && !state.scheduleEvents) loadScheduleEvents();
+  if(state.activeTop==='employees' && !state.employees) loadEmployees();
+  if(state.activeTop==='control'){
+    loadControlRecords();
+    loadRevisionRecords();
+    if(state.activeControl==='errors' || state.activeControl==='summary') loadErrorReports();
+  }
+}
+function setTop(target){
+  if(!hasAccess(target)) target='home';
+  state.activeTop=target;
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.toggle('active',b.dataset.topTarget===target));
+  document.querySelectorAll('.top-panel').forEach(panel=>panel.classList.toggle('active',panel.id===`top-${target}`));
+  history.replaceState(null,'',`#${target}`);
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(target==='home'){ loadTasks(); if(!state.taskAssignees) loadTaskAssignees(); }
+  if(target==='schedule') loadScheduleEvents();
+  if(target==='control'){
+    loadControlRecords();
+    loadRevisionRecords();
+    if(state.activeControl==='errors' || state.activeControl==='summary') loadErrorReports();
+  }
+  if(target==='employees'){ loadEmployees(); if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions(); }
+}
+/* --- end v21 overrides --- */
+
+/* --- v22 overrides: sync tech card edits and menu photos through Supabase --- */
+async function fetchRemoteContentOverridesV22(){
+  const empty = { photoOverrides: {}, techOverrides: {} };
+  try {
+    if(typeof supa === 'undefined') return empty;
+    const session = await getCurrentSession().catch(()=>null);
+    if(!session?.user?.id) return empty;
+    const [photoRes, techRes] = await Promise.all([
+      supa.from('menu_item_overrides').select('item_key,image_url,storage_path,updated_at'),
+      supa.from('tech_card_overrides').select('card_key,title,category,output,technology,ingredients,updated_at')
+    ]);
+    if(photoRes.error) throw photoRes.error;
+    if(techRes.error) throw techRes.error;
+    const photoOverrides = {};
+    (photoRes.data || []).forEach(row => { if(row.item_key && row.image_url) photoOverrides[row.item_key] = row.image_url; });
+    const techOverrides = {};
+    (techRes.data || []).forEach(row => {
+      if(row.card_key){
+        techOverrides[row.card_key] = {
+          title: row.title || '',
+          category: row.category || '',
+          output: row.output || '',
+          technology: row.technology || '',
+          ingredients: Array.isArray(row.ingredients) ? row.ingredients : []
+        };
+      }
+    });
+    return { photoOverrides, techOverrides };
+  } catch(error){
+    console.warn('Remote content overrides skipped. Run STEP_6_CONTENT_SYNC_TECHCARDS_PHOTOS.sql if this is the first setup.', error);
+    return empty;
+  }
+}
+function applyRemoteContentOverridesV22(menu, remote){
+  const cloned = JSON.parse(JSON.stringify(menu || {}));
+  const photoOverrides = remote?.photoOverrides || {};
+  const techOverrides = remote?.techOverrides || {};
+  (cloned.items || []).forEach(item => {
+    const key = menuItemKeyV21(item);
+    if(photoOverrides[key]) item.image = photoOverrides[key];
+  });
+  (cloned.techCards || []).forEach(doc => {
+    (doc.cards || []).forEach(card => {
+      const key = techCardKeyV21(card, doc);
+      const override = techOverrides[key];
+      if(override){
+        card.title = override.title || card.title;
+        card.category = override.category || card.category;
+        card.output = override.output || '';
+        card.technology = override.technology || '';
+        card.ingredients = Array.isArray(override.ingredients) ? override.ingredients : (card.ingredients || []);
+      }
+    });
+  });
+  return cloned;
+}
+async function loadMenu() {
+  const embedded = readEmbeddedMenu();
+  let base;
+  if(location.protocol === 'file:' && embedded){
+    base = embedded;
+  } else {
+    try {
+      const res = await fetch('data/menu.json', { cache:'no-cache' });
+      if(!res.ok) throw new Error(`Не удалось загрузить data/menu.json: ${res.status}`);
+      base = await res.json();
+    } catch(error) {
+      console.warn('Не удалось загрузить data/menu.json, использую встроенную копию данных', error);
+      if(!embedded) throw error;
+      base = embedded;
+    }
+  }
+  let merged = applyLocalContentOverridesV21(base);
+  const remote = await fetchRemoteContentOverridesV22();
+  merged = applyRemoteContentOverridesV22(merged, remote);
+  return merged;
+}
+function photoUploadPathV22(itemKey){
+  const slug = slugify(String(itemKey || 'menu-photo')).slice(0, 90) || 'menu-photo';
+  return `menu/${slug}-${Date.now()}.jpg`;
+}
+async function compressImageFileV22(file){
+  if(!file.type || !file.type.startsWith('image/')) throw new Error('Выберите файл изображения.');
+  const dataUrl = await new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл.'));
+    reader.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject)=>{
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Не удалось обработать изображение.'));
+    image.src = dataUrl;
+  });
+  const maxSide = 1400;
+  const ratio = Math.min(1, maxSide / Math.max(img.width, img.height));
+  const width = Math.max(1, Math.round(img.width * ratio));
+  const height = Math.max(1, Math.round(img.height * ratio));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+  return await new Promise((resolve, reject)=>{
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось сжать изображение.')), 'image/jpeg', 0.82);
+  });
+}
+async function savePhotoToSupabaseV22(itemKey, file){
+  if(!isAdmin()) throw new Error('Фото может добавлять только администратор.');
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт администратора.');
+  const blob = await compressImageFileV22(file);
+  const path = photoUploadPathV22(itemKey);
+  const upload = await supa.storage.from('menu-photos').upload(path, blob, { contentType:'image/jpeg', cacheControl:'3600', upsert:true });
+  if(upload.error) throw upload.error;
+  const publicUrl = supa.storage.from('menu-photos').getPublicUrl(upload.data.path).data.publicUrl;
+  const row = { item_key:itemKey, image_url:publicUrl, storage_path:upload.data.path, updated_by:user.id };
+  const res = await supa.from('menu_item_overrides').upsert(row, { onConflict:'item_key' }).select().single();
+  if(res.error) throw res.error;
+  const local = getMenuPhotoOverridesV21();
+  local[itemKey] = publicUrl;
+  saveStorageJsonV21(MENU_PHOTO_OVERRIDES_KEY_V21, local);
+  return publicUrl;
+}
+function ensurePhotoInputV21(){
+  let input = document.getElementById('admin-photo-input-v21');
+  if(input) return input;
+  input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.id = 'admin-photo-input-v21';
+  input.hidden = true;
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if(!file || !pendingPhotoTargetKeyV21) return;
+    const itemKey = pendingPhotoTargetKeyV21;
+    pendingPhotoTargetKeyV21 = '';
+    try {
+      const url = await savePhotoToSupabaseV22(itemKey, file);
+      applyPhotoOverrideToStateV21(itemKey, url);
+      input.value = '';
+      alert('Фото сохранено в Supabase и будет видно всем сотрудникам.');
+      state.menu = await loadMenu();
+      renderApp();
+      setTop('method');
+    } catch(error){
+      console.error(error);
+      input.value = '';
+      alert('Не удалось сохранить фото в Supabase: ' + (error.message || 'проверьте SQL STEP_6 и права администратора.'));
+    }
+  });
+  document.body.appendChild(input);
+  return input;
+}
+async function saveTechOverrideToSupabaseV22(cardKey, payload){
+  if(!isAdmin()) throw new Error('Редактировать тех. карты может только администратор.');
+  const user = currentUser();
+  if(!user?.id) throw new Error('Нужно войти в аккаунт администратора.');
+  const row = {
+    card_key: cardKey,
+    title: payload.title || '',
+    category: payload.category || '',
+    output: payload.output || '',
+    technology: payload.technology || '',
+    ingredients: Array.isArray(payload.ingredients) ? payload.ingredients : [],
+    updated_by: user.id
+  };
+  const res = await supa.from('tech_card_overrides').upsert(row, { onConflict:'card_key' }).select().single();
+  if(res.error) throw res.error;
+  const local = getTechCardOverridesV21();
+  local[cardKey] = payload;
+  saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, local);
+  return res.data;
+}
+async function submitTechEditV21(event){
+  event.preventDefault();
+  if(!isAdmin()) return alert('Редактировать тех. карты может только администратор.');
+  const form = event.currentTarget;
+  const status = form.querySelector('.tech-edit-status');
+  const payload = {
+    title: (form.elements.title.value || '').trim(),
+    category: (form.elements.category.value || '').trim(),
+    output: (form.elements.output.value || '').trim(),
+    technology: (form.elements.technology.value || '').trim(),
+    ingredients: parseIngredientsTextV21(form.elements.ingredients.value)
+  };
+  const key = form.elements.cardKey.value;
+  if(!key || !payload.title){
+    if(status){ status.textContent = 'Нужно выбрать тех. карту и указать название.'; status.className='submit-status error'; }
+    return;
+  }
+  try{
+    if(status){ status.textContent = 'Сохраняю в Supabase…'; status.className = 'submit-status'; }
+    await saveTechOverrideToSupabaseV22(key, payload);
+    applyTechOverrideToStateV21(key, payload);
+    if(status){ status.textContent = ''; }
+    alert('Тех. карта сохранена в Supabase и будет видна всем сотрудникам.');
+    state.menu = await loadMenu();
+    renderApp();
+    setTop('techcards');
+    openTechEditModalV21();
+  } catch(error){
+    console.error(error);
+    if(status){ status.textContent = 'Не удалось сохранить в Supabase.'; status.className = 'submit-status error'; }
+    alert('Не удалось сохранить тех. карту: ' + (error.message || 'проверьте SQL STEP_6 и права администратора.'));
+  }
+}
+async function resetTechOverrideV21(){
+  const form = document.querySelector('#tech-edit-form');
+  if(!form) return;
+  const key = form.elements.cardKey.value;
+  if(!key) return;
+  if(!confirm('Сбросить изменения для этой тех. карты у всех сотрудников?')) return;
+  try{
+    const res = await supa.from('tech_card_overrides').delete().eq('card_key', key);
+    if(res.error) throw res.error;
+    const overrides = getTechCardOverridesV21();
+    delete overrides[key];
+    saveStorageJsonV21(TECH_CARD_OVERRIDES_KEY_V21, overrides);
+    state.menu = await loadMenu();
+    alert('Изменения сброшены.');
+    renderApp();
+    setTop('techcards');
+    openTechEditModalV21();
+  } catch(error){
+    console.error(error);
+    alert('Не удалось сбросить изменения: ' + (error.message || 'проверьте Supabase.'));
+  }
+}
+async function handleLogin(event){
+  event.preventDefault();
+  const form = event.currentTarget;
+  const errorEl = document.querySelector('#login-error');
+  const login = (form.elements.login.value || '').trim().toLowerCase();
+  const password = (form.elements.password.value || '').trim();
+  if(errorEl) errorEl.textContent = 'Проверяю данные…';
+  try {
+    const email = loginToEmail(login);
+    const result = await supa.auth.signInWithPassword({ email, password });
+    if(result.error) throw result.error;
+    const profile = await getCurrentProfile();
+    saveAuth({ token: result.data.session?.access_token || '', session: result.data.session, user: profile });
+    state.menu = await loadMenu();
+    state.activeTop = 'home';
+    renderApp();
+  } catch(error) {
+    if(errorEl) errorEl.textContent = 'Не удалось войти: ' + (error.message || 'проверьте логин и пароль.');
+  }
+}
+async function init(){
+  try {
+    state.auth = readSavedAuth();
+    await restoreSupabaseSession();
+    state.menu = await loadMenu();
+    const hash = location.hash.replace('#','');
+    if(hash.includes('/')) {
+      const [top, method] = hash.split('/');
+      if((state.menu.site.mainTabs||[]).some(t=>t.id===top) || top==='employees') state.activeTop=top;
+      if((state.menu.site.methodTabs||[]).some(t=>t.id===method)) state.activeMethod=method;
+    } else if((state.menu.site.mainTabs||[]).some(t=>t.id===hash) || hash==='employees') {
+      state.activeTop=hash;
+    }
+    renderApp();
+  } catch(error) {
+    document.querySelector('#panels').innerHTML = `<div class="error">Сайт загружен, но не удалось подключиться к Supabase или прочитать данные. Детали: ${esc(error.message)}</div>`;
+    console.error(error);
+  }
+}
+/* --- end v22 overrides --- */
