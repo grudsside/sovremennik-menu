@@ -1,0 +1,11 @@
+# Local dependencies
+node_modules/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+vapid.env
+
+# Local build / temporary output
+GITHUB_UPLOAD_READY/

@@ -5,7 +5,15 @@ window.SOVREMENNIK_SUPABASE = {
   notifyFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/notify-event',
   pushSendFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/push-send',
   deadlineFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/deadline-checker',
-  // После генерации VAPID-ключей замените это значение на VAPID_PUBLIC_KEY.
-  vapidPublicKey: 'BB4-UylgtzRcg88xnMOKtJ8XmSa1ns7o9mrrqH7Fx1dZyf2S9bZHGZ1BX6-kPOxMLn0fqxQ1g8TK582U2ujf-PA',
+  // Публичный VAPID-ключ. Приватный ключ хранится только в Supabase Secrets.
+  vapidPublicKey: 'BKm7-qVECgd-74cQtk5PtnDaiUAPHpN6_3y3rCQSdC_QL-GX_QhasYVO40226QToDPmfNnxjnmLbTc-HtiEHgF0',
   loginDomain: 'sovremennik.local'
 };
+
+// Временный безопасный модуль переподписки устройств после ротации VAPID-ключей.
+(function loadVapidRotationHelper(){
+  const script = document.createElement('script');
+  script.src = './assets/js/push-vapid-rotation.js';
+  script.async = false;
+  document.head.appendChild(script);
+})();
