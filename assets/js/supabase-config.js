@@ -9,3 +9,11 @@ window.SOVREMENNIK_SUPABASE = {
   vapidPublicKey: 'BKm7-qVECgd-74cQtk5PtnDaiUAPHpN6_3y3rCQSdC_QL-GX_QhasYVO40226QToDPmfNnxjnmLbTc-HtiEHgF0',
   loginDomain: 'sovremennik.local'
 };
+
+// Временный безопасный модуль переподписки устройств после ротации VAPID-ключей.
+(function loadVapidRotationHelper(){
+  const script = document.createElement('script');
+  script.src = './assets/js/push-vapid-rotation.js';
+  script.async = false;
+  document.head.appendChild(script);
+})();
