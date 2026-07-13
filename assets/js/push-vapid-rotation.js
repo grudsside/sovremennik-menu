@@ -32,9 +32,10 @@
       const status = card.querySelector('.push-status');
       const testButton = card.querySelector('[data-push-test]');
       const enableButton = card.querySelector('[data-push-enable]');
-      if(status){ status.textContent = 'требуется обновление'; status.classList.remove('ok'); }
-      if(testButton) testButton.disabled = true;
-      if(enableButton) enableButton.textContent = 'Обновить устройство';
+      if(status && status.textContent !== 'требуется обновление') status.textContent = 'требуется обновление';
+      if(status) status.classList.remove('ok');
+      if(testButton && !testButton.disabled) testButton.disabled = true;
+      if(enableButton && enableButton.textContent !== 'Обновить устройство') enableButton.textContent = 'Обновить устройство';
     } catch(error){
       console.warn('VAPID status check failed', error);
     }
@@ -109,7 +110,15 @@
     }
   }, true);
 
-  const observer = new MutationObserver(() => refreshStatus());
+  let refreshScheduled = false;
+  const observer = new MutationObserver(() => {
+    if(refreshScheduled) return;
+    refreshScheduled = true;
+    queueMicrotask(async () => {
+      refreshScheduled = false;
+      await refreshStatus();
+    });
+  });
   if(document.body) observer.observe(document.body, { childList: true, subtree: true });
   window.addEventListener('load', refreshStatus);
 })();
