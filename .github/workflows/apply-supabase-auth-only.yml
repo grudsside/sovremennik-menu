@@ -1,0 +1,241 @@
+name: Apply Supabase-only auth migration
+
+on:
+  push:
+    branches:
+      - security/remove-built-in-admin
+    paths:
+      - .github/workflows/apply-supabase-auth-only.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/remove-built-in-admin
+          fetch-depth: 0
+
+      - name: Apply verified structural migration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def fail(msg):
+              raise SystemExit(f"ERROR: {msg}")
+
+          def read(path):
+              p = Path(path)
+              if not p.exists():
+                  fail(f"missing file: {path}")
+              return p.read_text(encoding="utf-8")
+
+          def one(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  fail(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          def rx(text, pattern, new, label, flags=0):
+              compiled = re.compile(pattern, flags)
+              matches = list(compiled.finditer(text))
+              if len(matches) != 1:
+                  fail(f"{label}: expected 1 match, found {len(matches)}")
+              return compiled.sub(new, text, count=1)
+
+          def line(text, pattern, new, label):
+              return rx(text, pattern, new, label, re.MULTILINE)
+
+          outputs = {}
+
+          path = "assets/js/app.js"
+          text = read(path)
+
+          for needle, label in [
+              ("function renderSecurityPanel(){", "renderSecurityPanel"),
+              ("async function submitPasswordChange(event){", "submitPasswordChange"),
+              ("document.querySelector('#password-change-form')?.addEventListener('submit',submitPasswordChange);", "password binding"),
+              ("${renderSecurityPanel()}${renderRolePermissionsPanel()}", "security panel render"),
+          ]:
+              if text.count(needle) != 1:
+                  fail(f"{label}: expected exactly once")
+
+          text = one(text, "const AUTH_STORAGE_KEY = 'sovremennikAuthV2Clean';\n", "", "old auth constant")
+          text = one(text, "const SUPABASE_AUTH_STORAGE_KEY = 'sovremennikSupabaseAuthV1';\n", "", "app auth storage constant")
+          text = line(
+              text,
+              r"^const CLEAN_CACHE_VERSION = '[^']+';$",
+              "const CLEAN_CACHE_VERSION = '2026-07-13-supabase-auth-only-v1';",
+              "cleanup version",
+          )
+          text = one(
+              text,
+              "        'sovremennikTaskAssigneesV1',\n        'sovremennikAuthV1'\n      ].forEach(key => localStorage.removeItem(key));",
+              "        'sovremennikTaskAssigneesV1',\n        'sovremennikAuthV1',\n        'sovremennikAuthV2Clean',\n        'sovremennikSupabaseAuthV1'\n      ].forEach(key => localStorage.removeItem(key));",
+              "legacy app auth cleanup",
+          )
+          text = rx(
+              text,
+              r"// Стартовый администратор нужен[^\n]*\n// После обновления Supabase[^\n]*\nconst BUILTIN_ADMIN\s*=\s*\{[^\n]*\};\nconst BUILTIN_ADMIN_TOKEN\s*=\s*'[^']*';\nfunction isBuiltinAdminCredentials\(login, password\)\{\n[\s\S]*?\n\}\nfunction builtinAdminAuth\(\)\{\n[\s\S]*?\n\}\n\n",
+              "",
+              "built-in admin block",
+          )
+          text = one(
+              text,
+              "function isAuthenticated(){ return Boolean(getAuthToken() && currentUser()); }",
+              "function isAuthenticated(){ return Boolean(state.auth?.session?.access_token && state.auth?.session?.user?.id && state.auth?.user?.id === state.auth.session.user.id); }",
+              "Supabase-only isAuthenticated",
+          )
+          text = one(text, "  if(login===BUILTIN_ADMIN.login) return false;\n", "", "table delete special case")
+          text = one(
+              text,
+              "  if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');\n",
+              "",
+              "delete special case",
+          )
+          text = rx(
+              text,
+              r"    // Built-in fallback has no Supabase session and must never rotate passwords\.\n    if\(!session\?\.access_token \|\| !session\.user\?\.id \|\| state\.auth\?\.session\?\.user\?\.id !== session\.user\.id\)\{\n      throw new Error\('[^']+'\);\n    \}",
+              "    if(!session?.access_token || !session.user?.id || state.auth?.session?.user?.id !== session.user.id){\n      throw new Error('Сессия Supabase недоступна. Войдите заново.');\n    }",
+              "password session message",
+          )
+          text = rx(
+              text,
+              r"function saveAuth\(auth\)\{ state\.auth = auth; try \{ localStorage\.setItem\(SUPABASE_AUTH_STORAGE_KEY, JSON\.stringify\(auth\)\); \} catch\(e\) \{\} \}\nfunction readSavedAuth\(\)\{[\s\S]*?\}\nasync function restoreSupabaseSession\(\)\{[\s\S]*?\}\nfunction getAuthToken\(\)\{ return state\.auth\?\.token \|\| state\.auth\?\.session\?\.access_token \|\| ''; \}",
+              "function saveAuth(auth){ state.auth = auth; }\nasync function restoreSupabaseSession(){ try { const profile = await getCurrentProfile(); if(profile) { const session = await getCurrentSession(); if(session?.access_token && session.user?.id === profile.id){ saveAuth({ session, user: profile }); return true; } } } catch(error) { console.warn('Supabase session restore failed', error); } clearAuth(); return false; }\nfunction getAuthToken(){ return isAuthenticated() ? state.auth.session.access_token : ''; }",
+              "auth helpers",
+          )
+          text = one(
+              text,
+              "function clearAuth(){ state.auth = null; try { localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY); } catch(e) {} }",
+              "function clearAuth(){ state.auth = null; try { localStorage.removeItem('sovremennikSupabaseAuthV1'); } catch(e) {} }",
+              "clear legacy app auth",
+          )
+          text = one(
+              text,
+              "    saveAuth({ token: result.data.session?.access_token || '', session: result.data.session, user: profile });",
+              "    saveAuth({ session: result.data.session, user: profile });",
+              "remove redundant token field",
+          )
+          text = one(
+              text,
+              "    state.auth = readSavedAuth();\n    await restoreSupabaseSession();\n    state.menu = await loadMenu();",
+              "    const restored = await restoreSupabaseSession();\n    state.menu = await loadMenu();\n    if(!restored) { showLogin(); return; }",
+              "fail-closed init",
+          )
+
+          for forbidden in [
+              "BUILTIN_ADMIN",
+              "BUILTIN_ADMIN_TOKEN",
+              "builtinAdminAuth",
+              "isBuiltinAdminCredentials",
+              "SUPABASE_AUTH_STORAGE_KEY",
+              "readSavedAuth",
+              "localStorage.setItem('sovremennikSupabaseAuthV1'",
+          ]:
+              if forbidden in text:
+                  fail(f"forbidden application auth pattern remains: {forbidden}")
+
+          outputs[path] = text
+
+          def transform_security(text):
+              return rx(
+                  text,
+                  r"## Legacy built-in admin\n\n[\s\S]*?\n## Public repository",
+                  "## Legacy built-in admin\n\nLegacy built-in admin и локальный token fallback удалены после проверки двух активных Supabase admin-аккаунтов и ротации пароля основного администратора.\n\nТекущие правила:\n\n1. вход только через Supabase Auth;\n2. локальный application auth не доверяется без реальной Supabase-сессии;\n3. старые application-auth ключи очищаются клиентским cleanup;\n4. hardcoded admin, fallback-пароли и локальные токены нельзя возвращать;\n5. admin API должен принимать только Supabase JWT.\n\n## Public repository",
+                  "security docs",
+              )
+
+          def transform_audit(text):
+              return rx(
+                  text,
+                  r"### Built-in admin\n\n[^\n]*\n",
+                  "### Built-in admin\n\nLegacy built-in admin, hardcoded пароль и локальный token fallback удалены после проверки двух активных Supabase admin-аккаунтов и ротации пароля. Риск возврата fallback остаётся организационным: не добавлять hardcoded admin повторно.\n",
+                  "audit docs",
+              )
+
+          docs = {
+              "AGENTS.md": lambda t: line(t, r"^В клиенте остаётся legacy built-in admin\..*$", "Legacy built-in admin удалён после подтверждения двух активных Supabase admin-аккаунтов и ротации пароля. Не возвращай локальный fallback, hardcoded admin или локальные токены.", "agents rule"),
+              "README_UPLOAD_FIRST.md": lambda t: line(t, r"^5\. После загрузки откройте сайт и войдите под .*$", "5. После загрузки откройте сайт и войдите под Supabase Auth-администратором. Пароли не хранятся в Git.", "upload readme"),
+              "SUPABASE_V22_CONTENT_SYNC_STEPS.md": lambda t: line(t, r"^1\. Войди как .*$", "1. Войди как Supabase Auth-администратор. Пароли не хранятся в Git.", "content sync docs"),
+              "PUSH_SETUP_V19.md": lambda t: line(t, r"^1\. Войти под администратором .*$", "1. Войти под Supabase Auth-администратором. Пароли не хранятся в Git.", "push docs"),
+              "docs/REPOSITORY_AUDIT.md": transform_audit,
+              "docs/SECURITY.md": transform_security,
+              "supabase/sql/STEP_2_SEED_ADMIN_AFTER_AUTH_USER.sql": lambda t: line(t, r"^--\s+Password: .*$", "--    Password: create a unique temporary password outside Git and rotate it after first login", "seed comment"),
+          }
+
+          for p, fn in docs.items():
+              original = read(p)
+              changed = fn(original)
+              if changed == original:
+                  fail(f"no change produced for {p}")
+              outputs[p] = changed
+
+          p = "README.md"
+          t = read(p)
+          t = line(t, r"^\s+- password: .*$", "   - password: задайте уникальный временный пароль вне Git и смените его после первого входа", "README temp password")
+          t = line(t, r"^- пароль: .*$", "- пароль: используйте текущий пароль из Supabase Auth; временные пароли не хранятся в Git", "README login password")
+          outputs[p] = t
+
+          p = "docs/CODEX_INITIAL_PROMPT.md"
+          t = read(p)
+          t = one(t, "3. Built-in admin и local token fallback.", "3. Не возвращать удалённый built-in admin и local token fallback.", "prompt risk")
+          t = one(t, "Built-in admin, migrations, deployments, overrides, RLS, menu sources, cron, public repo/secrets.", "Удалённый built-in admin не возвращать; проверить migrations, deployments, overrides, RLS, menu sources, cron, public repo/secrets.", "prompt findings")
+          t = one(t, "Только существенные. Начни с production URL, applied SQL, deployed Functions, cron, manager, built-in admin и следующего приоритета.", "Только существенные. Начни с production URL, applied SQL, deployed Functions, cron, manager, подтверждения отсутствия built-in fallback и следующего приоритета.", "prompt questions")
+          t = one(t, "9. не удалять built-in admin;", "9. не возвращать built-in admin;", "prompt rule")
+          outputs[p] = t
+
+          p = "docs/OPEN_QUESTIONS.md"
+          t = read(p)
+          t = line(t, r"^13\. .*built-in admin.*$", "13. Built-in admin удалён после проверки Supabase Auth; не возвращать fallback.", "question 13")
+          t = line(t, r"^14\. .*резервн.*admin.*$", "14. Второй резервный admin подтверждён; поддерживать минимум два admin-аккаунта.", "question 14")
+          outputs[p] = t
+
+          expected = {
+              "assets/js/app.js",
+              "AGENTS.md",
+              "README.md",
+              "README_UPLOAD_FIRST.md",
+              "SUPABASE_V22_CONTENT_SYNC_STEPS.md",
+              "PUSH_SETUP_V19.md",
+              "docs/CODEX_INITIAL_PROMPT.md",
+              "docs/OPEN_QUESTIONS.md",
+              "docs/REPOSITORY_AUDIT.md",
+              "docs/SECURITY.md",
+              "supabase/sql/STEP_2_SEED_ADMIN_AFTER_AUTH_USER.sql",
+          }
+          if set(outputs) != expected:
+              fail("unexpected transformed file set")
+
+          for p, content in outputs.items():
+              Path(p).write_text(content, encoding="utf-8")
+          PY
+
+      - name: Validate
+        shell: bash
+        run: |
+          node --check assets/js/app.js
+          node --check assets/js/push.js
+          node --check assets/js/push-vapid-rotation.js
+          node --check service-worker.js
+          node -e "JSON.parse(require('fs').readFileSync('data/menu.json','utf8')); JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'));"
+          git diff --check
+          test "$(git diff --name-only | sort | wc -l)" -eq 11
+          ! git grep -n -E 'BUILTIN_ADMIN|BUILTIN_ADMIN_TOKEN|builtinAdminAuth|isBuiltinAdminCredentials|readSavedAuth' -- ':!*.patch'
+          ! grep -q "localStorage.setItem('sovremennikSupabaseAuthV1'" assets/js/app.js
+          ! grep -q 'SUPABASE_AUTH_STORAGE_KEY' assets/js/app.js
+
+      - name: Commit clean migration
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-supabase-auth-only.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/js/app.js AGENTS.md README.md README_UPLOAD_FIRST.md SUPABASE_V22_CONTENT_SYNC_STEPS.md PUSH_SETUP_V19.md docs/CODEX_INITIAL_PROMPT.md docs/OPEN_QUESTIONS.md docs/REPOSITORY_AUDIT.md docs/SECURITY.md supabase/sql/STEP_2_SEED_ADMIN_AFTER_AUTH_USER.sql .github/workflows/apply-supabase-auth-only.yml
+          git commit -m "Remove legacy built-in admin authentication"
+          git push origin HEAD:security/remove-built-in-admin
