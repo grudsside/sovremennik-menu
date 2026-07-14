@@ -1,4 +1,4 @@
-name: Diagnose deadline cron verification
+name: Capture deadline cron type-check error
 
 on:
   push:
@@ -20,29 +20,17 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Format and collect status codes
+      - name: Capture type-check output
         shell: bash
         run: |
           set +e
-          deno fmt supabase/functions/deadline-checker/
-          fmt_status=$?
-          deno test supabase/functions/deadline-checker/cron-auth.test.ts
-          test_status=$?
-          deno check supabase/functions/deadline-checker/index.ts
-          check_status=$?
-          git diff --check
-          diff_status=$?
-          mkdir -p .github
-          {
-            echo "fmt=$fmt_status"
-            echo "test=$test_status"
-            echo "check=$check_status"
-            echo "diff=$diff_status"
-          } > .github/deadline-cron-verification.txt
-      - name: Commit diagnostic result
+          deno check supabase/functions/deadline-checker/index.ts > .github/deadline-cron-check.log 2>&1
+          status=$?
+          echo "exit=$status" >> .github/deadline-cron-check.log
+      - name: Commit diagnostic log
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add supabase/functions/deadline-checker/ .github/deadline-cron-verification.txt
-          git commit -m "Record deadline cron verification status"
+          git add .github/deadline-cron-check.log
+          git commit -m "Record deadline cron type-check error"
           git push
