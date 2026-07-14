@@ -1,11 +1,10 @@
 const state = { menu: null, activeTop: 'home', activeMethod: 'bar', activeControl: 'checklists', controlRecords: null, revisionRecords: null, employees: null, employeesLoading: false, employeesError: '', rolePermissions: null, rolePermissionsLoading: false, rolePermissionsError: '', controlLoading: false, revisionLoading: false, controlError: '', revisionError: '', auth: null };
 const CONTROL_STORAGE_KEY = 'sovremennikChecklistControlV2Clean';
 const REVISION_STORAGE_KEY = 'sovremennikCoffeeRevisionV2Clean';
-const AUTH_STORAGE_KEY = 'sovremennikAuthV2Clean';
 const GOOGLE_SCRIPT_URL = ''; // legacy Google Apps Script disabled; Supabase is used below
 const HOPPER_TARE_KG = 0.847;
 
-const CLEAN_CACHE_VERSION = '2026-07-10-utf8-safe-v2';
+const CLEAN_CACHE_VERSION = '2026-07-13-supabase-auth-only-v1';
 function cleanupOldClientCache(){
   try {
     const versionKey = 'sovremennikClientCacheVersion';
@@ -17,7 +16,9 @@ function cleanupOldClientCache(){
         'sovremennikErrorReportsV1',
         'sovremennikScheduleEventsV1',
         'sovremennikTaskAssigneesV1',
-        'sovremennikAuthV1'
+        'sovremennikAuthV1',
+        'sovremennikAuthV2Clean',
+        'sovremennikSupabaseAuthV1'
       ].forEach(key => localStorage.removeItem(key));
       localStorage.setItem(versionKey, CLEAN_CACHE_VERSION);
     }
@@ -26,17 +27,6 @@ function cleanupOldClientCache(){
   }
 }
 cleanupOldClientCache();
-
-// Стартовый администратор нужен, чтобы можно было войти сразу после публикации сайта.
-// После обновления Supabase этот же аккаунт будет также создан в листе «Сотрудники».
-const BUILTIN_ADMIN = { name: 'Григорий', role: 'admin', login: 'grigory', password: '0808' };
-const BUILTIN_ADMIN_TOKEN = 'builtin-admin-grigory-0808-v2';
-function isBuiltinAdminCredentials(login, password){
-  return String(login || '').trim().toLowerCase() === BUILTIN_ADMIN.login && String(password || '').trim() === BUILTIN_ADMIN.password;
-}
-function builtinAdminAuth(){
-  return { token: BUILTIN_ADMIN_TOKEN, user: { name: BUILTIN_ADMIN.name, role: BUILTIN_ADMIN.role, login: BUILTIN_ADMIN.login } };
-}
 
 const ROLE_LABELS = { admin: 'Администратор', manager: 'Руководитель', barista: 'Бариста', waiter: 'Официант', 'администратор': 'Администратор', 'руководитель': 'Руководитель', 'бариста': 'Бариста', 'официант': 'Официант' };
 const ROLE_ALIASES = { 'администратор': 'admin', 'admin': 'admin', 'руководитель': 'manager', 'manager': 'manager', 'менеджер': 'manager', 'бариста': 'barista', 'barista': 'barista', 'официант': 'waiter', 'waiter': 'waiter' };
@@ -53,7 +43,7 @@ function normalizeRole(role){ return ROLE_ALIASES[String(role || '').trim().toLo
 function roleLabel(role){ const normalized=normalizeRole(role); return ROLE_LABELS[normalized] || ROLE_LABELS[role] || role || '—'; }
 function currentUser(){ return state.auth?.user || null; }
 function currentUserName(){ return currentUser()?.name || ''; }
-function isAuthenticated(){ return Boolean(getAuthToken() && currentUser()); }
+function isAuthenticated(){ return Boolean(state.auth?.session?.access_token && state.auth?.session?.user?.id && state.auth?.user?.id === state.auth.session.user.id); }
 function isAdmin(){ return normalizeRole(currentUser()?.role) === 'admin'; }
 function effectiveAccessByRole(){ return state.rolePermissions || DEFAULT_ACCESS_BY_ROLE; }
 function hasAccess(target){ if(target==='home') return true; const role=normalizeRole(currentUser()?.role); if(role === 'admin') return true; return (effectiveAccessByRole()[role] || []).includes(target); }
@@ -355,7 +345,6 @@ function canDeleteEmployee(e){
   const login=(e.login||'').trim().toLowerCase();
   const current=(currentUser()?.login||'').trim().toLowerCase();
   if(login && login===current) return false;
-  if(login===BUILTIN_ADMIN.login) return false;
   return Boolean(login);
 }
 function renderEmployeesTable(){
@@ -469,9 +458,8 @@ async function submitPasswordChange(event){
     if(button) button.disabled = true;
     if(status){ status.textContent = 'Проверяю Supabase-сессию…'; status.className = 'submit-status'; }
     const session = await getCurrentSession();
-    // Built-in fallback has no Supabase session and must never rotate passwords.
     if(!session?.access_token || !session.user?.id || state.auth?.session?.user?.id !== session.user.id){
-      throw new Error('Для смены пароля нужно войти через Supabase. Встроенный резервный вход не поддерживает смену пароля.');
+      throw new Error('Сессия Supabase недоступна. Войдите заново.');
     }
     if(status) status.textContent = 'Обновляю пароль…';
     const { error } = await supa.auth.updateUser({ password: newPassword });
@@ -720,7 +708,6 @@ const SUPABASE_URL = SOV_SUPA_CONFIG.url || 'https://tjibbzfdughhjenumzxo.supaba
 const SUPABASE_ANON_KEY = SOV_SUPA_CONFIG.anonKey || 'sb_publishable_S0QBmN0f6SYvaPXj_QFvzg_uQmdXSwJ';
 const SUPABASE_EMPLOYEE_FUNCTION_URL = SOV_SUPA_CONFIG.employeeFunctionUrl || `${SUPABASE_URL}/functions/v1/admin-employees`;
 const SUPABASE_LOGIN_DOMAIN = SOV_SUPA_CONFIG.loginDomain || 'sovremennik.local';
-const SUPABASE_AUTH_STORAGE_KEY = 'sovremennikSupabaseAuthV1';
 const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
@@ -729,14 +716,13 @@ function loginToEmail(login){ return `${String(login || '').trim().toLowerCase()
 function mapProfile(profile){ return profile ? { id: profile.id, name: profile.name || '', role: normalizeRole(profile.role || ''), login: profile.login || '', password: '' } : null; }
 async function getCurrentSession(){ const res = await supa.auth.getSession(); return res.data.session || null; }
 async function getCurrentProfile(){ const session = await getCurrentSession(); if(!session?.user?.id) return null; const res = await supa.from('profiles').select('id, login, name, role, is_active').eq('id', session.user.id).single(); if(res.error) throw res.error; if(!res.data?.is_active) throw new Error('Аккаунт отключен.'); return mapProfile(res.data); }
-function saveAuth(auth){ state.auth = auth; try { localStorage.setItem(SUPABASE_AUTH_STORAGE_KEY, JSON.stringify(auth)); } catch(e) {} }
-function readSavedAuth(){ try { const saved = JSON.parse(localStorage.getItem(SUPABASE_AUTH_STORAGE_KEY) || 'null'); return saved && saved.user ? saved : null; } catch(e) { return null; } }
-async function restoreSupabaseSession(){ try { const profile = await getCurrentProfile(); if(profile) { const session = await getCurrentSession(); saveAuth({ token: session?.access_token || '', session, user: profile }); return true; } } catch(error) { console.warn('Supabase session restore failed', error); } return false; }
-function getAuthToken(){ return state.auth?.token || state.auth?.session?.access_token || ''; }
+function saveAuth(auth){ state.auth = auth; }
+async function restoreSupabaseSession(){ try { const profile = await getCurrentProfile(); if(profile) { const session = await getCurrentSession(); if(session?.access_token && session.user?.id === profile.id){ saveAuth({ session, user: profile }); return true; } } } catch(error) { console.warn('Supabase session restore failed', error); } clearAuth(); return false; }
+function getAuthToken(){ return isAuthenticated() ? state.auth.session.access_token : ''; }
 function normalizeEmployee(row){ return { id: row.id || row.user_id || row.login || Math.random().toString(16).slice(2), name: row.name || row.employeeName || '', role: normalizeRole(row.role || ''), login: row.login || '', password: row.password || '' }; }
 
 async function handleLogout(){ try { await supa.auth.signOut(); } catch(e) {} clearAuth(); state.controlRecords=null; state.revisionRecords=null; state.employees=null; showLogin(); }
-function clearAuth(){ state.auth = null; try { localStorage.removeItem(SUPABASE_AUTH_STORAGE_KEY); } catch(e) {} }
+function clearAuth(){ state.auth = null; try { localStorage.removeItem('sovremennikSupabaseAuthV1'); } catch(e) {} }
 
 async function listActiveProfiles(){ const res = await supa.from('profiles').select('id, name, role, login, is_active').eq('is_active', true).order('name', { ascending: true }); if(res.error) throw res.error; return (res.data || []).map(mapProfile); }
 async function findEmployeeByLogin(login){ const rows = state.taskAssignees || state.employees || await listActiveProfiles(); const key = String(login || '').trim().toLowerCase(); return rows.find(e => String(e.login || '').toLowerCase() === key) || null; }
@@ -1285,7 +1271,7 @@ async function handleLogin(event){
     const result = await supa.auth.signInWithPassword({ email, password });
     if(result.error) throw result.error;
     const profile = await getCurrentProfile();
-    saveAuth({ token: result.data.session?.access_token || '', session: result.data.session, user: profile });
+    saveAuth({ session: result.data.session, user: profile });
     state.menu = await loadMenu();
     state.activeTop = 'home';
     renderApp();
@@ -1295,9 +1281,9 @@ async function handleLogin(event){
 }
 async function init(){
   try {
-    state.auth = readSavedAuth();
-    await restoreSupabaseSession();
+    const restored = await restoreSupabaseSession();
     state.menu = await loadMenu();
+    if(!restored) { showLogin(); return; }
     const hash = location.hash.replace('#','');
     if(hash.includes('/')) {
       const [top, method] = hash.split('/');
@@ -2077,7 +2063,6 @@ async function deleteEmployee(login){
   if(!isAdmin()) return alert('Удалять сотрудников может только администратор.');
   const normalized=(login||'').trim();
   if(!normalized) return;
-  if(normalized.toLowerCase()===BUILTIN_ADMIN.login) return alert('Стартовый аккаунт администратора удалить нельзя.');
   if(!confirm(`Удалить аккаунт «${normalized}»?`)) return;
   const button = document.querySelector(`[data-employee-delete="${CSS.escape(normalized)}"]`);
   if(button){ button.disabled = true; button.textContent = 'Удаляю…'; }

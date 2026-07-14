@@ -26,19 +26,15 @@ JWT
 
 ## Legacy built-in admin
 
-В `app.js` остаются встроенные credentials и локальный token fallback.
+Legacy built-in admin и локальный token fallback удалены после проверки двух активных Supabase admin-аккаунтов и ротации пароля основного администратора.
 
-Безопасная миграция:
+Текущие правила:
 
-1. подтвердить рабочий Supabase Auth admin;
-2. создать второго резервного admin;
-3. проверить вход на нескольких устройствах;
-4. удалить fallback;
-5. сменить старый пароль;
-6. очистить legacy localStorage;
-7. убедиться, что admin API принимает только Supabase JWT.
-
-Не удалять fallback в PR документации или одновременно с другой функцией.
+1. вход только через Supabase Auth;
+2. локальный application auth не доверяется без реальной Supabase-сессии;
+3. старые application-auth ключи очищаются клиентским cleanup;
+4. hardcoded admin, fallback-пароли и локальные токены нельзя возвращать;
+5. admin API должен принимать только Supabase JWT.
 
 ## Public repository
 

@@ -19,7 +19,7 @@
    - при необходимости — `supabase/sql/STEP_3_OPTIONAL_JULY_SCHEDULE.sql`
 2. В Authentication создан пользователь:
    - email: `grigory@sovremennik.local`
-   - password: `0808`
+   - password: задайте уникальный временный пароль вне Git и смените его после первого входа
 3. Edge Function `admin-employees` развернута и видна в Supabase → Edge Functions.
 4. Secret `SUPABASE_SERVICE_ROLE_KEY` добавлен в Edge Functions → Secrets.
 
@@ -40,7 +40,7 @@
 На сайте вводите не email, а обычный логин:
 
 - логин: `grigory`
-- пароль: `0808`
+- пароль: используйте текущий пароль из Supabase Auth; временные пароли не хранятся в Git
 
 Сайт сам превратит логин в служебный email `grigory@sovremennik.local`.
 
