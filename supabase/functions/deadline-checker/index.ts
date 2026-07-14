@@ -1,11 +1,22 @@
 import { corsHeaders, json, adminClient, sendPushToUsers } from '../_shared/push.ts';
+import { validateCronAuth } from './cron-auth.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method !== 'POST') return json({ ok:false, error:'Method not allowed' }, 405);
+
   try {
-    const expected = Deno.env.get('NOTIFICATION_CRON_SECRET') || '';
-    const received = req.headers.get('x-cron-secret') || '';
-    if (expected && received !== expected) return json({ ok:false, error:'Invalid cron secret' }, 401);
+    const authStatus = validateCronAuth(
+      Deno.env.get('NOTIFICATION_CRON_SECRET'),
+      req.headers.get('x-cron-secret'),
+    );
+
+    if (authStatus === 'missing_configuration') {
+      return json({ ok:false, error:'Cron authentication is not configured' }, 503);
+    }
+    if (authStatus === 'unauthorized') {
+      return json({ ok:false, error:'Invalid cron secret' }, 401);
+    }
 
     const supabase = adminClient();
     const now = new Date();
