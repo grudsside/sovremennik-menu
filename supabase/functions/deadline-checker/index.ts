@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       results: allResults,
     });
   } catch (error) {
-    return json({ ok: false, error: error?.message || String(error) }, 400);
+    const message = error instanceof Error ? error.message : String(error);
+    return json({ ok: false, error: message }, 400);
   }
 });
