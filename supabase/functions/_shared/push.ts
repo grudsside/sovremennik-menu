@@ -132,8 +132,9 @@ export async function sendPushToUsers(params: {
         }));
         sent += 1;
       } catch (error) {
-        lastError = error?.message || String(error);
-        if ([404, 410].includes(Number(error?.statusCode))) {
+        const pushError = error as { message?: unknown; statusCode?: unknown };
+        lastError = typeof pushError.message === 'string' ? pushError.message : String(error);
+        if ([404, 410].includes(Number(pushError.statusCode))) {
           await supabase.from('push_subscriptions').update({ is_active: false }).eq('id', sub.id);
         }
       }
