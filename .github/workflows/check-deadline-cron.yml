@@ -1,0 +1,26 @@
+name: Check deadline cron authentication
+
+on:
+  push:
+    branches:
+      - security/deadline-cron-fail-closed
+
+permissions:
+  contents: read
+
+jobs:
+  deno-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Format check
+        run: deno fmt --check supabase/functions/deadline-checker/
+      - name: Unit tests
+        run: deno test supabase/functions/deadline-checker/cron-auth.test.ts
+      - name: Type check
+        run: deno check supabase/functions/deadline-checker/index.ts
+      - name: Diff check
+        run: git diff --check HEAD^
