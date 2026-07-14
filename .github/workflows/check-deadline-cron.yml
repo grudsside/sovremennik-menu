@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - security/deadline-cron-fail-closed
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
