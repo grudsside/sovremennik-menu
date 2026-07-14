@@ -72,7 +72,7 @@ Apps Script отключён, но имена создают ложный кон
 
 ### Built-in admin
 
-В начале `app.js` остаются login/password и локальный token fallback. Это риск. Удалять только отдельной безопасной миграцией после проверки Supabase Auth.
+Legacy built-in admin, hardcoded пароль и локальный token fallback удалены после проверки двух активных Supabase admin-аккаунтов и ротации пароля. Риск возврата fallback остаётся организационным: не добавлять hardcoded admin повторно.
 
 ### Два источника контента
 
