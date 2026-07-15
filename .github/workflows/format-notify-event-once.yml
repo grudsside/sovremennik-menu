@@ -1,0 +1,36 @@
+name: Format notify-event once
+
+on:
+  push:
+    branches:
+      - security/authorize-notify-events
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/authorize-notify-events
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Format notify-event files
+        run: deno fmt supabase/functions/notify-event/
+
+      - name: Commit formatting and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/format-notify-event-once.yml
+          git add supabase/functions/notify-event/
+          git commit -m "Format notify-event authorization changes"
+          git push
