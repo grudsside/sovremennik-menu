@@ -156,7 +156,9 @@ Deno.serve(async (req) => {
       sourceTable = "coffee_revisions";
       sourceId = revision.revision_date;
       title = "Отправлена ревизия";
-      text = `${revision.employee_name || "Сотрудник"} отправил ревизию кофе за ${revision.revision_date}`;
+      text = `${
+        revision.employee_name || "Сотрудник"
+      } отправил ревизию кофе за ${revision.revision_date}`;
       url = controlUrl();
     } else if (eventType === "error_report_submitted") {
       const reportId = requiredString(

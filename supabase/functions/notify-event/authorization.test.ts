@@ -125,8 +125,7 @@ Deno.test("owned submission, revision and error source is allowed", () => {
 
 Deno.test("another employee source is rejected", () => {
   expectRejected(
-    () =>
-      requireOwnedRecord(profile("admin", "other"), { owner_id: "owner" }),
+    () => requireOwnedRecord(profile("admin", "other"), { owner_id: "owner" }),
     403,
     "Event source ownership required",
   );

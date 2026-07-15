@@ -1,7 +1,4 @@
-import {
-  type ActiveProfile,
-  EdgeFunctionError,
-} from "../_shared/auth.ts";
+import { type ActiveProfile, EdgeFunctionError } from "../_shared/auth.ts";
 
 export type TaskNotificationRecord = {
   id: string;
