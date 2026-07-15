@@ -37,6 +37,8 @@ rejectPattern(main, /create policy "prefs admin select"/i, 'Preferences admin-re
 rejectPattern(main, /create policy "events admin select"/i, 'Events admin-read policy was recreated.');
 
 requirePattern(finalize, /\bbegin;[\s\S]*\ncommit;/i, 'STEP 10B must run in one transaction.');
+requirePattern(finalize, /drop policy if exists "tasks_update_status_participant"/i, 'STEP 10B must replace the broad participant update policy.');
+requirePattern(finalize, /create policy "tasks_update_status_authorized"[\s\S]*?assignee_id\s*=\s*auth\.uid\(\)[\s\S]*?current_role\(\)\s*=\s*'manager'[\s\S]*?creator_id\s*=\s*auth\.uid\(\)/i, 'Final task update policy must allow assignee and manager-creator only.');
 requirePattern(finalize, /revoke all on table public\.coffee_revision_report from authenticated/i, 'STEP 10B must clear broad view privileges.');
 requirePattern(finalize, /grant select on table public\.coffee_revision_report to authenticated/i, 'STEP 10B must grant SELECT only.');
 
