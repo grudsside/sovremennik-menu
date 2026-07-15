@@ -48,9 +48,21 @@ Legacy built-in admin и локальный token fallback удалены пос
 4. hardcoded admin, fallback-пароли и локальные токены нельзя возвращать;
 5. admin API должен принимать только Supabase JWT.
 
-## Public repository
+## Public repository и CI
 
-Репозиторий public. Добавить автоматическую secret scan.
+Репозиторий public. GitHub Secret Scanning и Push Protection должны оставаться включёнными.
+
+Workflow `.github/workflows/ci.yml` запускается для pull request в `main` и после push в `main`. Он проверяет:
+
+- синтаксис tracked JavaScript и MJS;
+- корректность JSON и webmanifest;
+- отсутствие legacy built-in admin-кода;
+- отсутствие временного VAPID migration helper;
+- отсутствие tracked environment-файлов, JWT-подобных значений, приватных ключей и Supabase secret keys;
+- обязательные защитные маркеры `deadline-checker`;
+- Deno format, unit tests и type-check для `deadline-checker`.
+
+Не ослаблять проверки и не добавлять исключения ради прохождения CI без отдельного обоснованного security review.
 
 ## Manager semantics
 
