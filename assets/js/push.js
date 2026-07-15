@@ -7,12 +7,11 @@
 
   // app.js is a legacy monolith with global override blocks. RLS already
   // returns only rows visible to the current user, but the final client filter
-  // previously kept only assignee tasks. Preserve assignee visibility and also
-  // show rows created by the current user.
+  // previously kept only assignee tasks. Keep visibility and completion rules
+  // aligned with the hardened task policies.
   function installTaskParticipantVisibilityFix(){
     if(typeof window.canSeeTask !== 'function') return;
-    window.canSeeTask = function(task){
-      if(typeof window.isAdmin === 'function' && window.isAdmin()) return true;
+    const participantState = task => {
       const user = typeof window.currentUser === 'function' ? (window.currentUser() || {}) : {};
       const normalized = value => String(value || '').trim().toLowerCase();
       const userId = normalized(user.id);
@@ -24,11 +23,29 @@
       const creatorId = normalized(task?.creatorId || task?.creator_id);
       const creatorLogin = normalized(task?.creatorLogin);
       const creatorName = normalized(task?.authorName || task?.author || task?.creatorName);
-      return Boolean(
-        (userId && (userId === assigneeId || userId === creatorId))
-        || (userLogin && (userLogin === assigneeLogin || userLogin === creatorLogin))
-        || (userName && (userName === assigneeName || userName === creatorName))
-      );
+      return {
+        role: normalized(user.role),
+        isAssignee: Boolean(
+          (userId && userId === assigneeId)
+          || (userLogin && userLogin === assigneeLogin)
+          || (userName && userName === assigneeName)
+        ),
+        isCreator: Boolean(
+          (userId && userId === creatorId)
+          || (userLogin && userLogin === creatorLogin)
+          || (userName && userName === creatorName)
+        )
+      };
+    };
+    window.canSeeTask = function(task){
+      if(typeof window.isAdmin === 'function' && window.isAdmin()) return true;
+      const participant = participantState(task);
+      return participant.isAssignee || participant.isCreator;
+    };
+    window.canCompleteTask = function(task){
+      if(typeof window.isAdmin === 'function' && window.isAdmin()) return true;
+      const participant = participantState(task);
+      return participant.isAssignee || (participant.role === 'manager' && participant.isCreator);
     };
   }
   installTaskParticipantVisibilityFix();
