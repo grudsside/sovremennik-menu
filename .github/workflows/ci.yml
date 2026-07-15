@@ -1,0 +1,52 @@
+name: Repository checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(git ls-files -z '*.js' '*.mjs')
+
+      - name: Check repository structure, JSON and secrets
+        run: node tools/ci-check.mjs
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check deadline-checker formatting
+        run: deno fmt --check supabase/functions/deadline-checker/
+
+      - name: Test deadline cron authentication
+        run: deno test supabase/functions/deadline-checker/cron-auth.test.ts
+
+      - name: Type-check deadline-checker
+        run: deno check --node-modules-dir=auto supabase/functions/deadline-checker/index.ts
