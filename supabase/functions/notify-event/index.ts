@@ -104,16 +104,18 @@ Deno.serve(async (req) => {
       sourceId = stringValue(data.revision_id) || stringValue(data.id);
       title = "Отправлена ревизия";
       const revisionDate = stringValue(data.revision_date);
-      text = `${stringValue(data.employee_name) || "Сотрудник"} отправил ревизию кофе${
-        revisionDate ? ` за ${revisionDate}` : ""
-      }`;
+      text = `${
+        stringValue(data.employee_name) || "Сотрудник"
+      } отправил ревизию кофе${revisionDate ? ` за ${revisionDate}` : ""}`;
       url = controlUrl();
     } else if (eventType === "error_report_submitted") {
       userIds = await listAdminManagerIds(supabase);
       sourceTable = "error_reports";
       sourceId = stringValue(data.report_id) || stringValue(data.id);
       title = "Новое сообщение об ошибке";
-      text = `${stringValue(data.employee_name) || "Сотрудник"} сообщил об ошибке`;
+      text = `${
+        stringValue(data.employee_name) || "Сотрудник"
+      } сообщил об ошибке`;
       url = controlUrl();
       extra = { requireInteraction: true };
     } else if (eventType === "schedule_event_added") {

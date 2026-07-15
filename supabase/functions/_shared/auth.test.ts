@@ -1,7 +1,7 @@
 import {
   EdgeFunctionError,
-  validateProfileAccess,
   type SupportedRole,
+  validateProfileAccess,
 } from "./auth.ts";
 
 function assert(condition: unknown, message: string): asserts condition {

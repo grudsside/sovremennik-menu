@@ -1,4 +1,9 @@
-export const SUPPORTED_ROLES = ["admin", "manager", "barista", "waiter"] as const;
+export const SUPPORTED_ROLES = [
+  "admin",
+  "manager",
+  "barista",
+  "waiter",
+] as const;
 
 export type SupportedRole = (typeof SUPPORTED_ROLES)[number];
 
