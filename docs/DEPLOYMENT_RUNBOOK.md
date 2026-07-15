@@ -53,7 +53,7 @@ supabase functions deploy push-send --use-api
 supabase functions deploy deadline-checker --use-api --no-verify-jwt
 ```
 
-`--no-verify-jwt` допустим для cron только при `NOTIFICATION_CRON_SECRET`.
+`--no-verify-jwt` допустим для `deadline-checker` только при обязательном `NOTIFICATION_CRON_SECRET` и проверке точного значения заголовка `x-cron-secret`. Функция должна fail closed, если секрет отсутствует или пустой.
 
 ## Cron
 
@@ -65,6 +65,17 @@ supabase functions deploy deadline-checker --use-api --no-verify-jwt
 - timezone;
 - dedupe;
 - отсутствие повторной рассылки.
+
+После deploy `deadline-checker`, не выводя значение секрета, проверить:
+
+- `OPTIONS` работает для CORS;
+- `GET` возвращает 405;
+- `POST` без заголовка возвращает 401;
+- `POST` с неверным заголовком возвращает 401;
+- при отсутствующем `NOTIFICATION_CRON_SECRET` функция возвращает 503 до чтения задач;
+- `POST` с корректным заголовком запускает существующую проверку дедлайнов.
+
+Никогда не записывать значение cron-секрета в логи, документы, issue или отчёты.
 
 ## Frontend
 
