@@ -50,3 +50,15 @@ jobs:
 
       - name: Type-check deadline-checker
         run: deno check --node-modules-dir=auto supabase/functions/deadline-checker/index.ts
+
+      - name: Check authenticated Edge Function formatting
+        run: deno fmt --check supabase/functions/_shared/ supabase/functions/push-send/ supabase/functions/notify-event/
+
+      - name: Test active profile validation
+        run: deno test supabase/functions/_shared/auth.test.ts
+
+      - name: Type-check push-send
+        run: deno check --node-modules-dir=auto supabase/functions/push-send/index.ts
+
+      - name: Type-check notify-event
+        run: deno check --node-modules-dir=auto supabase/functions/notify-event/index.ts
