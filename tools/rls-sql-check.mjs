@@ -15,7 +15,7 @@ function rejectPattern(source, pattern, message) {
   if (pattern.test(source)) failures.push(message);
 }
 
-requirePattern(main, /^begin;[\s\S]*\ncommit;/im, 'STEP 10 must run in one transaction.');
+requirePattern(main, /\bbegin;[\s\S]*\ncommit;/i, 'STEP 10 must run in one transaction.');
 requirePattern(main, /create or replace function public\.is_active_user\(\)/i, 'Missing active-profile helper.');
 requirePattern(main, /create or replace function public\.is_admin\(\)[\s\S]*?p\.role\s*=\s*'admin'/i, 'is_admin must require the admin role.');
 requirePattern(main, /create or replace function public\.is_admin_or_manager\(\)/i, 'Missing admin-or-manager helper.');
@@ -36,7 +36,7 @@ rejectPattern(main, /create policy "push admin select"/i, 'Push admin-read polic
 rejectPattern(main, /create policy "prefs admin select"/i, 'Preferences admin-read policy was recreated.');
 rejectPattern(main, /create policy "events admin select"/i, 'Events admin-read policy was recreated.');
 
-requirePattern(finalize, /^begin;[\s\S]*\ncommit;/im, 'STEP 10B must run in one transaction.');
+requirePattern(finalize, /\bbegin;[\s\S]*\ncommit;/i, 'STEP 10B must run in one transaction.');
 requirePattern(finalize, /revoke all on table public\.coffee_revision_report from authenticated/i, 'STEP 10B must clear broad view privileges.');
 requirePattern(finalize, /grant select on table public\.coffee_revision_report to authenticated/i, 'STEP 10B must grant SELECT only.');
 
