@@ -5,6 +5,34 @@
   const SUPABASE_ANON_KEY = CONFIG.anonKey || '';
   const VAPID_PUBLIC_KEY = CONFIG.vapidPublicKey || '';
 
+  // app.js is a legacy monolith with global override blocks. RLS already
+  // returns only rows visible to the current user, but the final client filter
+  // previously kept only assignee tasks. Preserve assignee visibility and also
+  // show rows created by the current user.
+  function installTaskParticipantVisibilityFix(){
+    if(typeof window.canSeeTask !== 'function') return;
+    window.canSeeTask = function(task){
+      if(typeof window.isAdmin === 'function' && window.isAdmin()) return true;
+      const user = typeof window.currentUser === 'function' ? (window.currentUser() || {}) : {};
+      const normalized = value => String(value || '').trim().toLowerCase();
+      const userId = normalized(user.id);
+      const userLogin = normalized(user.login);
+      const userName = normalized(user.name);
+      const assigneeId = normalized(task?.assigneeId || task?.assignee_id);
+      const assigneeLogin = normalized(task?.assigneeLogin || task?.login);
+      const assigneeName = normalized(task?.assigneeName || task?.assignee || task?.to);
+      const creatorId = normalized(task?.creatorId || task?.creator_id);
+      const creatorLogin = normalized(task?.creatorLogin);
+      const creatorName = normalized(task?.authorName || task?.author || task?.creatorName);
+      return Boolean(
+        (userId && (userId === assigneeId || userId === creatorId))
+        || (userLogin && (userLogin === assigneeLogin || userLogin === creatorLogin))
+        || (userName && (userName === assigneeName || userName === creatorName))
+      );
+    };
+  }
+  installTaskParticipantVisibilityFix();
+
   const PREFS = [
     ['task_assigned', 'Новые задачи'],
     ['vip_tasks', 'VIP-задачи'],
