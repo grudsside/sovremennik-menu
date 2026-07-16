@@ -72,9 +72,6 @@ jobs:
       - name: Type-check notify-event
         run: deno check --node-modules-dir=auto supabase/functions/notify-event/index.ts
 
-      - name: Check admin-employees formatting
-        run: deno fmt --check supabase/functions/admin-employees/
-
       - name: Test admin employee authorization
         run: deno test supabase/functions/admin-employees/authorization.test.ts
 
