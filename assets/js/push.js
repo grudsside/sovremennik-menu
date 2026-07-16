@@ -282,3 +282,11 @@
   observer.observe(document.body, { childList: true, subtree: true });
   window.addEventListener('load', () => injectPushBox().catch(console.warn));
 })();
+
+window.addEventListener('load', () => {
+  if(document.querySelector('script[data-employee-status-controls]')) return;
+  const script = document.createElement('script');
+  script.src = 'assets/js/employee-status.js';
+  script.dataset.employeeStatusControls = 'true';
+  document.body.appendChild(script);
+}, { once: true });
