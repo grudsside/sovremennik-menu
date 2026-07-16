@@ -127,6 +127,11 @@ notification_preferences
 notification_events
 ```
 
+`notification_events` хранит адресованную сотруднику историю независимо от
+настроек доставки Web Push. `read_at is null` означает непрочитанное событие;
+клиент может менять только `read_at` в собственной строке. Таблица включается
+в `supabase_realtime` патчем STEP 12.
+
 Точные definitions сверить с SQL и production.
 
 ## Edge Functions

@@ -153,18 +153,15 @@ export async function sendPushToUsers(params: {
   sourceId?: string;
   extra?: Record<string, unknown>;
 }) {
-  setupWebPush();
   const supabase = adminClient();
   const uniqueUserIds = Array.from(
     new Set((params.userIds || []).filter(Boolean)),
   );
   const results: any[] = [];
+  let pushSetupError: unknown = null;
+  let pushIsReady = false;
+
   for (const userId of uniqueUserIds) {
-    const prefs = await loadPrefs(supabase, userId);
-    if (!prefAllows(prefs, params.eventType, params.extra)) {
-      results.push({ userId, skipped: true, reason: "preference" });
-      continue;
-    }
     const eventKey = `${params.eventKeyBase}:${userId}`;
     const { data: existing } = await supabase
       .from("notification_events")
@@ -196,12 +193,28 @@ export async function sendPushToUsers(params: {
       continue;
     }
 
+    // The in-app history is independent from device Push preferences. Every
+    // addressed event is stored first; preferences only control Web Push.
+    const prefs = await loadPrefs(supabase, userId);
+    if (!prefAllows(prefs, params.eventType, params.extra)) {
+      await supabase
+        .from("notification_events")
+        .update({ status: "preference_disabled" })
+        .eq("id", eventRow.id);
+      results.push({ userId, skipped: true, reason: "preference" });
+      continue;
+    }
+
     const { data: subs, error: subsError } = await supabase
       .from("push_subscriptions")
       .select("*")
       .eq("user_id", userId)
       .eq("is_active", true);
     if (subsError) {
+      await supabase
+        .from("notification_events")
+        .update({ status: "error", error: subsError.message })
+        .eq("id", eventRow.id);
       results.push({ userId, error: subsError.message });
       continue;
     }
@@ -211,6 +224,26 @@ export async function sendPushToUsers(params: {
         .update({ status: "no_subscription" })
         .eq("id", eventRow.id);
       results.push({ userId, sent: 0, reason: "no_subscription" });
+      continue;
+    }
+
+    if (!pushIsReady && !pushSetupError) {
+      try {
+        setupWebPush();
+        pushIsReady = true;
+      } catch (error) {
+        pushSetupError = error;
+      }
+    }
+    if (pushSetupError) {
+      const message = pushSetupError instanceof Error
+        ? pushSetupError.message
+        : String(pushSetupError);
+      await supabase
+        .from("notification_events")
+        .update({ status: "error", error: message })
+        .eq("id", eventRow.id);
+      results.push({ userId, error: message });
       continue;
     }
 

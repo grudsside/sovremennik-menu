@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
     let url = "/";
     let sourceTable = "";
     let sourceId = "";
+    let eventKeySource = "";
     let extra: Record<string, unknown> = {};
 
     if (eventType === "task_assigned" || eventType === "task_completed") {
@@ -154,7 +155,10 @@ Deno.serve(async (req) => {
 
       userIds = await listAdminManagerIds(supabase);
       sourceTable = "coffee_revisions";
-      sourceId = revision.revision_date;
+      // coffee_revisions uses a date primary key while notification_events
+      // source_id is UUID. Keep the date in the dedupe key and store NULL in
+      // source_id instead of failing the whole notification insert.
+      eventKeySource = revision.revision_date;
       title = "Отправлена ревизия";
       text = `${
         revision.employee_name || "Сотрудник"
@@ -211,7 +215,7 @@ Deno.serve(async (req) => {
       throw new EdgeFunctionError(400, "Unknown event_type");
     }
 
-    const eventKeyBase = `${eventType}:${sourceId}`;
+    const eventKeyBase = `${eventType}:${eventKeySource || sourceId}`;
     const results = await sendPushToUsers({
       userIds,
       eventType,
