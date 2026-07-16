@@ -1,10 +1,14 @@
 // Supabase Edge Function: admin-employees
 // Deploy with: supabase functions deploy admin-employees
 // Required secrets are already available in Supabase Functions runtime:
-// SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  evaluateAdminAccess,
+  normalizeRole,
+} from "./authorization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,16 +23,6 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function normalizeRole(role: string) {
-  const value = String(role || "").trim().toLowerCase();
-  if (["admin", "manager", "barista", "waiter"].includes(value)) return value;
-  if (value === "администратор") return "admin";
-  if (value === "руководитель" || value === "менеджер") return "manager";
-  if (value === "бариста") return "barista";
-  if (value === "официант") return "waiter";
-  return "waiter";
-}
-
 function loginToEmail(login: string) {
   return `${String(login || "").trim().toLowerCase()}@sovremennik.local`;
 }
@@ -37,27 +31,56 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return json({ ok: false, error: "Function configuration error", code: "missing_runtime_secret" }, 500);
+  }
+
   const authHeader = req.headers.get("Authorization") || "";
-  const jwt = authHeader.replace("Bearer ", "");
-  if (!jwt) return json({ ok: false, error: "Auth required" }, 401);
+  const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!jwt) return json({ ok: false, error: "Auth required", code: "auth_required" }, 401);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const requester = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
-  const { data: authData, error: authError } = await admin.auth.getUser(jwt);
-  if (authError || !authData.user) return json({ ok: false, error: "Invalid auth" }, 401);
+  const { data: authData, error: authError } = await requester.auth.getUser(jwt);
+  if (authError || !authData.user) {
+    return json({ ok: false, error: "Invalid auth", code: "invalid_auth" }, 401);
+  }
 
-  const { data: profile, error: profileError } = await admin
+  let { data: profile, error: profileError } = await requester
     .from("profiles")
     .select("id, role, is_active")
     .eq("id", authData.user.id)
-    .single();
+    .maybeSingle();
 
-  if (profileError || !profile || profile.role !== "admin" || !profile.is_active) {
-    return json({ ok: false, error: "Admin only" }, 403);
+  let access = evaluateAdminAccess(profile, profileError);
+
+  // An inactive profile may be hidden by RLS. Use the service client only to
+  // distinguish an absent profile from an explicitly disabled account.
+  if (!access.ok && access.code === "profile_not_found") {
+    const fallback = await admin
+      .from("profiles")
+      .select("id, role, is_active")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    profile = fallback.data;
+    profileError = fallback.error;
+    access = evaluateAdminAccess(profile, profileError);
+  }
+
+  if (!access.ok) {
+    return json(
+      { ok: false, error: access.error, code: access.code },
+      access.status,
+    );
   }
 
   const body = await req.json().catch(() => ({}));
@@ -120,7 +143,7 @@ serve(async (req) => {
       return json({ ok: false, error: "Cannot deactivate current admin" }, 400);
     }
 
-    if (!isActive && target.role === "admin") {
+    if (!isActive && normalizeRole(target.role) === "admin") {
       const { count, error: countError } = await admin
         .from("profiles")
         .select("id", { count: "exact", head: true })
