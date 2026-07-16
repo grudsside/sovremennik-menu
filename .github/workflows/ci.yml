@@ -40,6 +40,9 @@ jobs:
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 
+      - name: Check employee activation controls
+        run: node tools/employee-status-check.mjs
+
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
@@ -68,3 +71,6 @@ jobs:
 
       - name: Type-check notify-event
         run: deno check --node-modules-dir=auto supabase/functions/notify-event/index.ts
+
+      - name: Type-check admin-employees
+        run: deno check --node-modules-dir=auto supabase/functions/admin-employees/index.ts
