@@ -129,7 +129,9 @@
     });
   });
 
-  if(typeof state !== 'undefined' && state.employees && typeof refreshEmployees === 'function'){
+  if(typeof isAdmin === 'function' && isAdmin() && typeof loadEmployees === 'function'){
+    loadEmployees().catch(error => console.warn('Employee status list refresh failed', error));
+  } else if(typeof state !== 'undefined' && state.employees && typeof refreshEmployees === 'function'){
     refreshEmployees();
   }
 })();
