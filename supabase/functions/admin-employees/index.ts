@@ -69,7 +69,9 @@ serve(async (req) => {
     const password = String(body.password || "").trim();
     const role = normalizeRole(body.role || "waiter");
 
-    if (!name || !login || !password) return json({ ok: false, error: "Name, login and password are required" }, 400);
+    if (!name || !login || !password) {
+      return json({ ok: false, error: "Name, login and password are required" }, 400);
+    }
 
     const email = loginToEmail(login);
     const created = await admin.auth.admin.createUser({
@@ -93,24 +95,59 @@ serve(async (req) => {
     return json({ ok: true, employee: { id: userId, name, login, role, is_active: true } });
   }
 
-  if (action === "delete") {
+  if (action === "set_active") {
     const userId = String(body.userId || "").trim();
     const login = String(body.login || "").trim().toLowerCase();
-    if (!userId && !login) return json({ ok: false, error: "userId or login is required" }, 400);
+    const isActive = body.isActive;
 
-    let targetQuery = admin.from("profiles").select("id, login");
+    if (!userId && !login) {
+      return json({ ok: false, error: "userId or login is required" }, 400);
+    }
+    if (typeof isActive !== "boolean") {
+      return json({ ok: false, error: "isActive must be boolean" }, 400);
+    }
+
+    let targetQuery = admin
+      .from("profiles")
+      .select("id, login, name, role, is_active");
     targetQuery = userId ? targetQuery.eq("id", userId) : targetQuery.eq("login", login);
     const { data: target, error: targetError } = await targetQuery.single();
-    if (targetError || !target?.id) return json({ ok: false, error: "Employee not found" }, 404);
-    if (target.login === "grigory") return json({ ok: false, error: "Cannot delete start admin" }, 400);
 
-    const softDelete = await admin.from("profiles").update({ is_active: false }).eq("id", target.id);
-    if (softDelete.error) return json({ ok: false, error: softDelete.error.message }, 400);
+    if (targetError || !target?.id) {
+      return json({ ok: false, error: "Employee not found" }, 404);
+    }
+    if (!isActive && target.id === authData.user.id) {
+      return json({ ok: false, error: "Cannot deactivate current admin" }, 400);
+    }
 
-    // Auth deletion can fail for legacy/manual profiles. The profile is already deactivated,
-    // so the employee disappears from the service even if the auth user cannot be removed.
-    const deleted = await admin.auth.admin.deleteUser(target.id);
-    return json({ ok: true, warning: deleted.error ? deleted.error.message : null });
+    if (!isActive && target.role === "admin") {
+      const { count, error: countError } = await admin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "admin")
+        .eq("is_active", true);
+      if (countError) return json({ ok: false, error: countError.message }, 400);
+      if ((count || 0) <= 1) {
+        return json({ ok: false, error: "Cannot deactivate the last active admin" }, 400);
+      }
+    }
+
+    const updated = await admin
+      .from("profiles")
+      .update({ is_active: isActive })
+      .eq("id", target.id)
+      .select("id, login, name, role, is_active")
+      .single();
+
+    if (updated.error) return json({ ok: false, error: updated.error.message }, 400);
+    return json({ ok: true, employee: updated.data });
+  }
+
+  if (action === "delete") {
+    return json({
+      ok: false,
+      error: "Permanent employee deletion is disabled. Use set_active instead.",
+    }, 400);
   }
 
   return json({ ok: false, error: "Unknown action" }, 400);
