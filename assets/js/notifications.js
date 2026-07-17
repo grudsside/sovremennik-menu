@@ -6,19 +6,19 @@
   const TABLE = 'notification_events';
   const SELECT_COLUMNS = 'id,title,body,event_type,url,status,sent_at,created_at,read_at';
   const LOAD_ERROR = 'Не удалось загрузить уведомления. Попробуйте ещё раз';
-  const state = {
-    userId: '',
-    rows: [],
-    total: 0,
-    unreadCount: 0,
-    loading: false,
-    loadingMore: false,
-    actionLoading: false,
-    error: '',
-    open: false,
-    channel: null,
-    previousFocus: null
+  const core = window.SovremennikNotificationHistory;
+  if(!core?.createNotificationHistoryController){
+    console.error('Notification history controller is unavailable.');
+    return;
+  }
+
+  const ui = {
+    open:false,
+    channel:null,
+    pollTimer:null,
+    previousFocus:null
   };
+  let historyState = null;
 
   function client(){ return window.sovremennikSupabase || null; }
   function currentEmployee(){
@@ -47,15 +47,111 @@
   }
   function dateTimeParts(value){
     const date = new Date(value || '');
-    if(Number.isNaN(date.getTime())) return { date: '—', time: '—' };
+    if(Number.isNaN(date.getTime())) return { date:'—', time:'—' };
     return {
-      date: date.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric' }),
-      time: date.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
+      date:date.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric' }),
+      time:date.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' })
     };
   }
   function bellIcon(){
     return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>`;
   }
+
+  async function fetchPage({ userId, cursor, limit }){
+    const supabase = client();
+    if(!supabase || !userId) throw new Error('Notification client is unavailable.');
+    let query = supabase
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .eq('user_id', userId)
+      .order('created_at', { ascending:false })
+      .order('id', { ascending:false })
+      .limit(limit + 1);
+    if(cursor){
+      query = query.or(
+        `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+      );
+    }
+    const { data, error } = await query;
+    if(error) throw error;
+    const allRows = data || [];
+    return {
+      rows:allRows.slice(0, limit),
+      hasMore:allRows.length > limit
+    };
+  }
+
+  async function fetchUnreadCount({ userId }){
+    const supabase = client();
+    if(!supabase || !userId) throw new Error('Notification client is unavailable.');
+    const { count, error } = await supabase
+      .from(TABLE)
+      .select('id', { count:'exact', head:true })
+      .eq('user_id', userId)
+      .is('read_at', null);
+    if(error) throw error;
+    return Number(count || 0);
+  }
+
+  async function markRead({ userId, row }){
+    const supabase = client();
+    if(!supabase || !userId || !row?.id) throw new Error('Notification is unavailable.');
+    const readAt = new Date().toISOString();
+    const updated = await supabase
+      .from(TABLE)
+      .update({ read_at:readAt })
+      .eq('id', row.id)
+      .eq('user_id', userId)
+      .is('read_at', null)
+      .select('id,read_at')
+      .maybeSingle();
+    if(updated.error) throw updated.error;
+    if(updated.data?.read_at) return updated.data;
+
+    // Another device may have read the same row first. Confirm the persisted
+    // status before reflecting it locally or following the notification URL.
+    const verified = await supabase
+      .from(TABLE)
+      .select('id,read_at')
+      .eq('id', row.id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if(verified.error) throw verified.error;
+    if(!verified.data?.read_at) throw new Error('Notification read status was not confirmed.');
+    return verified.data;
+  }
+
+  async function markAllRead({ userId }){
+    const supabase = client();
+    if(!supabase || !userId) throw new Error('Notification client is unavailable.');
+    const readAt = new Date().toISOString();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .update({ read_at:readAt })
+      .eq('user_id', userId)
+      .is('read_at', null)
+      .select('id,read_at');
+    if(error) throw error;
+    return { rows:data || [], readAt };
+  }
+
+  const controller = core.createNotificationHistoryController({
+    pageSize:PAGE_SIZE,
+    loadError:LOAD_ERROR,
+    fetchPage,
+    fetchUnreadCount,
+    markRead,
+    markAllRead,
+    onChange(nextState){
+      historyState = nextState;
+      updateBadge();
+      if(ui.open) renderPanel();
+    },
+    onBackgroundError(error){
+      console.warn('Notification background refresh failed', error);
+    }
+  });
+  historyState = controller.getState();
 
   function ensurePanel(){
     if(document.querySelector('#notification-overlay')) return;
@@ -83,7 +179,7 @@
     const center = document.createElement('div');
     center.className = 'notification-center';
     center.innerHTML = `
-      <button class="notification-bell" type="button" data-notification-bell aria-label="Открыть уведомления" aria-haspopup="dialog" aria-expanded="${state.open ? 'true' : 'false'}">
+      <button class="notification-bell" type="button" data-notification-bell aria-label="Открыть уведомления" aria-haspopup="dialog" aria-expanded="${ui.open ? 'true' : 'false'}">
         ${bellIcon()}
         <span class="notification-badge" data-notification-badge aria-label="Непрочитанные уведомления" hidden></span>
       </button>`;
@@ -92,7 +188,7 @@
   }
 
   function updateBadge(){
-    const count = Math.max(0, Number(state.unreadCount) || 0);
+    const count = Math.max(0, Number(historyState?.unreadCount) || 0);
     document.querySelectorAll('[data-notification-badge]').forEach(badge => {
       badge.hidden = count === 0;
       badge.textContent = count > 99 ? '99+' : String(count);
@@ -105,11 +201,11 @@
     });
   }
 
-  function notificationItem(row){
+  function notificationItem(row, disabled){
     const unread = !row.read_at;
     const parts = dateTimeParts(row.created_at);
     const title = row.title || 'Современник';
-    return `<button class="notification-item ${unread ? 'unread' : 'read'}" type="button" data-notification-id="${esc(row.id)}" aria-label="${unread ? 'Непрочитанное' : 'Прочитанное'} уведомление: ${esc(title)}">
+    return `<button class="notification-item ${unread ? 'unread' : 'read'}" type="button" data-notification-id="${esc(row.id)}" aria-label="${unread ? 'Непрочитанное' : 'Прочитанное'} уведомление: ${esc(title)}" ${disabled ? 'disabled' : ''}>
       <span class="notification-item-top">
         <span class="notification-type">${esc(eventTypeLabel(row.event_type))}</span>
         <span class="notification-read-status ${unread ? 'unread' : ''}">${unread ? 'Не прочитано' : 'Прочитано'}</span>
@@ -120,7 +216,12 @@
     </button>`;
   }
 
+  function errorMarkup(compact = false){
+    return `<div class="notification-state notification-error ${compact ? 'compact' : ''}" role="alert"><p>${LOAD_ERROR}</p><button type="button" data-notification-retry>Повторить</button></div>`;
+  }
+
   function renderPanel(){
+    const state = historyState || controller.getState();
     const content = document.querySelector('[data-notification-content]');
     const summary = document.querySelector('[data-notification-unread-summary]');
     const markAll = document.querySelector('[data-notification-mark-all]');
@@ -129,14 +230,14 @@
     summary.textContent = state.unreadCount > 0
       ? `Непрочитанных: ${state.unreadCount}`
       : 'Непрочитанных нет';
-    markAll.disabled = state.unreadCount === 0 || state.actionLoading;
+    markAll.disabled = state.unreadCount === 0 || state.actionLoading || state.listBusy;
 
-    if(state.loading && !state.rows.length){
+    if(state.initialLoading && !state.rows.length){
       content.innerHTML = '<div class="notification-state">Загружаю уведомления…</div>';
       return;
     }
-    if(state.error){
-      content.innerHTML = `<div class="notification-state notification-error" role="alert"><p>${LOAD_ERROR}</p><button type="button" data-notification-retry>Повторить</button></div>`;
+    if(state.error && !state.rows.length){
+      content.innerHTML = errorMarkup();
       return;
     }
     if(!state.rows.length){
@@ -144,118 +245,57 @@
       return;
     }
 
-    const hasMore = state.rows.length < state.total;
-    content.innerHTML = `<div class="notification-list">${state.rows.map(notificationItem).join('')}</div>
-      ${hasMore ? `<button class="notification-load-more" type="button" data-notification-load-more ${state.loadingMore ? 'disabled' : ''}>${state.loadingMore ? 'Загружаю…' : 'Показать ещё'}</button>` : ''}`;
+    content.innerHTML = `${state.error ? errorMarkup(true) : ''}
+      <div class="notification-list">${state.rows.map(row => notificationItem(row, state.actionLoading || state.listBusy)).join('')}</div>
+      ${state.hasMore ? `<button class="notification-load-more" type="button" data-notification-load-more ${state.loadingMore || state.listBusy ? 'disabled' : ''}>${state.loadingMore ? 'Загружаю…' : 'Показать ещё'}</button>` : ''}`;
   }
 
-  async function loadUnreadCount(){
-    const supabase = client();
-    const requestUserId = state.userId;
-    if(!supabase || !requestUserId) return;
-    const { count, error } = await supabase
-      .from(TABLE)
-      .select('id', { count:'exact', head:true })
-      .eq('user_id', requestUserId)
-      .is('read_at', null);
-    if(error) throw error;
-    if(state.userId !== requestUserId) return;
-    state.unreadCount = Number(count || 0);
-    updateBadge();
-    if(state.open) renderPanel();
+  function refreshUnread(reason){
+    controller.refreshUnread().catch(error => console.warn(`${reason} unread refresh failed`, error));
   }
 
-  async function loadFirstPage(){
-    const supabase = client();
-    const requestUserId = state.userId;
-    if(!supabase || !requestUserId) return;
-    state.loading = true;
-    state.error = '';
-    state.rows = [];
-    state.total = 0;
-    renderPanel();
-    try {
-      const { data, count, error } = await supabase
-        .from(TABLE)
-        .select(SELECT_COLUMNS, { count:'exact' })
-        .eq('user_id', requestUserId)
-        .order('created_at', { ascending:false })
-        .range(0, PAGE_SIZE - 1);
-      if(error) throw error;
-      if(state.userId !== requestUserId) return;
-      state.rows = data || [];
-      state.total = Number(count ?? state.rows.length);
-      await loadUnreadCount();
-    } catch(error) {
-      if(state.userId === requestUserId){
-        state.error = LOAD_ERROR;
-        console.warn('Notification history load failed', error);
-      }
-    } finally {
-      if(state.userId === requestUserId){
-        state.loading = false;
-        renderPanel();
-      }
-    }
+  function loadInitial(reason){
+    controller.loadInitial({ reset:true })
+      .then(() => controller.refreshUnread())
+      .catch(error => console.warn(`${reason} notification load failed`, error));
   }
 
-  async function loadMore(){
-    const supabase = client();
-    const requestUserId = state.userId;
-    if(!supabase || !requestUserId || state.loadingMore || state.rows.length >= state.total) return;
-    const from = state.rows.length;
-    state.loadingMore = true;
-    renderPanel();
-    try {
-      const { data, count, error } = await supabase
-        .from(TABLE)
-        .select(SELECT_COLUMNS, { count:'exact' })
-        .eq('user_id', requestUserId)
-        .order('created_at', { ascending:false })
-        .range(from, from + PAGE_SIZE - 1);
-      if(error) throw error;
-      if(state.userId !== requestUserId) return;
-      const known = new Set(state.rows.map(row => row.id));
-      state.rows = [...state.rows, ...(data || []).filter(row => !known.has(row.id))];
-      state.total = Number(count ?? state.rows.length);
-    } catch(error) {
-      if(state.userId === requestUserId){
-        state.error = LOAD_ERROR;
-        console.warn('Notification history page load failed', error);
-      }
-    } finally {
-      if(state.userId === requestUserId){
-        state.loadingMore = false;
-        renderPanel();
-      }
-    }
+  function refreshVisibleHistory(reason){
+    const state = controller.getState();
+    if(!ui.open) return;
+    if(!state.loaded && !state.listBusy) loadInitial(reason);
+    else controller.requestTopRefresh();
   }
 
   function openPanel(){
-    if(!state.userId) return;
+    const state = controller.getState();
+    if(!state.active || !state.userId) return;
     ensurePanel();
     const overlay = document.querySelector('#notification-overlay');
     if(!overlay) return;
-    state.open = true;
-    state.previousFocus = document.activeElement;
+    ui.open = true;
+    ui.previousFocus = document.activeElement;
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('notification-panel-open');
     document.querySelectorAll('[data-notification-bell]').forEach(button => button.setAttribute('aria-expanded', 'true'));
     overlay.querySelector('.notification-panel')?.focus();
-    loadFirstPage().catch(error => console.warn('Notification history open failed', error));
+    if(state.loaded) controller.requestTopRefresh();
+    else loadInitial('Open');
+    refreshUnread('Open');
   }
 
   function closePanel(){
     const overlay = document.querySelector('#notification-overlay');
-    state.open = false;
+    ui.open = false;
     if(overlay){
       overlay.hidden = true;
       overlay.setAttribute('aria-hidden', 'true');
     }
     document.body.classList.remove('notification-panel-open');
     document.querySelectorAll('[data-notification-bell]').forEach(button => button.setAttribute('aria-expanded', 'false'));
-    const focusTarget = document.querySelector('[data-notification-bell]') || state.previousFocus;
+    const focusTarget = document.querySelector('[data-notification-bell]') || ui.previousFocus;
+    ui.previousFocus = null;
     if(focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
   }
 
@@ -266,7 +306,6 @@
     try { target = new URL(rawUrl, location.origin); }
     catch(error) { return; }
     if(target.origin !== location.origin) return;
-
     const hash = target.hash.replace(/^#/, '');
     if(hash){
       const top = hash.split('/')[0];
@@ -279,109 +318,81 @@
     }
   }
 
-  async function markNotificationRead(id, button){
-    const supabase = client();
-    const row = state.rows.find(item => String(item.id) === String(id));
-    if(!supabase || !row || state.actionLoading) return;
-    state.actionLoading = true;
-    if(button) button.disabled = true;
+  async function markNotificationRead(id){
     try {
-      if(!row.read_at){
-        const readAt = new Date().toISOString();
-        const { error } = await supabase
-          .from(TABLE)
-          .update({ read_at: readAt })
-          .eq('id', row.id)
-          .eq('user_id', state.userId)
-          .is('read_at', null);
-        if(error) throw error;
-        row.read_at = readAt;
-        state.unreadCount = Math.max(0, state.unreadCount - 1);
-        updateBadge();
-      }
+      const row = await controller.markOne(id);
+      if(!row) return;
       closePanel();
       openRelatedSection(row);
-      loadUnreadCount().catch(error => console.warn('Unread count refresh failed', error));
     } catch(error) {
       console.warn('Notification read update failed', error);
       alert('Не удалось отметить уведомление как прочитанное. Попробуйте ещё раз.');
-      if(button) button.disabled = false;
-    } finally {
-      state.actionLoading = false;
-      if(state.open) renderPanel();
     }
   }
 
-  async function markAllRead(){
-    const supabase = client();
-    if(!supabase || !state.userId || state.actionLoading || state.unreadCount === 0) return;
-    state.actionLoading = true;
-    renderPanel();
+  async function markAllNotificationsRead(){
     try {
-      const readAt = new Date().toISOString();
-      const { error } = await supabase
-        .from(TABLE)
-        .update({ read_at: readAt })
-        .eq('user_id', state.userId)
-        .is('read_at', null);
-      if(error) throw error;
-      state.rows = state.rows.map(row => row.read_at ? row : { ...row, read_at: readAt });
-      state.unreadCount = 0;
-      updateBadge();
+      await controller.markAll();
     } catch(error) {
       console.warn('Mark all notifications failed', error);
       alert('Не удалось отметить уведомления как прочитанные. Попробуйте ещё раз.');
-    } finally {
-      state.actionLoading = false;
-      renderPanel();
     }
   }
 
   function unsubscribe(){
     const supabase = client();
-    if(state.channel && supabase){
-      supabase.removeChannel(state.channel).catch(() => {});
-    }
-    state.channel = null;
+    const channel = ui.channel;
+    ui.channel = null;
+    if(channel && supabase) supabase.removeChannel(channel).catch(() => {});
   }
 
-  function subscribe(userId){
+  function stopPolling(){
+    if(ui.pollTimer !== null){
+      window.clearInterval(ui.pollTimer);
+      ui.pollTimer = null;
+    }
+  }
+
+  function startPolling(requestToken){
+    stopPolling();
+    ui.pollTimer = window.setInterval(() => {
+      if(!controller.isCurrent(requestToken) || document.visibilityState !== 'visible') return;
+      refreshUnread('Periodic');
+    }, 60000);
+  }
+
+  function subscribe(requestToken){
     const supabase = client();
-    if(!supabase || !userId) return;
-    state.channel = supabase
-      .channel(`employee-notifications:${userId}`)
+    if(!supabase || !requestToken?.userId) return;
+    ui.channel = supabase
+      .channel(`employee-notifications:${requestToken.userId}:${requestToken.generation}`)
       .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: TABLE,
-        filter: `user_id=eq.${userId}`
+        event:'INSERT',
+        schema:'public',
+        table:TABLE,
+        filter:`user_id=eq.${requestToken.userId}`
       }, () => {
-        loadUnreadCount().catch(error => console.warn('Realtime unread refresh failed', error));
-        if(state.open) loadFirstPage().catch(error => console.warn('Realtime notification refresh failed', error));
+        if(!controller.isCurrent(requestToken)) return;
+        refreshUnread('Realtime');
+        if(ui.open) controller.requestTopRefresh();
       })
       .subscribe();
   }
 
   function activate(userId){
     unsubscribe();
-    state.userId = userId;
-    state.rows = [];
-    state.total = 0;
-    state.unreadCount = 0;
-    state.error = '';
-    updateBadge();
-    subscribe(userId);
-    loadUnreadCount().catch(error => console.warn('Initial unread count failed', error));
+    stopPolling();
+    const requestToken = controller.activate(userId);
+    subscribe(requestToken);
+    startPolling(requestToken);
+    refreshUnread('Initial');
   }
 
   function deactivate(){
-    if(state.open) closePanel();
+    if(ui.open) closePanel();
     unsubscribe();
-    state.userId = '';
-    state.rows = [];
-    state.total = 0;
-    state.unreadCount = 0;
-    state.error = '';
+    stopPolling();
+    controller.deactivate();
     document.querySelectorAll('.notification-center').forEach(node => node.remove());
     updateBadge();
   }
@@ -397,12 +408,12 @@
       && userPanel.querySelector('.user-chip')
     );
     if(!active){
-      if(state.userId) deactivate();
+      if(controller.getState().active) deactivate();
       return;
     }
     ensurePanel();
     ensureBell(userPanel);
-    if(state.userId !== employee.id) activate(employee.id);
+    if(controller.getState().userId !== employee.id) activate(employee.id);
     else updateBadge();
   }
 
@@ -411,26 +422,30 @@
     if(bell){ event.preventDefault(); openPanel(); return; }
     if(event.target.closest('[data-notification-close]')){ event.preventDefault(); closePanel(); return; }
     if(event.target.id === 'notification-overlay'){ closePanel(); return; }
-    if(event.target.closest('[data-notification-retry]')){ loadFirstPage(); return; }
-    if(event.target.closest('[data-notification-load-more]')){ loadMore(); return; }
-    if(event.target.closest('[data-notification-mark-all]')){ markAllRead(); return; }
+    if(event.target.closest('[data-notification-retry]')){ loadInitial('Retry'); return; }
+    if(event.target.closest('[data-notification-load-more]')){
+      controller.loadMore().catch(error => console.warn('Notification page load failed', error));
+      return;
+    }
+    if(event.target.closest('[data-notification-mark-all]')){ markAllNotificationsRead(); return; }
     const item = event.target.closest('[data-notification-id]');
-    if(item) markNotificationRead(item.dataset.notificationId, item);
+    if(item) markNotificationRead(item.dataset.notificationId);
   });
 
   document.addEventListener('keydown', event => {
-    if(event.key === 'Escape' && state.open) closePanel();
+    if(event.key === 'Escape' && ui.open) closePanel();
   });
 
   document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState !== 'visible' || !state.userId) return;
-    loadUnreadCount().catch(error => console.warn('Visible unread refresh failed', error));
-    if(state.open) loadFirstPage().catch(error => console.warn('Visible notification refresh failed', error));
+    const state = controller.getState();
+    if(document.visibilityState !== 'visible' || !state.active) return;
+    refreshUnread('Visible');
+    refreshVisibleHistory('Visible');
   });
 
   window.addEventListener('focus', () => {
-    if(!state.userId) return;
-    loadUnreadCount().catch(error => console.warn('Focus unread refresh failed', error));
+    if(!controller.getState().active) return;
+    refreshUnread('Focus');
   });
 
   const userPanel = document.querySelector('#user-panel');
@@ -438,9 +453,5 @@
     const observer = new MutationObserver(() => queueMicrotask(syncAuthenticatedUi));
     observer.observe(userPanel, { childList:true });
   }
-  window.setInterval(() => {
-    if(!state.userId || document.visibilityState !== 'visible') return;
-    loadUnreadCount().catch(error => console.warn('Periodic unread refresh failed', error));
-  }, 60000);
   syncAuthenticatedUi();
 })();

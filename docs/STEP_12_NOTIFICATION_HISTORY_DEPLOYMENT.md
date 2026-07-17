@@ -5,10 +5,12 @@
 - в общей шапке появляется колокольчик со счётчиком непрочитанных уведомлений;
 - сотрудник видит только собственную историю;
 - первые 20 записей загружаются сразу, остальные — кнопкой «Показать ещё»;
+- следующие страницы загружаются устойчивым cursor по `created_at DESC, id DESC`, поэтому новые записи сверху не сдвигают уже загруженную историю;
 - нажатие на запись отмечает её прочитанной и открывает связанный раздел;
 - открытие панели само по себе статус не меняет;
 - все адресованные сотруднику события сохраняются в истории независимо от настроек Web Push;
 - новые записи приходят в открытое приложение через Supabase Realtime;
+- Realtime-обновления объединяются и выполняются после текущей загрузки; состояние каждого входа защищено отдельным поколением пользователя;
 - старые записи при первом применении миграции считаются прочитанными.
 
 ## Где хранятся данные
@@ -37,12 +39,14 @@ read_at timestamptz null
 ## Состав релиза
 
 - `supabase/sql/STEP_12_NOTIFICATION_HISTORY.sql` — колонка, индекс, RLS и Realtime;
+- `supabase/sql/ROLLBACK_STEP_12_NOTIFICATION_HISTORY.sql` — безопасное отключение RLS UPDATE и Realtime без удаления истории;
 - `supabase/functions/_shared/push.ts` — запись адресованного события до проверки настроек Web Push;
 - `supabase/functions/notify-event/index.ts` — дата ревизии остаётся в ключе дедупликации и больше не записывается в UUID-поле `source_id`;
-- `assets/js/notifications.js` — колокольчик, история, статусы, пагинация и Realtime;
+- `assets/js/notification-history-core.js` — изоляция сессий, cursor-пагинация и очереди асинхронных операций;
+- `assets/js/notifications.js` — Supabase-запросы, колокольчик, панель, статусы и Realtime;
 - `assets/js/app.js` — передача существующего Supabase-клиента модулю истории;
 - `assets/css/styles.css` и `index.html` — шапка, панель и адаптивность;
-- `tools/notification-history-check.mjs` и CI — постоянная структурная проверка функции.
+- `tools/notification-history-check.mjs`, `tools/notification-history-race-check.mjs` и CI — структурная и конкурентная регрессия функции.
 
 Новые переменные окружения не требуются.
 
@@ -123,13 +127,20 @@ npx.cmd supabase functions deploy deadline-checker --project-ref tjibbzfdughhjen
 ## Безопасный откат
 
 1. frontend вернуть предыдущим commit через revert PR;
-2. развернуть предыдущие версии `notify-event`, `push-send` и `deadline-checker`;
-3. удалить таблицу из публикации Realtime, если функция отключается полностью:
+2. развернуть предыдущие версии `_shared/push.ts`, `push-send` и `deadline-checker`;
+3. исправление `revision_submitted`, которое оставляет дату в ключе дедупликации и не записывает её в UUID `source_id`, сохранить в `notify-event` даже при откате истории;
+4. полностью выполнить отдельный идемпотентный rollback:
 
-```sql
-alter publication supabase_realtime drop table public.notification_events;
+```text
+supabase/sql/ROLLBACK_STEP_12_NOTIFICATION_HISTORY.sql
 ```
 
-4. отдельным проверенным reverse patch удалить политику `notification_events_update_read_active_own`, отозвать `UPDATE (read_at)` у `authenticated` и удалить индекс `idx_notification_events_user_unread_created`.
+Rollback-файл:
+
+- удаляет `notification_events` из `supabase_realtime`, только если таблица там присутствует;
+- удаляет политику `notification_events_update_read_active_own`;
+- отзывает клиентское обновление `read_at`;
+- удаляет индекс `idx_notification_events_user_unread_created`;
+- выводит проверочный результат после завершения.
 
 Колонку `read_at` и значения истории при безопасном откате не удалять: они не мешают старому frontend и сохраняют данные. Удаление колонки допустимо только после отдельного решения и резервной копии.

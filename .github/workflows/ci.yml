@@ -44,7 +44,9 @@ jobs:
         run: node tools/employee-status-check.mjs
 
       - name: Check notification history
-        run: node tools/notification-history-check.mjs
+        run: |
+          node tools/notification-history-check.mjs
+          node tools/notification-history-race-check.mjs
 
       - name: Set up Deno
         uses: denoland/setup-deno@v2

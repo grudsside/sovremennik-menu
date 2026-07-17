@@ -594,6 +594,7 @@ body.notification-panel-open{overflow:hidden;}
   cursor:pointer;
 }
 .notification-item:hover,.notification-item:focus-visible{border-color:var(--olive);outline:0;box-shadow:0 0 0 3px rgba(124,139,83,.12);}
+.notification-item:disabled{cursor:progress;opacity:.78;}
 .notification-item.unread{border-left-color:#c53b3b;background:#fffaf5;box-shadow:0 8px 18px rgba(83,89,60,.06);}
 .notification-item-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .notification-type{color:var(--olive-dark);font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;}
@@ -607,9 +608,13 @@ body.notification-panel-open{overflow:hidden;}
 .notification-state p{margin:0;}
 .notification-error{align-content:center;gap:14px;color:var(--danger);font-weight:800;}
 .notification-error button{justify-self:center;}
+.notification-error.compact{min-height:auto;margin-bottom:10px;padding:12px;grid-template-columns:minmax(0,1fr) auto;text-align:left;}
 @media(max-width:920px){
   .hero{grid-template-columns:1fr;gap:18px;}
-  .user-panel{justify-content:flex-start;max-width:none;}
+  .user-panel{justify-content:flex-end;max-width:none;}
+  .user-panel .user-chip{order:1;}
+  .user-panel .logout-btn{order:2;}
+  .user-panel .notification-center{order:3;}
 }
 @media(max-width:620px){
   .notification-overlay{padding:0;}
@@ -619,6 +624,7 @@ body.notification-panel-open{overflow:hidden;}
   .notification-mark-all{max-width:190px;}
   .notification-panel-content{padding:10px;}
   .notification-item{padding:13px;border-radius:16px;}
+  .notification-error.compact{grid-template-columns:1fr;text-align:center;}
   .user-chip{max-width:100%;overflow-wrap:anywhere;}
 }
 /* --- end notification history --- */

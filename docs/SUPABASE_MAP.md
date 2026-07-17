@@ -130,7 +130,9 @@ notification_events
 `notification_events` хранит адресованную сотруднику историю независимо от
 настроек доставки Web Push. `read_at is null` означает непрочитанное событие;
 клиент может менять только `read_at` в собственной строке. Таблица включается
-в `supabase_realtime` патчем STEP 12.
+в `supabase_realtime` патчем STEP 12. Идемпотентный
+`ROLLBACK_STEP_12_NOTIFICATION_HISTORY.sql` отключает клиентское обновление и
+Realtime, но сохраняет колонку `read_at` и все строки истории.
 
 Точные definitions сверить с SQL и production.
 
