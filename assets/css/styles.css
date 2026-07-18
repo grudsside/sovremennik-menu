@@ -1,3 +1,7 @@
 /* Современник stylesheet loader */
 @import url("./styles-legacy.css");
 @import url("./interface-redesign.css");
+
+/* Compatibility markers: the imported legacy bundle contains the full rules. */
+.notification-bell {}
+.notification-panel {}
