@@ -711,6 +711,7 @@ const SUPABASE_LOGIN_DOMAIN = SOV_SUPA_CONFIG.loginDomain || 'sovremennik.local'
 const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
+window.sovremennikSupabase = supa;
 
 function loginToEmail(login){ return `${String(login || '').trim().toLowerCase()}@${SUPABASE_LOGIN_DOMAIN}`; }
 function mapProfile(profile){ return profile ? { id: profile.id, name: profile.name || '', role: normalizeRole(profile.role || ''), login: profile.login || '', password: '' } : null; }
