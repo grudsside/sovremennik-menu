@@ -1,7 +1,8 @@
 /* Современник stylesheet loader */
-@import url("./styles-legacy.css");
-@import url("./interface-redesign.css");
+@import url("./styles-legacy.css?v=20260718");
+@import url("./interface-redesign.css?v=20260718");
+@import url("./interface-v3.css?v=20260718-3");
 
-/* Compatibility markers: the imported legacy bundle contains the full rules. */
+/* Compatibility markers: imported bundles contain the full rules. */
 .notification-bell {}
 .notification-panel {}
