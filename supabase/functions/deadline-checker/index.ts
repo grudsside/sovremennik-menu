@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         eventKeyBase: `${eventType}:${task.id}`,
         title,
         body: text,
-        url: "/#home",
+        url: "./#tasks",
         sourceTable: "tasks",
         sourceId: task.id,
         extra: { is_vip: Boolean(task.is_vip), requireInteraction },
