@@ -1,0 +1,46 @@
+/* Resolve legacy !important navigation rules against interface v3. */
+body[data-interface-version="2026-07-18-v3"] .main-tabs{
+  display:flex!important;
+  flex-direction:column!important;
+  flex-wrap:nowrap!important;
+  align-items:stretch!important;
+  justify-content:flex-start!important;
+  width:var(--sidebar)!important;
+  height:calc(100vh - var(--v3-header))!important;
+  margin:0!important;
+  padding:18px 14px 30px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  text-align:left!important;
+}
+body[data-interface-version="2026-07-18-v3"] .main-tab{
+  width:100%!important;
+  flex:0 0 auto!important;
+  justify-content:flex-start!important;
+  text-align:left!important;
+  white-space:normal!important;
+}
+body[data-interface-version="2026-07-18-v3"] .shell-nav-group{
+  width:100%;
+  flex:0 0 auto;
+  box-sizing:border-box;
+}
+.mandatory-tasks-note{
+  margin:12px 0 0;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface-olive);
+}
+@media (max-width:920px){
+  body[data-interface-version="2026-07-18-v3"] .main-tabs{
+    top:var(--v3-header)!important;
+    bottom:0!important;
+    width:min(86vw,320px)!important;
+    height:auto!important;
+    padding:12px 14px 24px!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+  }
+}
