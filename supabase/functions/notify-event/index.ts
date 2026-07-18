@@ -17,15 +17,15 @@ import {
 } from "./authorization.ts";
 
 function taskUrl() {
-  return "/#home";
+  return "./#tasks";
 }
 
 function controlUrl() {
-  return "/#control";
+  return "./#control";
 }
 
 function scheduleUrl() {
-  return "/#schedule";
+  return "./#schedule";
 }
 
 function unique(ids: string[]) {
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     let userIds: string[] = [];
     let title = "Современник";
     let text = "Новое уведомление";
-    let url = "/";
+    let url = "./";
     let sourceTable = "";
     let sourceId = "";
     let eventKeySource = "";

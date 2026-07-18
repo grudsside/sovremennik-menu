@@ -37,6 +37,9 @@ jobs:
       - name: Check repository structure, JSON and secrets
         run: node tools/ci-check.mjs
 
+      - name: Check task workflow regressions
+        run: node tools/task-workflow-check.mjs
+
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 

@@ -22,7 +22,7 @@ self.addEventListener('push', event => {
 });
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || './', self.location.origin).href;
+  const targetUrl = new URL(event.notification.data?.url || './', self.registration.scope).href;
   event.waitUntil((async () => {
     const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of allClients) {
