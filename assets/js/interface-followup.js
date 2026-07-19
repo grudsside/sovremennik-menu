@@ -135,14 +135,15 @@
     const rows = upcomingNonShiftEvents();
     const current = appState();
     if(current?.scheduleLoading && !rows.length){
-      return '<div class="v3-empty-inline">Загружаю ближайшие события…</div>';
+      return '<div class="v3-empty-inline" data-followup-upcoming>Загружаю ближайшие события…</div>';
     }
     if(!rows.length){
-      return '<div class="v3-empty-inline"><strong>Ближайших событий нет</strong><span>Генеральные уборки, ревизии, собрания и другие мероприятия появятся здесь автоматически.</span></div>';
+      return '<div class="v3-empty-inline" data-followup-upcoming><strong>Ближайших событий нет</strong><span>Генеральные уборки, ревизии, собрания и другие мероприятия появятся здесь автоматически.</span></div>';
     }
-    return `<div class="v3-upcoming-list">${rows.map(({event, date}) => {
-      const day = date.toLocaleDateString('ru-RU', { day:'2-digit' });
-      const month = date.toLocaleDateString('ru-RU', { month:'long' }).replace(/\.$/, '');
+    return `<div class="v3-upcoming-list" data-followup-upcoming>${rows.map(({event, date}) => {
+      const formattedDate = date.toLocaleDateString('ru-RU', { day:'2-digit', month:'long' }).split(/\s+/);
+      const day = formattedDate.shift() || '';
+      const month = formattedDate.join(' ').replace(/\.$/, '');
       const title = event?.title || event?.type || 'Событие';
       const type = event?.type || 'Мероприятие';
       const description = event?.description ? ` · ${htmlEscape(event.description)}` : '';
@@ -158,7 +159,7 @@
 
   function renderMetricsFollowup(){
     const revisionAvailable = revisionAvailableToday();
-    return `<div class="v3-metrics-grid">
+    return `<div class="v3-metrics-grid" data-followup-metrics>
       <div class="v3-metric"><span>Мои задачи</span><strong>${activeTaskCount()}</strong><small>актуальных</small></div>
       <div class="v3-metric"><span>Сегодня в смене</span><strong>${todayShiftCount()}</strong><small>сотрудников</small></div>
       <div class="v3-metric v3-metric--placeholder"><span>Заготовочный план</span></div>
@@ -171,7 +172,7 @@
     if(upcoming){
       const signature = upcomingNonShiftEvents().map(item => `${item.event?.id || ''}:${item.key}:${item.event?.title || ''}`).join('|')
         + `|loading:${Boolean(appState()?.scheduleLoading)}`;
-      if(upcoming.dataset.followupSignature !== signature){
+      if(upcoming.dataset.followupSignature !== signature || !upcoming.querySelector('[data-followup-upcoming]')){
         upcoming.dataset.followupSignature = signature;
         upcoming.innerHTML = renderUpcomingFollowup();
       }
@@ -180,7 +181,7 @@
     const metrics = document.querySelector('#v3-home-metrics');
     if(metrics){
       const signature = `${activeTaskCount()}|${todayShiftCount()}|${revisionAvailableToday()}|${Boolean(appState()?.revisionLoading)}`;
-      if(metrics.dataset.followupSignature !== signature){
+      if(metrics.dataset.followupSignature !== signature || !metrics.querySelector('[data-followup-metrics]')){
         metrics.dataset.followupSignature = signature;
         metrics.innerHTML = renderMetricsFollowup();
       }
@@ -322,6 +323,7 @@
   function installRealtimeRevisionSync(){
     const client = window.sovremennikSupabase;
     if(!client || revisionChannel) return;
+    if(typeof isAuthenticated === 'function' && !isAuthenticated()) return;
     try {
       revisionChannel = client
         .channel(`home-revision-availability-${Date.now()}`)
