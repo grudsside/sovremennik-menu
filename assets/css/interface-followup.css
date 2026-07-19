@@ -1,0 +1,260 @@
+/* Современник interface follow-up — mobile tasks, dashboard and notification polish */
+body.task-modal-open{
+  overflow:hidden!important;
+  overscroll-behavior:none;
+}
+body.task-modal-open .hero{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+body.task-modal-open .top-panel{
+  animation:none!important;
+}
+.task-modal{
+  box-sizing:border-box;
+  isolation:isolate;
+}
+.task-modal,.task-modal *{
+  box-sizing:border-box;
+}
+.task-form-card{
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  touch-action:pan-y;
+}
+.task-details>summary,
+.task-actions-row button,
+.task-form-actions button,
+[data-refresh-service],
+[data-open-task-modal]{
+  touch-action:manipulation;
+}
+
+.v3-upcoming-item{
+  grid-template-columns:72px minmax(0,1fr)!important;
+}
+.v3-date-chip{
+  width:72px;
+  min-width:72px;
+  min-height:58px!important;
+  padding:7px 6px;
+  display:flex!important;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:1px;
+  text-align:center;
+  line-height:1;
+}
+.v3-date-day{
+  display:block;
+  font-size:17px;
+  line-height:1;
+  font-weight:900;
+  font-variant-numeric:tabular-nums;
+}
+.v3-date-month{
+  display:block;
+  max-width:100%;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:10px;
+  line-height:1.1;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.025em;
+}
+.v3-metric--placeholder{
+  min-height:106px;
+  display:flex;
+  align-items:flex-start;
+}
+.v3-metric--placeholder span{
+  color:var(--muted);
+}
+
+.notification-panel-content{
+  overflow-x:hidden!important;
+  padding-inline:14px!important;
+  scrollbar-gutter:stable;
+}
+.notification-list{
+  width:100%;
+  min-width:0;
+  padding:1px 3px 1px 1px;
+}
+.notification-item{
+  width:calc(100% - 4px)!important;
+  max-width:calc(100% - 4px)!important;
+  margin-inline:2px!important;
+}
+.notification-mark-all{
+  min-height:44px;
+  padding:10px 17px!important;
+  font-size:13px!important;
+  line-height:1.25;
+  transition:background .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease;
+}
+.notification-mark-all:not(:disabled){
+  border-color:var(--olive-dark)!important;
+  background:var(--olive-dark)!important;
+  color:#fff!important;
+  box-shadow:0 8px 18px rgba(79,95,51,.2);
+}
+.notification-mark-all:not(:disabled):hover,
+.notification-mark-all:not(:disabled):focus-visible{
+  background:var(--olive-deep)!important;
+  box-shadow:0 0 0 4px rgba(124,139,83,.16),0 8px 18px rgba(79,95,51,.2);
+  outline:0;
+}
+.notification-mark-all:disabled{
+  border-color:var(--line)!important;
+  background:#f5f2e9!important;
+  color:#a2a492!important;
+  opacity:1!important;
+}
+
+.control-summary-global-toolbar{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px 16px;
+  align-items:center;
+  margin:0 0 16px;
+  padding:15px 17px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--surface);
+  box-shadow:var(--shadow-sm);
+}
+.control-summary-global-toolbar>div{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+.control-summary-global-toolbar strong{
+  color:var(--ink);
+  font-size:14px;
+}
+.control-summary-global-toolbar span{
+  color:var(--muted);
+  font-size:12px;
+}
+.control-summary-global-toolbar .small-action{
+  min-height:42px;
+  white-space:nowrap;
+}
+.control-summary-refresh-status{
+  grid-column:1/-1;
+  min-height:1em;
+  margin:0;
+  color:var(--muted);
+  font-size:12px;
+}
+.control-summary-refresh-status:empty{
+  display:none;
+}
+
+@media (max-width:920px){
+  #top-tasks{
+    animation:none!important;
+  }
+  .task-modal{
+    align-items:flex-end!important;
+    justify-content:center!important;
+    padding:0!important;
+    background:rgba(17,30,25,.58)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+  .task-form-card{
+    width:100%!important;
+    max-width:none!important;
+    max-height:calc(100dvh - env(safe-area-inset-top) - 8px)!important;
+    margin:0!important;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom))!important;
+    border-radius:22px 22px 0 0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    background:var(--surface)!important;
+    box-shadow:0 -18px 50px rgba(17,30,25,.24)!important;
+    animation:none!important;
+    transform:translateZ(0);
+    -webkit-transform:translateZ(0);
+  }
+  .task-form-card .card-head{
+    position:sticky;
+    top:-18px;
+    z-index:2;
+    margin:-2px -2px 12px;
+    padding:2px 2px 12px;
+    background:var(--surface);
+    border-bottom:1px solid var(--line);
+  }
+  .task-form-card input,
+  .task-form-card select,
+  .task-form-card textarea{
+    width:100%;
+    font-size:16px!important;
+  }
+  .task-form-card textarea{
+    min-height:108px;
+  }
+  .task-form-actions .small-action,
+  .task-actions-row .small-action,
+  #top-tasks [data-refresh-service],
+  #top-tasks [data-open-task-modal]{
+    min-height:48px;
+  }
+  .task-details>summary{
+    min-height:48px;
+  }
+}
+
+@media (max-width:640px){
+  .v3-upcoming-item{
+    grid-template-columns:66px minmax(0,1fr)!important;
+    gap:10px!important;
+    padding:9px!important;
+  }
+  .v3-date-chip{
+    width:66px;
+    min-width:66px;
+    min-height:56px!important;
+  }
+  .notification-overlay{
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+  .notification-panel-actions{
+    grid-template-columns:1fr!important;
+    align-items:stretch!important;
+    gap:10px!important;
+    padding:12px 16px!important;
+  }
+  .notification-mark-all{
+    width:100%;
+    max-width:none!important;
+    min-height:48px;
+  }
+  .notification-panel-content{
+    padding:10px 13px!important;
+  }
+  .notification-list{
+    padding-right:4px;
+  }
+  .notification-item{
+    width:calc(100% - 6px)!important;
+    max-width:calc(100% - 6px)!important;
+    margin-inline:3px!important;
+  }
+  .control-summary-global-toolbar{
+    grid-template-columns:1fr;
+    padding:14px;
+  }
+  .control-summary-global-toolbar .small-action{
+    width:100%;
+    min-height:46px;
+  }
+}
