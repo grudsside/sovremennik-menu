@@ -46,6 +46,9 @@ jobs:
       - name: Check iPhone task form regressions
         run: node tools/iphone-task-freeze-check.mjs
 
+      - name: Check tasks maintenance mode
+        run: node tools/tasks-maintenance-check.mjs
+
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 
