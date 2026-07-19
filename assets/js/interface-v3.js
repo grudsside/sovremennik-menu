@@ -2,7 +2,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-18-v3';
+  const VERSION = '2026-07-19-v4';
   const navMeta = {
     home: ['Главная','Рабочая база и документы'],
     tasks: ['Мои задачи','Актуальные задачи и сроки'],
@@ -45,11 +45,14 @@
     renderHome: typeof renderHome === 'function' ? renderHome : null,
     renderReportError: typeof renderReportError === 'function' ? renderReportError : null,
     submitErrorReport: typeof submitErrorReport === 'function' ? submitErrorReport : null,
-    refreshTasks: typeof refreshTasks === 'function' ? refreshTasks : null,
     refreshSchedule: typeof refreshSchedule === 'function' ? refreshSchedule : null,
     loadScheduleEvents: typeof loadScheduleEvents === 'function' ? loadScheduleEvents : null,
     loadRolePermissions: typeof loadRolePermissions === 'function' ? loadRolePermissions : null
   };
+
+  function tasksV2(){
+    return window.SovremennikTasksV2 || null;
+  }
 
   function localDateKey(date = new Date()){
     const y = date.getFullYear();
@@ -184,7 +187,7 @@
   }
 
   function renderHomeMetrics(){
-    const taskCount = typeof activeTasks === 'function' ? activeTasks().length : 0;
+    const taskCount = tasksV2()?.getActiveCount?.() || 0;
     const checklistCount = Array.isArray(state?.menu?.checklists) ? state.menu.checklists.length : 0;
     const shiftCount = todayShiftEvents().length;
     const nextCount = upcomingScheduleEvents(50).length;
@@ -239,15 +242,7 @@
 
   function renderTasksPanel(){
     return `<section class="top-panel ${state.activeTop === 'tasks' ? 'active' : ''}" id="top-tasks">
-      <div class="section-heading v3-section-heading"><p>Основное</p><h2>Мои задачи</h2></div>
-      <div class="home-tasks-card v3-tasks-card">
-        <div class="home-tasks-head compact">
-          <div><h3>Актуальные задачи</h3><p class="description">Показаны задачи, доступные вашему аккаунту. Сроки и статусы обновляются автоматически.</p></div>
-          <div class="home-head-actions"><button class="small-action secondary compact-action" type="button" data-refresh-service>Обновить</button><button class="small-action compact-action" type="button" data-open-task-modal>Поставить задачу</button></div>
-        </div>
-        <div id="tasks-list">${renderTasksList()}</div>
-      </div>
-      ${renderTaskModal()}
+      <div data-tasks-v2-root></div>
     </section>`;
   }
 
@@ -305,6 +300,7 @@
 
   function renderAppV3(){
     if(!isAuthenticated()) return showLogin();
+    tasksV2()?.deactivate?.();
     ensureTasksPermission();
     document.body.classList.remove('login-mode');
     const { site } = state.menu;
@@ -321,7 +317,7 @@
     document.querySelector('.main-tabs').innerHTML = tabs.map(tab => `<button class="main-tab ${tab.id === state.activeTop ? 'active' : ''} ${tab.id === 'employees' && hasAccess('employees') ? 'admin-visible' : ''}" data-top-target="${esc(tab.id)}" type="button">${esc(tab.title)}</button>`).join('');
     document.querySelector('#panels').innerHTML =
       renderHome() +
-      renderTasksPanel() +
+      (state.activeTop === 'tasks' ? renderTasksPanel() : '') +
       (hasAccess('method') ? renderMethod() : '') +
       (hasAccess('theory') ? renderTheoryTopPanel() : '') +
       (hasAccess('checklists') ? renderChecklists() : '') +
@@ -332,8 +328,9 @@
       (hasAccess('employees') ? renderEmployees() : '') +
       (hasAccess('control') ? renderControl() : '');
     bindEvents();
-    if(!state.tasks) loadTasks();
-    if(!state.taskAssignees) loadTaskAssignees();
+    if(state.activeTop === 'tasks'){
+      tasksV2()?.activate?.(document.querySelector('[data-tasks-v2-root]'))?.catch?.(console.error);
+    }
     if(!state.rolePermissions && !state.rolePermissionsLoading) loadRolePermissions();
     if(isAdmin() && !state.employees) loadEmployees();
     if((state.activeTop === 'schedule' || state.activeTop === 'home') && !state.scheduleEvents) loadScheduleEvents();
@@ -348,19 +345,24 @@
 
   function setTopV3(target){
     if(!hasAccess(target)) target = 'home';
+    if(target !== 'tasks'){
+      tasksV2()?.deactivate?.();
+      document.querySelector('#top-tasks')?.remove();
+    }
     state.activeTop = target;
+    if(target === 'tasks' && !document.querySelector('#top-tasks')){
+      document.querySelector('#panels')?.insertAdjacentHTML('beforeend', renderTasksPanel());
+    }
     document.querySelectorAll('.main-tab').forEach(button => button.classList.toggle('active', button.dataset.topTarget === target));
     document.querySelectorAll('.top-panel').forEach(panel => panel.classList.toggle('active', panel.id === `top-${target}`));
     history.replaceState(null,'',`#${target}`);
     window.scrollTo({ top:0, behavior:'smooth' });
     if(target === 'home'){
-      loadTasks();
-      if(!state.taskAssignees) loadTaskAssignees();
       loadScheduleEvents();
+      refreshHomeWidgets();
     }
     if(target === 'tasks'){
-      loadTasks();
-      if(!state.taskAssignees) loadTaskAssignees();
+      tasksV2()?.activate?.(document.querySelector('[data-tasks-v2-root]'))?.catch?.(console.error);
     }
     if(target === 'schedule') loadScheduleEvents();
     if(target === 'control'){
@@ -489,12 +491,6 @@
     window.renderApp = renderApp = renderAppV3;
     window.setTop = setTop = setTopV3;
 
-    if(legacy.refreshTasks){
-      window.refreshTasks = refreshTasks = function(){
-        legacy.refreshTasks();
-        refreshHomeWidgets();
-      };
-    }
     if(legacy.refreshSchedule){
       window.refreshSchedule = refreshSchedule = function(){
         legacy.refreshSchedule();

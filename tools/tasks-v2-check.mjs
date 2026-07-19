@@ -1,0 +1,291 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import vm from 'node:vm';
+
+const rootPath = process.cwd();
+const read = path => readFileSync(resolve(rootPath, path), 'utf8');
+const source = read('assets/js/tasks-v2.js');
+const styles = read('assets/css/tasks-v2.css');
+const loader = read('assets/js/push.js');
+const interfaceV3 = read('assets/js/interface-v3.js');
+const followup = read('assets/js/interface-followup.js');
+const followupStyles = read('assets/css/interface-followup.css');
+const activePanel = read('assets/js/mobile-active-panel.js');
+const activePanelStyles = read('assets/css/mobile-active-panel.css');
+
+let documentTouches = 0;
+const documentProbe = new Proxy({}, {
+  get(){
+    documentTouches += 1;
+    return undefined;
+  }
+});
+const globalListeners = new Map();
+const sandbox = {
+  console,
+  Date,
+  Map,
+  Set,
+  Promise,
+  document:documentProbe,
+  crypto:{ randomUUID:() => '00000000-0000-4000-8000-000000000099' },
+  confirm:() => true,
+  addEventListener:(type, listener) => {
+    const listeners = globalListeners.get(type) || [];
+    listeners.push(listener);
+    globalListeners.set(type, listeners);
+  }
+};
+sandbox.window = sandbox;
+vm.runInNewContext(source, sandbox, { filename:'assets/js/tasks-v2.js' });
+
+assert.equal(documentTouches, 0, 'Importing tasks v2 must not touch the DOM before the section opens');
+assert.equal(globalListeners.size, 0, 'Tasks v2 must not register global listeners');
+assert.equal(typeof sandbox.SovremennikTasksV2?.createModule, 'function', 'Tasks v2 must expose one namespaced module');
+assert.equal(sandbox.SovremennikTasksV2.MOBILE_QUERY, '(max-width: 920px), (pointer: coarse)', 'JS must expose the agreed mobile query');
+
+const permissionTask = { creatorId:'manager-1', assigneeId:'barista-1' };
+assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'barista-1', role:'barista' }), true, 'An assignee must be able to complete a task');
+assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'manager-1', role:'manager' }), true, 'A manager creator must be able to complete a task');
+assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'other-1', role:'manager' }), false, 'An unrelated manager must not get a completion action');
+assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'manager-1', role:'barista' }), false, 'A non-manager creator must not get a completion action');
+assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'admin-1', role:'admin' }), true, 'An admin must be able to complete a task');
+assert.equal(sandbox.SovremennikTasksV2.canDeleteTask({ id:'admin-1', role:'admin' }), true, 'An admin must get the delete action');
+assert.equal(sandbox.SovremennikTasksV2.canDeleteTask({ id:'manager-1', role:'manager' }), false, 'A manager must not get the delete action');
+
+class FakeRoot {
+  constructor(){
+    this.className = '';
+    this.innerHTML = '';
+    this.listeners = new Map();
+  }
+
+  addEventListener(type, listener){
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type, listener){
+    const listeners = this.listeners.get(type) || [];
+    this.listeners.set(type, listeners.filter(item => item !== listener));
+  }
+
+  contains(node){
+    return Boolean(node);
+  }
+
+  async emit(type, target){
+    const event = { target, preventDefault(){} };
+    await Promise.all((this.listeners.get(type) || []).map(listener => listener(event)));
+  }
+}
+
+const action = (name, taskId = '') => {
+  const node = {
+    dataset:{ tasksV2Action:name, taskId },
+    closest:selector => selector === '[data-tasks-v2-action]' ? node : null
+  };
+  return node;
+};
+
+const counters = {
+  listTasks:0,
+  listAssignees:0,
+  createTask:0,
+  completeTask:0,
+  deleteTask:0
+};
+const initialTask = {
+  id:'task-1',
+  title:'Проверить витрину',
+  description:'До открытия',
+  creator_id:'admin-1',
+  assignee_id:'employee-1',
+  is_vip:true,
+  due_at:'2030-01-01T08:00:00.000Z',
+  status:'open',
+  created_at:'2026-07-19T08:00:00.000Z'
+};
+const dataLayer = {
+  async listTasks(){
+    counters.listTasks += 1;
+    return [initialTask];
+  },
+  async listAssignees(){
+    counters.listAssignees += 1;
+    return [
+      { id:'admin-1', name:'Анна', role:'admin' },
+      { id:'employee-1', name:'Борис', role:'barista' }
+    ];
+  },
+  async createTask(input, user){
+    counters.createTask += 1;
+    await Promise.resolve();
+    return {
+      id:'task-2',
+      title:input.title,
+      description:input.description,
+      creator_id:user.id,
+      assignee_id:input.assigneeId,
+      is_vip:input.isVip,
+      due_at:input.dueAt || null,
+      status:'open',
+      created_at:'2026-07-19T09:00:00.000Z'
+    };
+  },
+  async completeTask(){
+    counters.completeTask += 1;
+    await Promise.resolve();
+    return { id:'task-1', status:'done' };
+  },
+  async deleteTask(){
+    counters.deleteTask += 1;
+    await Promise.resolve();
+    return { id:'task-2' };
+  }
+};
+const user = { id:'admin-1', name:'Анна', role:'admin' };
+const module = sandbox.SovremennikTasksV2.createModule({
+  dataLayer,
+  getCurrentUser:() => user,
+  maintenanceEnabled:() => false,
+  confirm:() => true
+});
+const root = new FakeRoot();
+
+await module.activate(root);
+assert.equal(counters.listTasks, 1, 'Opening the section must issue exactly one task-list request');
+assert.equal(counters.listAssignees, 1, 'The assignee list must be requested once');
+assert.equal(root.listeners.get('click')?.length, 1, 'The module must bind one root click listener');
+assert.equal(root.listeners.get('submit')?.length, 1, 'The module must bind one root submit listener');
+
+for(let cycle = 0; cycle < 20; cycle += 1){
+  await root.emit('click', action('form-open'));
+  assert.equal(module.getSnapshot().formOpen, true, `Form cycle ${cycle + 1}: form must open`);
+  await root.emit('click', action('form-close'));
+  assert.equal(module.getSnapshot().formOpen, false, `Form cycle ${cycle + 1}: form must close`);
+}
+assert.equal(counters.listTasks, 1, 'Twenty form cycles must not reload tasks');
+assert.equal(counters.listAssignees, 1, 'Twenty form cycles must not replace or reload assignees');
+assert.equal(root.listeners.get('click')?.length, 1, 'Twenty form cycles must not duplicate click listeners');
+assert.equal(root.listeners.get('submit')?.length, 1, 'Twenty form cycles must not duplicate submit listeners');
+
+await root.emit('click', action('form-open'));
+const textField = { value:'Подготовить зал' };
+const formStatus = { textContent:'', classList:{ toggle(){} } };
+const submitButton = { disabled:false, textContent:'Поставить задачу' };
+const fields = {
+  title:textField,
+  description:{ value:'До прихода гостей' },
+  assigneeId:{ value:'employee-1' },
+  dueAt:{ value:'2030-01-02T09:30' },
+  isVip:{ checked:false }
+};
+const form = {
+  elements:{ namedItem:name => fields[name] },
+  matches:selector => selector === '[data-tasks-v2-form]',
+  querySelector:selector => {
+    if(selector === 'button[type="submit"]') return submitButton;
+    if(selector === '[data-tasks-v2-form-status]') return formStatus;
+    return null;
+  }
+};
+const firstCreate = root.emit('submit', form);
+const duplicateCreate = root.emit('submit', form);
+await Promise.all([firstCreate, duplicateCreate]);
+assert.equal(counters.createTask, 1, 'A double submit must create only one task');
+assert.equal(module.getSnapshot().tasks.length, 2, 'A created task must be inserted locally without a list reload');
+assert.equal(counters.listTasks, 1, 'Creating a task must not reload the whole list');
+
+await Promise.all([
+  root.emit('click', action('complete', 'task-1')),
+  root.emit('click', action('complete', 'task-1'))
+]);
+assert.equal(counters.completeTask, 1, 'A repeated completion click must issue one update');
+assert.equal(module.getSnapshot().tasks.some(task => task.id === 'task-1'), false, 'Completed task must be removed locally');
+assert.equal(counters.listTasks, 1, 'Completing a task must not reload the whole list');
+
+await Promise.all([
+  root.emit('click', action('delete', 'task-2')),
+  root.emit('click', action('delete', 'task-2'))
+]);
+assert.equal(counters.deleteTask, 1, 'A repeated delete click must issue one delete');
+assert.equal(module.getSnapshot().tasks.length, 0, 'Deleted task must be removed locally');
+assert.equal(counters.listTasks, 1, 'Deleting a task must not reload the whole list');
+
+module.deactivate();
+assert.equal(root.listeners.get('click')?.length, 0, 'Leaving the section must remove the root click listener');
+assert.equal(root.listeners.get('submit')?.length, 0, 'Leaving the section must remove the root submit listener');
+assert.equal(root.innerHTML, '', 'Leaving the section must clear the module DOM');
+assert.equal(module.getInstrumentation().listenerBalance, 0, 'Listener balance must return to zero after leaving');
+
+for(let entry = 0; entry < 10; entry += 1){
+  await module.activate(root);
+  module.deactivate();
+}
+assert.equal(counters.listTasks, 11, 'Each of eleven section entries must make one task-list request');
+assert.equal(counters.listAssignees, 1, 'Assignees must remain cached across section entries for the session');
+assert.equal(module.getInstrumentation().listenerBalance, 0, 'Repeated entries must not leak root listeners');
+
+let releaseCompletion;
+const raceRoot = new FakeRoot();
+const raceModule = sandbox.SovremennikTasksV2.createModule({
+  dataLayer:{
+    listTasks:async () => [initialTask],
+    listAssignees:async () => [{ id:'employee-1', name:'Борис', role:'barista' }],
+    completeTask:() => new Promise(resolve => { releaseCompletion = resolve; })
+  },
+  getCurrentUser:() => user,
+  maintenanceEnabled:() => false,
+  confirm:() => true
+});
+await raceModule.activate(raceRoot);
+const staleCompletion = raceRoot.emit('click', action('complete', 'task-1'));
+raceModule.deactivate();
+await raceModule.activate(raceRoot);
+releaseCompletion({ id:'task-1', status:'done' });
+await staleCompletion;
+assert.equal(raceModule.getSnapshot().tasks.length, 1, 'A response from a previous entry must not mutate the new section instance');
+raceModule.deactivate();
+assert.equal(raceModule.getInstrumentation().listenerBalance, 0, 'An in-flight action must not leak listeners after navigation');
+
+const maintenanceCounters = { tasks:0, assignees:0 };
+const maintenanceRoot = new FakeRoot();
+const maintenanceModule = sandbox.SovremennikTasksV2.createModule({
+  dataLayer:{
+    listTasks:async () => { maintenanceCounters.tasks += 1; return []; },
+    listAssignees:async () => { maintenanceCounters.assignees += 1; return []; }
+  },
+  maintenanceEnabled:() => true
+});
+await maintenanceModule.activate(maintenanceRoot);
+assert.deepEqual(maintenanceCounters, { tasks:0, assignees:0 }, 'Maintenance mode must prevent all task data requests');
+assert.equal(maintenanceRoot.listeners.size, 0, 'Maintenance mode must not bind the module');
+
+assert.doesNotMatch(source, /MutationObserver|visualViewport/, 'Tasks v2 must not observe global DOM or viewport state');
+assert.doesNotMatch(source, /(?:document|window)\.addEventListener/, 'Tasks v2 must keep events on its root');
+assert.doesNotMatch(source, /renderApp\s*=|setTop\s*=|refreshTasks\s*=|openTaskModal\s*=/, 'Tasks v2 must not wrap legacy globals');
+assert.match(styles, /@media \(max-width: 920px\), \(pointer: coarse\)/, 'CSS must use the same mobile query as JS');
+assert.match(styles, /\.tasks-v2__form\{[\s\S]*?position:static;[\s\S]*?height:auto;[\s\S]*?overflow:visible;/, 'The form must stay in ordinary page flow');
+assert.doesNotMatch(styles, /100dvh|position:fixed/, 'The task form must not depend on a fixed dynamic viewport');
+
+assert.match(loader, /SOVREMENNIK_TASKS_MAINTENANCE = true;[\s\S]*tasks-v2\.js/, 'Maintenance must be enabled before tasks v2 loads');
+assert.match(loader, /tasks-v2\.js[\s\S]*interface-v3\.js/, 'Tasks v2 must load before its interface lifecycle adapter');
+assert.doesNotMatch(loader, /tasks-hotfix\.js|mobile-tasks-performance\.(?:js|css)/, 'Old task override layers must stay disabled');
+assert.match(loader, /mobile-active-panel\.js[\s\S]*tasks-maintenance\.js/, 'Maintenance must remain the last script');
+assert.match(interfaceV3, /tasksV2\(\)\?\.activate/, 'Interface v3 must activate the module only for its panel');
+assert.match(interfaceV3, /tasksV2\(\)\?\.deactivate/, 'Interface v3 must deactivate the module on navigation and full renders');
+assert.doesNotMatch(interfaceV3, /renderTasksList|renderTaskModal|loadTaskAssignees|refreshTasks/, 'Interface v3 must not use the legacy task workflow');
+assert.doesNotMatch(followup, /task-modal|data-task-|loadTasks|refreshTasks|openTaskModal|closeTaskModal/, 'Follow-up must not intercept task behavior');
+assert.doesNotMatch(followupStyles, /task-modal|task-form|task-details|#top-tasks/, 'Follow-up CSS must not style the old task implementation');
+assert.doesNotMatch(activePanel, /task-modal|task-form-panel-open/, 'The mobile panel layer must not own task-form cleanup');
+assert.doesNotMatch(activePanelStyles, /mobile-task|task-modal|#top-tasks/, 'The mobile panel CSS must not style old task layers');
+
+const wideCoarseDevice = { width:1024, pointer:'coarse' };
+const mobileQueryMatches = device => device.width <= 920 || device.pointer === 'coarse';
+assert.equal(mobileQueryMatches(wideCoarseDevice), true, 'A device wider than 920px with a coarse pointer must use the mobile form rules');
+
+console.log('Tasks v2 isolation, lifecycle and mocked CRUD checks passed.');
+console.log(`Instrumentation: ${JSON.stringify(module.getInstrumentation())}`);

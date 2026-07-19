@@ -40,6 +40,9 @@ jobs:
       - name: Check task workflow regressions
         run: node tools/task-workflow-check.mjs
 
+      - name: Check isolated tasks v2 module
+        run: node tools/tasks-v2-check.mjs
+
       - name: Check interface follow-up regressions
         run: node tools/interface-followup-check.mjs
 

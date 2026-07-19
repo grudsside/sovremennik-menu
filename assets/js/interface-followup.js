@@ -1,10 +1,9 @@
-/* Современник interface follow-up — mobile tasks, dashboard data and control refresh */
+/* Современник interface follow-up — dashboard data and control refresh */
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-interface-followup-1';
+  const VERSION = '2026-07-19-interface-followup-2';
   const REVISION_POLL_MS = 60000;
-  let taskModalPreviousFocus = null;
   let revisionLoadPromise = null;
   let controlRefreshPromise = null;
   let revisionChannel = null;
@@ -127,7 +126,7 @@
   }
 
   function activeTaskCount(){
-    try { return typeof activeTasks === 'function' ? activeTasks().length : 0; }
+    try { return window.SovremennikTasksV2?.getActiveCount?.() || 0; }
     catch(error){ return 0; }
   }
 
@@ -185,61 +184,6 @@
         metrics.dataset.followupSignature = signature;
         metrics.innerHTML = renderMetricsFollowup();
       }
-    }
-  }
-
-  function removeStaleTaskPortal(){
-    const modal = document.querySelector('body > #task-modal');
-    if(modal) modal.remove();
-    document.body.classList.remove('task-modal-open');
-  }
-
-  function taskModal(){
-    const modals = Array.from(document.querySelectorAll('#task-modal'));
-    if(modals.length > 1) modals.slice(0, -1).forEach(modal => modal.remove());
-    return modals.at(-1) || null;
-  }
-
-  function openTaskModalFollowup(){
-    const modal = taskModal();
-    if(!modal) return;
-    taskModalPreviousFocus = document.activeElement;
-    if(modal.parentElement !== document.body) document.body.appendChild(modal);
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('task-modal-open');
-
-    const select = modal.querySelector('select[name="assigneeLogin"]');
-    const current = appState();
-    if((!select || select.options.length <= 1) && !current?.taskAssignees && typeof loadTaskAssignees === 'function'){
-      loadTaskAssignees().catch(error => console.warn('Task assignee refresh failed', error));
-    }
-
-    requestAnimationFrame(() => modal.querySelector('input[name="title"]')?.focus({ preventScroll:true }));
-  }
-
-  function closeTaskModalFollowup(){
-    const modal = taskModal();
-    if(modal){
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-    }
-    document.body.classList.remove('task-modal-open');
-    const focusTarget = taskModalPreviousFocus;
-    taskModalPreviousFocus = null;
-    if(focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus({ preventScroll:true });
-  }
-
-  function enhanceTaskModal(){
-    const modal = taskModal();
-    if(!modal || modal.dataset.followupEnhanced === '1') return;
-    modal.dataset.followupEnhanced = '1';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    const title = modal.querySelector('.card-head h3');
-    if(title){
-      title.id ||= 'task-modal-title';
-      modal.setAttribute('aria-labelledby', title.id);
     }
   }
 
@@ -336,7 +280,6 @@
 
   function enhanceAll(){
     enhanceQueued = false;
-    enhanceTaskModal();
     enhanceControlSummary();
     refreshDashboardFollowup();
     installRealtimeRevisionSync();
@@ -351,17 +294,9 @@
     requestAnimationFrame(enhanceAll);
   }
 
-  if(typeof openTaskModal === 'function'){
-    window.openTaskModal = openTaskModal = openTaskModalFollowup;
-  }
-  if(typeof closeTaskModal === 'function'){
-    window.closeTaskModal = closeTaskModal = closeTaskModalFollowup;
-  }
-
   if(typeof renderApp === 'function'){
     const renderAppBeforeFollowup = renderApp;
     window.renderApp = renderApp = function(...args){
-      removeStaleTaskPortal();
       const result = renderAppBeforeFollowup.apply(this, args);
       queueMicrotask(queueEnhance);
       return result;
@@ -378,30 +313,11 @@
     };
   }
 
-  if(typeof refreshTasks === 'function'){
-    const refreshTasksBeforeFollowup = refreshTasks;
-    window.refreshTasks = refreshTasks = function(...args){
-      const result = refreshTasksBeforeFollowup.apply(this, args);
-      refreshDashboardFollowup();
-      return result;
-    };
-  }
-
   if(typeof refreshSchedule === 'function'){
     const refreshScheduleBeforeFollowup = refreshSchedule;
     window.refreshSchedule = refreshSchedule = function(...args){
       const result = refreshScheduleBeforeFollowup.apply(this, args);
       refreshDashboardFollowup();
-      return result;
-    };
-  }
-
-  if(typeof loadTasks === 'function'){
-    const loadTasksBeforeFollowup = loadTasks;
-    window.loadTasks = loadTasks = async function(...args){
-      const result = await loadTasksBeforeFollowup.apply(this, args);
-      refreshDashboardFollowup();
-      if(appState()?.activeTop === 'home') await ensureRevisionRecords(true);
       return result;
     };
   }
@@ -437,46 +353,6 @@
   }
 
   document.addEventListener('click', event => {
-    const closeButton = event.target.closest('[data-close-task-modal]');
-    if(closeButton){
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      closeTaskModalFollowup();
-      return;
-    }
-
-    if(event.target.matches('#task-modal')){
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      closeTaskModalFollowup();
-      return;
-    }
-
-    const taskSummary = event.target.closest('.task-details > summary');
-    if(taskSummary){
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const details = taskSummary.parentElement;
-      if(details) details.open = !details.open;
-      return;
-    }
-
-    const completeButton = event.target.closest('[data-task-complete]');
-    if(completeButton){
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if(typeof completeTask === 'function') completeTask(completeButton.dataset.taskComplete, completeButton);
-      return;
-    }
-
-    const deleteButton = event.target.closest('[data-task-delete]');
-    if(deleteButton){
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if(typeof deleteTaskV21 === 'function') deleteTaskV21(deleteButton.dataset.taskDelete, deleteButton);
-      return;
-    }
-
     const summaryRefresh = event.target.closest('[data-refresh-control-summary-all]');
     if(summaryRefresh){
       event.preventDefault();
@@ -492,10 +368,6 @@
       if(typeof setTop === 'function') setTop('schedule');
     }
   }, true);
-
-  document.addEventListener('keydown', event => {
-    if(event.key === 'Escape' && document.body.classList.contains('task-modal-open')) closeTaskModalFollowup();
-  });
 
   document.addEventListener('visibilitychange', () => {
     if(!document.hidden && appState()?.activeTop === 'home') ensureRevisionRecords(true);

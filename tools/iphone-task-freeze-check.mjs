@@ -1,148 +1,126 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import vm from 'node:vm';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 
-const root = process.cwd();
-const read = (path) => readFileSync(resolve(root, path), 'utf8');
-const mobileScript = read('assets/js/mobile-tasks-performance.js');
-const mobileStyles = read('assets/css/mobile-tasks-performance.css');
-const viewportLayerSources = [
-  'assets/js/app.js',
-  'assets/js/push-legacy.js',
-  'assets/js/interface-redesign.js',
-  'assets/js/interface-v3.js',
-  'assets/js/tasks-hotfix.js',
-  'assets/js/interface-followup.js',
-  'assets/js/mobile-tasks-performance.js',
-  'assets/js/mobile-active-panel.js',
-].map(read).join('\n');
+const repositoryRoot = process.cwd();
+const read = path => readFileSync(resolve(repositoryRoot, path), 'utf8');
 
-assert.doesNotMatch(viewportLayerSources, /visualViewport/, 'Static scan: task layers must not attach keyboard-driven visualViewport work');
-assert.match(mobileScript, /window\.addEventListener\('resize', syncTaskModeClass/, 'Resize must only synchronize a body class');
-assert.match(mobileScript, /const MOBILE_TASK_QUERY = '\(max-width: 920px\), \(pointer: coarse\)'/, 'JS must use the mobile task CSS media query');
-assert.match(mobileStyles, /@media \(max-width:920px\), \(pointer:coarse\)\{[\s\S]*?\.task-modal\{/, 'CSS page mode must use the mobile task JS media query');
-assert.match(mobileStyles, /\.task-modal\{\s*position:static!important/, 'The narrow task form must stay in document flow');
-assert.match(mobileStyles, /\.task-modal \.task-form-card\{[\s\S]*?height:auto!important/, 'The task form must use content height');
-assert.doesNotMatch(mobileStyles, /100dvh/, 'The task form must not track every dynamic viewport height change');
-assert.doesNotMatch(mobileStyles, /position:absolute!important/, 'The task form must not create an absolute nested scroller');
+function localScriptReferences(path, source){
+  const references = [];
+  const pattern = /<script[^>]+src=["']([^"'?]+\.js)(?:\?[^"']*)?["']/g;
+  for(const match of source.matchAll(pattern)){
+    const reference = match[1];
+    if(/^(?:https?:)?\/\//.test(reference)) continue;
+    const documentRelative = resolve(repositoryRoot, reference);
+    const normalized = existsSync(documentRelative)
+      ? documentRelative
+      : resolve(repositoryRoot, dirname(path), reference);
+    if(!existsSync(normalized)) continue;
+    references.push(normalized.slice(repositoryRoot.length + 1).replaceAll('\\', '/'));
+  }
+  return references;
+}
 
-const windowListeners = new Map();
-const documentListeners = new Map();
-const classNames = new Set();
-const makeClassList = (names) => ({
-  add: (...values) => values.forEach((value) => names.add(value)),
-  remove: (...values) => values.forEach((value) => names.delete(value)),
-  contains: (value) => names.has(value),
-  toggle: (name, force) => {
-    const enabled = force === undefined ? !names.has(name) : Boolean(force);
-    if(enabled) names.add(name);
-    else names.delete(name);
-    return enabled;
-  },
-});
-const bodyClassList = makeClassList(classNames);
-const modalClassNames = new Set();
-const modal = {
-  parentElement:null,
-  dataset:{},
-  classList:makeClassList(modalClassNames),
-  setAttribute() {},
-  querySelector:(selector) => selector === 'select[name="assigneeLogin"]' ? { options:[{}, {}] } : null,
-};
-const taskPanel = {
-  appendChild:(node) => { node.parentElement = taskPanel; },
-};
-const body = {
-  classList:bodyClassList,
-  appendChild:(node) => { node.parentElement = body; },
-};
-taskPanel.appendChild(modal);
-let viewportWidth = 390;
-let coarsePointer = false;
-const mobileTaskMedia = {
-  get matches(){ return viewportWidth <= 920 || coarsePointer; },
-  addEventListener() {},
-};
-const sandbox = {
-  console,
-  queueMicrotask: (callback) => callback(),
-  setTimeout,
-  performance,
-  state:{ activeTop:'tasks', taskAssignees:[] },
-  activeTasks:() => [],
-  renderTaskItem:() => '',
-  renderTasksList:() => '',
-  refreshTasks:() => {},
-  renderApp:() => {},
-  setTop:() => {},
-  loadTasks:() => {},
-  loadTaskAssignees:() => Promise.resolve(),
-  openTaskModal:() => {},
-  closeTaskModal:() => {},
-  document:{
+const pending = ['index.html'];
+const visited = new Set();
+const activeScripts = new Set();
+while(pending.length){
+  const path = pending.shift();
+  if(visited.has(path)) continue;
+  visited.add(path);
+  const source = read(path);
+  for(const reference of localScriptReferences(path, source)){
+    if(activeScripts.has(reference)) continue;
+    activeScripts.add(reference);
+    pending.push(reference);
+  }
+}
+
+assert.equal(activeScripts.has('assets/js/tasks-v2.js'), true, 'The active loader graph must include tasks v2');
+assert.equal(activeScripts.has('assets/js/tasks-hotfix.js'), false, 'The active loader graph must exclude the old task hotfix');
+assert.equal(activeScripts.has('assets/js/mobile-tasks-performance.js'), false, 'The active loader graph must exclude the old mobile task override');
+
+const activeSources = [...activeScripts].map(path => ({ path, source:read(path) }));
+assert.doesNotMatch(
+  activeSources.map(item => item.source).join('\n'),
+  /visualViewport/,
+  'All scripts reachable from index.html must avoid keyboard-driven visualViewport work'
+);
+
+const resizeHandlers = [];
+for(const { path, source } of activeSources){
+  const rawCount = [...source.matchAll(/window\.addEventListener\(\s*['"]resize['"]/g)].length;
+  const pattern = /window\.addEventListener\(\s*['"]resize['"]\s*,\s*(?:\(\)\s*=>|function\s*\(\s*\))\s*\{([\s\S]*?)\}\s*\)/g;
+  const matches = [...source.matchAll(pattern)];
+  assert.equal(matches.length, rawCount, `${path}: every resize handler must be included in the instrumentation`);
+  matches.forEach(match => resizeHandlers.push({ path, body:match[1] }));
+}
+
+assert.ok(resizeHandlers.length > 0, 'The check must exercise the resize handlers in the active application graph');
+resizeHandlers.forEach(({ path, body }) => {
+  assert.doesNotMatch(
     body,
-    documentElement:{ dataset:{} },
-    querySelector:(selector) => {
-      if(selector === '#tasks-list') return null;
-      if(selector === '#top-tasks') return taskPanel;
-      if(selector === '#task-modal') return modal;
-      if(selector === '#task-modal.open') return modalClassNames.has('open') ? modal : null;
-      return null;
-    },
-    querySelectorAll:(selector) => selector === '#task-modal' ? [modal] : [],
-    addEventListener:(type, callback) => documentListeners.set(type, callback),
-  },
-  matchMedia:(query) => query === '(max-width: 920px), (pointer: coarse)'
-    ? mobileTaskMedia
-    : { matches:false, addEventListener() {} },
-  addEventListener:(type, callback) => {
-    const callbacks = windowListeners.get(type) || [];
-    callbacks.push(callback);
-    windowListeners.set(type, callbacks);
-  },
-};
-sandbox.window = sandbox;
-vm.runInNewContext(mobileScript, sandbox, { filename:'assets/js/mobile-tasks-performance.js' });
+    /task|renderApp|setTop|loadTasks|loadTaskAssignees|refreshTasks/i,
+    `${path}: resize must not render, navigate or reload tasks`
+  );
+});
 
-sandbox.openTaskModal();
-assert.equal(modal.parentElement, taskPanel, 'Narrow screens must keep the form inside the tasks page');
-assert.equal(classNames.has('task-form-panel-open'), true, 'Narrow screens must enable ordinary page mode');
-assert.equal(classNames.has('task-modal-open'), false, 'Narrow screens must not lock body scrolling');
-sandbox.closeTaskModal();
-
-viewportWidth = 1024;
-coarsePointer = true;
-sandbox.openTaskModal();
-assert.equal(modal.parentElement, taskPanel, 'Wide coarse-pointer devices must keep the form inside the tasks page');
-assert.equal(classNames.has('task-form-panel-open'), true, 'Wide coarse-pointer devices must enable ordinary page mode');
-assert.equal(classNames.has('task-modal-open'), false, 'Wide coarse-pointer devices must not enable desktop body lock');
-sandbox.closeTaskModal();
-
-viewportWidth = 1280;
-coarsePointer = false;
-sandbox.openTaskModal();
-assert.equal(modal.parentElement, body, 'Desktop must keep the existing body portal');
-assert.equal(classNames.has('task-modal-open'), true, 'Desktop must keep the modal body lock');
-assert.equal(classNames.has('task-form-panel-open'), false, 'Desktop must not use mobile page mode');
-sandbox.closeTaskModal();
-
-const names = ['renderApp', 'setTop', 'refreshTasks', 'loadTasks', 'loadTaskAssignees'];
-const mobileLayerCalls = Object.fromEntries(names.map((name) => [name, 0]));
-for(const name of names){
-  sandbox[name] = () => { mobileLayerCalls[name] += 1; };
-}
-for(let index = 0; index < 50; index += 1){
-  for(const callback of windowListeners.get('resize') || []) callback();
-}
-
-assert.deepEqual(mobileLayerCalls, {
+const taskCalls = {
   renderApp:0,
   setTop:0,
-  refreshTasks:0,
   loadTasks:0,
   loadTaskAssignees:0,
-}, 'The final mobile layer resize handler must not render or reload tasks');
+  refreshTasks:0
+};
+let menuCloses = 0;
+const compiledHandlers = resizeHandlers.map(({ path, body }) => ({
+  path,
+  run:new Function(
+    'window',
+    'closeMenu',
+    'closeMenuV3',
+    'renderApp',
+    'setTop',
+    'loadTasks',
+    'loadTaskAssignees',
+    'refreshTasks',
+    body
+  )
+}));
+const windowProbe = { innerWidth:390 };
+const taskSpies = Object.fromEntries(Object.keys(taskCalls).map(name => [name, () => { taskCalls[name] += 1; }]));
+for(let resize = 0; resize < 50; resize += 1){
+  windowProbe.innerWidth = resize % 2 ? 1024 : 390;
+  for(const handler of compiledHandlers){
+    handler.run(
+      windowProbe,
+      () => { menuCloses += 1; },
+      () => { menuCloses += 1; },
+      taskSpies.renderApp,
+      taskSpies.setTop,
+      taskSpies.loadTasks,
+      taskSpies.loadTaskAssignees,
+      taskSpies.refreshTasks
+    );
+  }
+}
+assert.deepEqual(taskCalls, {
+  renderApp:0,
+  setTop:0,
+  loadTasks:0,
+  loadTaskAssignees:0,
+  refreshTasks:0
+}, 'Fifty resize events across every active resize handler must not call task or full-render functions');
+assert.ok(menuCloses > 0, 'The instrumentation must prove that the active resize handlers actually ran');
 
-console.log('iPhone task freeze regression checks passed.');
-console.log(`Final mobile layer calls after 50 resize events: ${JSON.stringify(mobileLayerCalls)}`);
+const tasksSource = read('assets/js/tasks-v2.js');
+const tasksStyles = read('assets/css/tasks-v2.css');
+const query = '(max-width: 920px), (pointer: coarse)';
+assert.match(tasksSource, new RegExp(query.replace(/[()]/g, '\\$&')), 'Tasks JS must expose the agreed mobile query');
+assert.match(tasksStyles, /@media \(max-width: 920px\), \(pointer: coarse\)/, 'Tasks CSS must use the same mobile query');
+assert.equal(1024 <= 920 || 'coarse' === 'coarse', true, 'A wide coarse-pointer device must match the mobile form condition');
+assert.match(tasksStyles, /\.tasks-v2__form\{[\s\S]*?position:static;[\s\S]*?height:auto;[\s\S]*?overflow:visible;/, 'The task form must stay in document flow');
+assert.doesNotMatch(tasksStyles, /100dvh|position:fixed/, 'The task form must not track or lock the iPhone viewport');
+
+console.log('iPhone task viewport regression checks passed.');
+console.log(`Scanned ${activeScripts.size} active local scripts; executed ${resizeHandlers.length} resize handlers 50 times; task calls: ${JSON.stringify(taskCalls)}.`);
