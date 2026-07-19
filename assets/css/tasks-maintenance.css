@@ -1,0 +1,42 @@
+/* Temporary maintenance notice for the tasks section */
+.tasks-maintenance-card{
+  box-sizing:border-box;
+  width:min(680px,100%);
+  margin:28px auto;
+  padding:34px 28px;
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:var(--surface);
+  box-shadow:var(--shadow-sm);
+  text-align:center;
+}
+.tasks-maintenance-icon{
+  display:grid;
+  place-items:center;
+  width:54px;
+  height:54px;
+  margin:0 auto 14px;
+  border-radius:16px;
+  background:#f0ede3;
+  color:var(--olive-dark);
+  font-size:26px;
+  line-height:1;
+}
+.tasks-maintenance-card h3{
+  margin:6px 0 10px;
+  color:var(--ink);
+  font-size:clamp(1.25rem,3vw,1.65rem);
+}
+.tasks-maintenance-card p:last-child{
+  max-width:520px;
+  margin:0 auto;
+  color:var(--muted);
+  line-height:1.6;
+}
+@media (max-width:640px){
+  .tasks-maintenance-card{
+    margin:18px 0;
+    padding:28px 20px;
+    border-radius:18px;
+  }
+}
