@@ -228,6 +228,7 @@ body.task-modal-open .top-panel{
     -webkit-backdrop-filter:none!important;
   }
   .notification-panel-actions{
+    display:grid!important;
     grid-template-columns:1fr!important;
     align-items:stretch!important;
     gap:10px!important;
