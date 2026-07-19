@@ -2,7 +2,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-mobile-tasks-performance-1';
+  const VERSION = '2026-07-19-mobile-tasks-performance-2';
   const MOBILE_PAGE_SIZE = 12;
   let visibleTaskCount = MOBILE_PAGE_SIZE;
   let assigneeLoadRequested = false;
@@ -24,6 +24,10 @@
 
   function isMobileTaskMode(){
     return window.matchMedia('(max-width: 920px), (pointer: coarse)').matches;
+  }
+
+  function usesMobileTaskPage(){
+    return window.matchMedia('(max-width: 920px)').matches;
   }
 
   function callOr(name, fallback, ...args){
@@ -99,11 +103,21 @@
   function openTaskModalOptimized(){
     const modal = findTaskModal();
     if(!modal) return;
-    if(modal.parentElement !== document.body) document.body.appendChild(modal);
+    const taskPanel = document.querySelector('#top-tasks');
+    if(usesMobileTaskPage() && taskPanel){
+      if(modal.parentElement !== taskPanel) taskPanel.appendChild(modal);
+      modal.dataset.mobileTaskPage = '1';
+      document.body.classList.remove('task-modal-open');
+      document.body.classList.add('task-form-panel-open');
+    } else {
+      if(modal.parentElement !== document.body) document.body.appendChild(modal);
+      delete modal.dataset.mobileTaskPage;
+      document.body.classList.remove('task-form-panel-open');
+      document.body.classList.add('task-modal-open');
+    }
     modal.dataset.mobilePerformanceModal = '1';
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('task-modal-open');
 
     const select = modal.querySelector('select[name="assigneeLogin"]');
     const current = appState();
@@ -120,13 +134,15 @@
     if(modal){
       modal.classList.remove('open');
       modal.setAttribute('aria-hidden', 'true');
+      delete modal.dataset.mobileTaskPage;
     }
-    document.body.classList.remove('task-modal-open');
+    document.body.classList.remove('task-modal-open', 'task-form-panel-open');
   }
 
   function syncTaskModeClass(){
     const active = isMobileTaskMode() && appState()?.activeTop === 'tasks';
     document.body.classList.toggle('mobile-tasks-active', Boolean(active));
+    if(!active) document.body.classList.remove('task-form-panel-open');
   }
 
   window.renderTaskItem = renderTaskItemOptimized;
@@ -191,10 +207,11 @@
   }, true);
 
   document.addEventListener('keydown', event => {
-    if(event.key === 'Escape' && document.body.classList.contains('task-modal-open')) closeTaskModalOptimized();
+    if(event.key === 'Escape' && document.querySelector('#task-modal.open')) closeTaskModalOptimized();
   });
 
   window.matchMedia('(max-width: 920px), (pointer: coarse)').addEventListener?.('change', () => {
+    if(document.querySelector('#task-modal.open')) closeTaskModalOptimized();
     visibleTaskCount = MOBILE_PAGE_SIZE;
     syncTaskModeClass();
     refreshTasksOptimized();
