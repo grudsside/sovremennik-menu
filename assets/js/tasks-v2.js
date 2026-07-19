@@ -2,8 +2,9 @@
 (function(global){
   'use strict';
 
-  const VERSION = '2026-07-19-tasks-v2-1';
+  const VERSION = '2026-07-19-tasks-v2-2';
   const MOBILE_QUERY = '(max-width: 920px), (pointer: coarse)';
+  const PAGE_SIZE = 24;
   const SUPPORTED_ROLES = new Set(['admin', 'manager', 'barista', 'waiter']);
 
   function escapeHtml(value){
@@ -100,6 +101,18 @@
 
   function canDeleteTask(user){
     return Boolean(user?.id) && normalizeRole(user?.role) === 'admin';
+  }
+
+  function requestedTopFromHash(value){
+    const raw = String(value || '').replace(/^.*#/, '').split('/')[0].trim().toLowerCase();
+    try { return decodeURIComponent(raw) === 'tasks' ? 'tasks' : ''; }
+    catch(error){ return raw === 'tasks' ? 'tasks' : ''; }
+  }
+
+  function applyInitialRoute(appState, locationLike = global.location){
+    if(!appState || requestedTopFromHash(locationLike?.hash || locationLike?.href) !== 'tasks') return false;
+    appState.activeTop = 'tasks';
+    return true;
   }
 
   function sortTasks(rows){
@@ -271,6 +284,7 @@
     let assigneePromise = null;
     let assignees = null;
     let tasks = [];
+    let visibleCount = PAGE_SIZE;
     let lastActiveCount = 0;
     let loading = false;
     let errorMessage = '';
@@ -290,7 +304,8 @@
       formCloses:0,
       creates:0,
       completions:0,
-      deletions:0
+      deletions:0,
+      showMore:0
     };
 
     function profileMap(){
@@ -370,7 +385,10 @@
       } else if(!tasks.length){
         content = '<div class="tasks-v2__state">Актуальных задач для вас пока нет.</div>';
       } else {
-        content = `<div class="tasks-v2__list">${tasks.map(task => renderTaskCard(task, user)).join('')}</div>`;
+        const visibleTasks = tasks.slice(0, visibleCount);
+        const remaining = Math.max(0, tasks.length - visibleTasks.length);
+        content = `<div class="tasks-v2__list">${visibleTasks.map(task => renderTaskCard(task, user)).join('')}</div>
+          ${remaining ? `<div class="tasks-v2__more"><button class="tasks-v2__button tasks-v2__button--secondary" type="button" data-tasks-v2-action="show-more">Показать ещё · ${Math.min(PAGE_SIZE, remaining)}</button><span>Показано ${visibleTasks.length} из ${tasks.length}</span></div>` : ''}`;
       }
 
       root.className = 'tasks-v2';
@@ -426,6 +444,7 @@
       }
       if(taskResult.status === 'fulfilled'){
         tasks = normalizeRows(taskResult.value);
+        visibleCount = PAGE_SIZE;
         lastActiveCount = tasks.length;
       } else {
         tasks = [];
@@ -447,6 +466,7 @@
         const rows = await requestTasks();
         if(active && currentGeneration === generation){
           tasks = normalizeRows(rows);
+          visibleCount = PAGE_SIZE;
           lastActiveCount = tasks.length;
           expandedTasks.clear();
         }
@@ -594,6 +614,10 @@
         render();
       } else if(name === 'refresh'){
         await refresh();
+      } else if(name === 'show-more'){
+        visibleCount = Math.min(tasks.length, visibleCount + PAGE_SIZE);
+        instrumentation.showMore += 1;
+        render();
       } else if(name === 'toggle' && taskId){
         if(expandedTasks.has(taskId)) expandedTasks.delete(taskId);
         else expandedTasks.add(taskId);
@@ -641,6 +665,7 @@
       errorMessage = '';
       assigneeError = '';
       tasks = [];
+      visibleCount = PAGE_SIZE;
       expandedTasks.clear();
       pendingActions.clear();
     }
@@ -669,6 +694,7 @@
       activate,
       deactivate,
       refresh,
+      ownsRoot:candidate => active && root === candidate,
       getActiveCount:() => active ? tasks.length : lastActiveCount,
       getInstrumentation:() => ({
         ...instrumentation,
@@ -678,6 +704,7 @@
       getSnapshot:() => ({
         active,
         formOpen,
+        visibleCount:Math.min(visibleCount, tasks.length),
         tasks:tasks.map(task => ({ ...task })),
         assignees:(assignees || []).map(profile => ({ ...profile }))
       })
@@ -693,6 +720,9 @@
   global.SovremennikTasksV2 = Object.freeze({
     VERSION,
     MOBILE_QUERY,
+    PAGE_SIZE,
+    requestedTopFromHash,
+    applyInitialRoute,
     normalizeTask,
     canCompleteTask,
     canDeleteTask,
@@ -701,6 +731,7 @@
     activate:root => instance().activate(root),
     deactivate:() => instance().deactivate(),
     refresh:() => instance().refresh(),
+    ownsRoot:root => instance().ownsRoot(root),
     getActiveCount:() => instance().getActiveCount(),
     getInstrumentation:() => instance().getInstrumentation()
   });

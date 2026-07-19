@@ -2,7 +2,8 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-v4';
+  const VERSION = '2026-07-19-v5';
+  let initialTaskRouteHandled = false;
   const navMeta = {
     home: ['Главная','Рабочая база и документы'],
     tasks: ['Мои задачи','Актуальные задачи и сроки'],
@@ -52,6 +53,18 @@
 
   function tasksV2(){
     return window.SovremennikTasksV2 || null;
+  }
+
+  function applyInitialTaskRoute(){
+    if(initialTaskRouteHandled || (typeof isAuthenticated === 'function' && !isAuthenticated())) return false;
+    initialTaskRouteHandled = true;
+    return tasksV2()?.applyInitialRoute?.(state, window.location) || false;
+  }
+
+  function activeTaskRoot(){
+    if(state?.activeTop !== 'tasks') return null;
+    const candidate = document.querySelector('[data-tasks-v2-root]');
+    return candidate && tasksV2()?.ownsRoot?.(candidate) ? candidate : null;
   }
 
   function localDateKey(date = new Date()){
@@ -300,6 +313,13 @@
 
   function renderAppV3(){
     if(!isAuthenticated()) return showLogin();
+    applyInitialTaskRoute();
+    if(activeTaskRoot()){
+      ensureTasksPermission();
+      updateContextV3('tasks');
+      queueMicrotask(enhanceShellV3);
+      return;
+    }
     tasksV2()?.deactivate?.();
     ensureTasksPermission();
     document.body.classList.remove('login-mode');

@@ -93,6 +93,14 @@
   display:grid;
   gap:12px;
 }
+.tasks-v2__more{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  color:var(--muted);
+  font-size:.84rem;
+}
 .tasks-v2__card{
   overflow:hidden;
   border:1px solid var(--line);

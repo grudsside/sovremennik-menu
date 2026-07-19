@@ -35,5 +35,6 @@ assert.match(activePanelStyles, /body\.mobile-active-panel-only #panels/, 'Mobil
 assert.match(activePanelStyles, /animation:none!important/, 'Mobile active panels must avoid expensive transition work');
 assert.match(workflow, /node tools\/interface-followup-check\.mjs/, 'CI must run the interface follow-up regression check');
 assert.match(workflow, /node tools\/tasks-v2-check\.mjs/, 'CI must run the isolated task-module check');
+assert.match(workflow, /node tools\/tasks-v2-integration-check\.mjs/, 'CI must run the push-route and external-render integration check');
 
 console.log('Interface follow-up regression checks passed.');

@@ -44,6 +44,7 @@ assert.equal(documentTouches, 0, 'Importing tasks v2 must not touch the DOM befo
 assert.equal(globalListeners.size, 0, 'Tasks v2 must not register global listeners');
 assert.equal(typeof sandbox.SovremennikTasksV2?.createModule, 'function', 'Tasks v2 must expose one namespaced module');
 assert.equal(sandbox.SovremennikTasksV2.MOBILE_QUERY, '(max-width: 920px), (pointer: coarse)', 'JS must expose the agreed mobile query');
+assert.equal(sandbox.SovremennikTasksV2.PAGE_SIZE, 24, 'The DOM batch must stay within the requested 20–30 cards');
 
 const permissionTask = { creatorId:'manager-1', assigneeId:'barista-1' };
 assert.equal(sandbox.SovremennikTasksV2.canCompleteTask(permissionTask, { id:'barista-1', role:'barista' }), true, 'An assignee must be able to complete a task');
@@ -250,6 +251,48 @@ await staleCompletion;
 assert.equal(raceModule.getSnapshot().tasks.length, 1, 'A response from a previous entry must not mutate the new section instance');
 raceModule.deactivate();
 assert.equal(raceModule.getInstrumentation().listenerBalance, 0, 'An in-flight action must not leak listeners after navigation');
+
+const stressRows = Array.from({ length:480 }, (_, index) => ({
+  id:`stress-${index}`,
+  title:`Задача ${index + 1}`,
+  description:`Описание ${index + 1}`,
+  creator_id:'admin-1',
+  assignee_id:'employee-1',
+  is_vip:index % 17 === 0,
+  status:'open',
+  created_at:new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString()
+}));
+let stressRequests = 0;
+const stressRoot = new FakeRoot();
+const stressModule = sandbox.SovremennikTasksV2.createModule({
+  dataLayer:{
+    listTasks:async () => { stressRequests += 1; return stressRows; },
+    listAssignees:async () => [{ id:'employee-1', name:'Борис', role:'barista' }]
+  },
+  getCurrentUser:() => user,
+  maintenanceEnabled:() => false,
+  confirm:() => true
+});
+const renderedCardCount = () => (stressRoot.innerHTML.match(/data-tasks-v2-card/g) || []).length;
+await stressModule.activate(stressRoot);
+assert.equal(stressModule.getSnapshot().tasks.length, 480, 'The stress fixture must contain 480 RLS-visible tasks');
+assert.equal(renderedCardCount(), 24, 'Only the first 24 task cards may enter the DOM');
+assert.match(stressRoot.innerHTML, /Показать ещё · 24/, 'A bounded list must expose the next batch action');
+const firstStressId = stressModule.getSnapshot().tasks[0].id;
+for(let cycle = 0; cycle < 100; cycle += 1){
+  await stressRoot.emit('click', action('toggle', firstStressId));
+  await stressRoot.emit('click', action('toggle', firstStressId));
+}
+await stressRoot.emit('click', action('toggle', firstStressId));
+assert.match(stressRoot.innerHTML, new RegExp(`data-task-id="${firstStressId}" aria-expanded="true"`), 'A card must still expand after 200 repeated toggles');
+assert.equal(renderedCardCount(), 24, 'Repeated expansion must not grow the DOM batch');
+await stressRoot.emit('click', action('show-more'));
+assert.equal(renderedCardCount(), 48, 'Show more must add exactly one 24-card batch');
+assert.equal(stressModule.getSnapshot().visibleCount, 48, 'Visible count must track the second batch');
+assert.equal(stressRequests, 1, 'Expansion and show-more actions must not repeat the task request');
+assert.equal(stressRoot.listeners.get('click')?.length, 1, 'Stress interactions must keep one root click listener');
+stressModule.deactivate();
+assert.equal(stressModule.getInstrumentation().listenerBalance, 0, 'The 480-task stress run must clean up its listeners');
 
 const maintenanceCounters = { tasks:0, assignees:0 };
 const maintenanceRoot = new FakeRoot();
