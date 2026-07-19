@@ -16,7 +16,7 @@ const [script, styles, mobileScript, mobileStyles, activePanelScript, activePane
 assert.match(loader, /interface-followup\.css\?v=20260719-1/, 'Follow-up CSS must load after the interface bundles');
 assert.match(loader, /interface-followup\.js\?v=20260719-1/, 'Follow-up JS must load after task hotfixes');
 assert.match(loader, /mobile-tasks-performance\.css\?v=20260719-2/, 'Mobile task performance CSS must be cache-busted');
-assert.match(loader, /mobile-tasks-performance\.js\?v=20260719-2/, 'Mobile task performance JS must load after interface follow-up');
+assert.match(loader, /mobile-tasks-performance\.js\?v=20260719-3/, 'Mobile task performance JS must load after interface follow-up');
 assert.match(loader, /mobile-active-panel\.css\?v=20260719-2/, 'Mobile active-panel CSS must be cache-busted');
 assert.match(loader, /mobile-active-panel\.js\?v=20260719-2/, 'Mobile active-panel JS must load last');
 assert.match(script, /function isOrdinaryShift\(/, 'Upcoming events must identify ordinary shifts');
@@ -32,6 +32,7 @@ assert.match(mobileScript, /MOBILE_PAGE_SIZE = 12/, 'Mobile task rendering must 
 assert.match(mobileScript, /mobile-task-summary/, 'Mobile tasks must use lightweight buttons instead of details elements');
 assert.match(mobileScript, /function openTaskModalOptimized\(/, 'The task modal must have a dedicated mobile-safe opener');
 assert.doesNotMatch(mobileScript, /\.focus\(/, 'The mobile task modal must not force iOS keyboard focus');
+assert.match(mobileScript, /const MOBILE_TASK_QUERY = '\(max-width: 920px\), \(pointer: coarse\)'/, 'Mobile task behavior must use the same breakpoint and pointer query as CSS');
 assert.match(mobileScript, /taskPanel\.appendChild\(modal\)/, 'The mobile task form must stay inside the ordinary tasks page');
 assert.match(mobileScript, /task-form-panel-open/, 'The mobile task form must use page mode instead of body scroll locking');
 assert.match(mobileStyles, /transform:none!important/, 'The iOS task modal must avoid transformed scrolling containers');

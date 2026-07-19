@@ -2,8 +2,10 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-mobile-tasks-performance-2';
+  const VERSION = '2026-07-19-mobile-tasks-performance-3';
   const MOBILE_PAGE_SIZE = 12;
+  const MOBILE_TASK_QUERY = '(max-width: 920px), (pointer: coarse)';
+  const mobileTaskMedia = window.matchMedia(MOBILE_TASK_QUERY);
   let visibleTaskCount = MOBILE_PAGE_SIZE;
   let assigneeLoadRequested = false;
 
@@ -23,11 +25,11 @@
   }
 
   function isMobileTaskMode(){
-    return window.matchMedia('(max-width: 920px), (pointer: coarse)').matches;
+    return mobileTaskMedia.matches;
   }
 
   function usesMobileTaskPage(){
-    return window.matchMedia('(max-width: 920px)').matches;
+    return mobileTaskMedia.matches;
   }
 
   function callOr(name, fallback, ...args){
@@ -210,7 +212,7 @@
     if(event.key === 'Escape' && document.querySelector('#task-modal.open')) closeTaskModalOptimized();
   });
 
-  window.matchMedia('(max-width: 920px), (pointer: coarse)').addEventListener?.('change', () => {
+  mobileTaskMedia.addEventListener?.('change', () => {
     if(document.querySelector('#task-modal.open')) closeTaskModalOptimized();
     visibleTaskCount = MOBILE_PAGE_SIZE;
     syncTaskModeClass();
