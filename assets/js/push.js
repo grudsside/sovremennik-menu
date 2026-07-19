@@ -4,6 +4,7 @@ document.write('<link rel="stylesheet" href="assets/css/interface-v3-hotfix.css?
 document.write('<link rel="stylesheet" href="assets/css/interface-followup.css?v=20260719-1">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-tasks-performance.css?v=20260719-2">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-active-panel.css?v=20260719-2">');
+document.write('<link rel="stylesheet" href="assets/css/tasks-maintenance.css?v=20260719-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-v3.js?v=20260718-3"><\/script>');
@@ -11,3 +12,4 @@ document.write('<script src="assets/js/tasks-hotfix.js?v=20260718-1"><\/script>'
 document.write('<script src="assets/js/interface-followup.js?v=20260719-1"><\/script>');
 document.write('<script src="assets/js/mobile-tasks-performance.js?v=20260719-3"><\/script>');
 document.write('<script src="assets/js/mobile-active-panel.js?v=20260719-2"><\/script>');
+document.write('<script src="assets/js/tasks-maintenance.js?v=20260719-1"><\/script>');
