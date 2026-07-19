@@ -43,6 +43,9 @@ jobs:
       - name: Check interface follow-up regressions
         run: node tools/interface-followup-check.mjs
 
+      - name: Check iPhone task form regressions
+        run: node tools/iphone-task-freeze-check.mjs
+
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 

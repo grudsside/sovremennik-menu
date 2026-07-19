@@ -139,13 +139,13 @@
     text-overflow:ellipsis;
   }
   .task-modal{
-    position:fixed!important;
-    inset:0!important;
-    z-index:1600!important;
+    position:static!important;
+    inset:auto!important;
+    z-index:auto!important;
     display:none!important;
     padding:0!important;
-    overflow:hidden!important;
-    background:rgba(17,30,25,.46)!important;
+    overflow:visible!important;
+    background:transparent!important;
     backdrop-filter:none!important;
     -webkit-backdrop-filter:none!important;
   }
@@ -153,27 +153,36 @@
     display:block!important;
   }
   .task-modal .task-form-card{
-    position:absolute!important;
-    inset:0!important;
+    position:static!important;
+    inset:auto!important;
     width:100%!important;
     max-width:none!important;
-    height:100vh!important;
-    height:100dvh!important;
+    height:auto!important;
     max-height:none!important;
     margin:0!important;
-    padding:calc(16px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom))!important;
-    overflow-x:hidden!important;
-    overflow-y:auto!important;
-    border:0!important;
-    border-radius:0!important;
+    padding:18px 16px!important;
+    overflow:visible!important;
+    border:1px solid var(--line)!important;
+    border-radius:20px!important;
     background:var(--surface)!important;
     box-shadow:none!important;
     transform:none!important;
     -webkit-transform:none!important;
     will-change:auto!important;
     touch-action:auto!important;
-    overscroll-behavior:contain;
+    overscroll-behavior:auto;
     -webkit-overflow-scrolling:auto!important;
+  }
+  body.task-form-panel-open{
+    overflow:visible!important;
+    overscroll-behavior:auto!important;
+  }
+  body.task-form-panel-open #top-tasks>.v3-section-heading,
+  body.task-form-panel-open #top-tasks>.v3-tasks-card{
+    display:none!important;
+  }
+  body.task-form-panel-open #top-tasks{
+    min-height:0!important;
   }
   .task-modal .task-form-card .card-head{
     position:static!important;

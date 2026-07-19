@@ -2,7 +2,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-mobile-active-panel-1';
+  const VERSION = '2026-07-19-mobile-active-panel-2';
   const QUERY = '(max-width: 920px), (pointer: coarse)';
   const media = window.matchMedia(QUERY);
   const renderAppBeforeLean = typeof renderApp === 'function' ? renderApp : null;
@@ -25,7 +25,7 @@
   function closeOrphanTaskModal(){
     if(activeTop() === 'tasks') return;
     document.querySelectorAll('body > #task-modal').forEach(modal => modal.remove());
-    document.body.classList.remove('task-modal-open');
+    document.body.classList.remove('task-modal-open', 'task-form-panel-open');
   }
 
   function pruneInactivePanels(){
