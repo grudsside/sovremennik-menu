@@ -151,13 +151,13 @@ serve(async (req) => {
   if (action === "set_role") {
     const userId = String(body.userId || "").trim();
     const login = String(body.login || "").trim().toLowerCase();
-    const requestedRole = String(body.role || "").trim();
-    const role = normalizeRole(requestedRole);
+    const requestedRole = String(body.role || "").trim().toLowerCase();
+    const role = requestedRole;
 
     if (!userId && !login) {
       return json({ ok: false, error: "userId or login is required" }, 400);
     }
-    if (!requestedRole || !editableRoles.has(role)) {
+    if (!editableRoles.has(role)) {
       return json({ ok: false, error: "Unsupported role" }, 400);
     }
 
