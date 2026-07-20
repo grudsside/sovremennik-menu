@@ -15,6 +15,7 @@ const activePanel = read('assets/js/mobile-active-panel.js');
 const activePanelStyles = read('assets/css/mobile-active-panel.css');
 
 let documentTouches = 0;
+let fullAppRenderCalls = 0;
 const documentProbe = new Proxy({}, {
   get(){
     documentTouches += 1;
@@ -31,6 +32,8 @@ const sandbox = {
   document:documentProbe,
   crypto:{ randomUUID:() => '00000000-0000-4000-8000-000000000099' },
   confirm:() => true,
+  requestAnimationFrame:callback => callback(),
+  renderApp:() => { fullAppRenderCalls += 1; },
   addEventListener:(type, listener) => {
     const listeners = globalListeners.get(type) || [];
     listeners.push(listener);
@@ -60,6 +63,15 @@ class FakeRoot {
     this.className = '';
     this.innerHTML = '';
     this.listeners = new Map();
+    this.formScrolls = [];
+    this.titleFocuses = [];
+    this.titleInput = {
+      focus:options => this.titleFocuses.push(options)
+    };
+    this.formElement = {
+      scrollIntoView:options => this.formScrolls.push(options),
+      querySelector:selector => selector === 'input[name="title"]' ? this.titleInput : null
+    };
   }
 
   addEventListener(type, listener){
@@ -75,6 +87,13 @@ class FakeRoot {
 
   contains(node){
     return Boolean(node);
+  }
+
+  querySelector(selector){
+    if(selector === '.tasks-v2__form' && this.innerHTML.includes('class="tasks-v2__form"')){
+      return this.formElement;
+    }
+    return null;
   }
 
   async emit(type, target){
@@ -162,9 +181,14 @@ assert.equal(counters.listAssignees, 1, 'The assignee list must be requested onc
 assert.equal(root.listeners.get('click')?.length, 1, 'The module must bind one root click listener');
 assert.equal(root.listeners.get('submit')?.length, 1, 'The module must bind one root submit listener');
 
+const listenerAddsBeforeFormCycles = module.getInstrumentation().listenerAdds;
+const fullAppRendersBeforeFormCycles = fullAppRenderCalls;
 for(let cycle = 0; cycle < 20; cycle += 1){
   await root.emit('click', action('form-open'));
   assert.equal(module.getSnapshot().formOpen, true, `Form cycle ${cycle + 1}: form must open`);
+  const formIndex = root.innerHTML.indexOf('class="tasks-v2__form"');
+  const listIndex = root.innerHTML.indexOf('class="tasks-v2__list"');
+  assert.ok(formIndex >= 0 && formIndex < listIndex, `Form cycle ${cycle + 1}: form markup must precede the task list`);
   await root.emit('click', action('form-close'));
   assert.equal(module.getSnapshot().formOpen, false, `Form cycle ${cycle + 1}: form must close`);
 }
@@ -172,6 +196,13 @@ assert.equal(counters.listTasks, 1, 'Twenty form cycles must not reload tasks');
 assert.equal(counters.listAssignees, 1, 'Twenty form cycles must not replace or reload assignees');
 assert.equal(root.listeners.get('click')?.length, 1, 'Twenty form cycles must not duplicate click listeners');
 assert.equal(root.listeners.get('submit')?.length, 1, 'Twenty form cycles must not duplicate submit listeners');
+assert.equal(module.getInstrumentation().listenerAdds, listenerAddsBeforeFormCycles, 'Opening the form must not add root listeners');
+assert.equal(fullAppRenderCalls, fullAppRendersBeforeFormCycles, 'Opening the form must not invoke the full-app render');
+assert.equal(root.formScrolls.length, 20, 'Each form opening must reveal the inline form once');
+assert.equal(root.formScrolls[0]?.block, 'start', 'The form must align its start edge when revealed');
+assert.equal(root.formScrolls[0]?.behavior, 'smooth', 'The form reveal must use smooth scrolling');
+assert.equal(root.titleFocuses.length, 20, 'Each form opening must focus the title field once');
+assert.equal(root.titleFocuses[0]?.preventScroll, true, 'Title focus must not cause a second page jump');
 
 await root.emit('click', action('form-open'));
 const textField = { value:'Подготовить зал' };
@@ -312,7 +343,8 @@ assert.doesNotMatch(source, /(?:document|window)\.addEventListener/, 'Tasks v2 m
 assert.doesNotMatch(source, /renderApp\s*=|setTop\s*=|refreshTasks\s*=|openTaskModal\s*=/, 'Tasks v2 must not wrap legacy globals');
 assert.match(styles, /@media \(max-width: 920px\), \(pointer: coarse\)/, 'CSS must use the same mobile query as JS');
 assert.match(styles, /\.tasks-v2__form\{[\s\S]*?position:static;[\s\S]*?height:auto;[\s\S]*?overflow:visible;/, 'The form must stay in ordinary page flow');
-assert.doesNotMatch(styles, /100dvh|position:fixed/, 'The task form must not depend on a fixed dynamic viewport');
+assert.doesNotMatch(styles, /100(?:d)?vh|position:\s*fixed|body[^\n{]*scroll[^\n{]*lock/i, 'The task form must not use viewport sizing, fixed positioning or body scroll lock');
+assert.doesNotMatch(source, /task-modal|openTaskModal|closeTaskModal/, 'Tasks v2 must not introduce a modal form workflow');
 
 assert.match(loader, /SOVREMENNIK_TASKS_MAINTENANCE = true;[\s\S]*tasks-v2\.js/, 'Maintenance must be enabled before tasks v2 loads');
 assert.match(loader, /tasks-v2\.js[\s\S]*interface-v3\.js/, 'Tasks v2 must load before its interface lifecycle adapter');

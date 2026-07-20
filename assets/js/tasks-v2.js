@@ -401,8 +401,8 @@
         </div>
         ${errorMessage && tasks.length ? `<p class="tasks-v2__notice tasks-v2__notice--error">${escapeHtml(errorMessage)}</p>` : ''}
         ${assigneeError ? `<p class="tasks-v2__notice tasks-v2__notice--error">Список исполнителей недоступен: ${escapeHtml(assigneeError)}</p>` : ''}
-        ${content}
-        ${formOpen ? renderForm(user) : ''}`;
+        ${formOpen ? renderForm(user) : ''}
+        ${content}`;
     }
 
     async function ensureAssignees(){
@@ -608,6 +608,13 @@
         formOpen = true;
         instrumentation.formOpens += 1;
         render();
+        global.requestAnimationFrame?.(() => {
+          if(!active || !root || !formOpen) return;
+          const form = root.querySelector?.('.tasks-v2__form');
+          if(!form) return;
+          form.scrollIntoView?.({ block:'start', behavior:'smooth' });
+          form.querySelector?.('input[name="title"]')?.focus?.({ preventScroll:true });
+        });
       } else if(name === 'form-close'){
         formOpen = false;
         instrumentation.formCloses += 1;
