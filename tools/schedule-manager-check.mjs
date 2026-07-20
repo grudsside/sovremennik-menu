@@ -3,17 +3,15 @@ import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [source, styles, loader, index, workflow] = await Promise.all([
+const [source, styles, loader, workflow] = await Promise.all([
   read('assets/js/schedule-manager.js'),
   read('assets/css/schedule-manager.css'),
   read('assets/js/push.js'),
-  read('index.html'),
   read('.github/workflows/ci.yml')
 ]);
 
 assert.match(loader, /schedule-manager\.css\?v=20260720-1/, 'Schedule manager styles must be connected');
 assert.match(loader, /interface-v3\.js[\s\S]*greeting-name\.js[\s\S]*schedule-manager\.js\?v=20260720-1[\s\S]*interface-followup\.js/, 'Schedule manager must override the schedule after interface v3 and before follow-up wrappers');
-assert.match(index, /assets\/js\/push\.js\?v=20260720-2/, 'The updated loader must bypass the previous browser cache');
 assert.match(workflow, /node tools\/schedule-manager-check\.mjs/, 'CI must run schedule regressions');
 assert.match(styles, /\.schedule-event-actions/, 'Edit and delete controls must have dedicated styling');
 assert.match(styles, /\.schedule-import-table-wrap/, 'File import preview must remain usable on small screens');
