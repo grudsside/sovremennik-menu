@@ -1,72 +1,119 @@
-# Одноразовая настройка живого Supabase Preview
+# Одноразовая настройка живого Preview на Supabase Free
 
-Эта настройка нужна один раз. После неё Pull Request сможет автоматически создавать отдельное тестовое окружение с собственной базой, Auth, Edge Functions и URL приложения.
+Для открытого тестирования используется отдельный бесплатный Supabase-проект:
+
+- Project Ref: `enkftanmqlwvjydliwue`
+- Project URL: `https://enkftanmqlwvjydliwue.supabase.co`
+
+Production-проект `tjibbzfdughhjenumzxo` этим workflow не изменяется.
+
+## Что делает автоматизация
+
+После настройки секретов GitHub Actions:
+
+1. проверяет, что Project Ref и URL указывают на отдельный preview-проект;
+2. останавливается до любых изменений, если ref совпадает с production;
+3. через Supabase Management API получает ключи только preview-проекта и маскирует их в журнале;
+4. собирает базовую схему приложения и текущие безопасные SQL-патчи в отдельный migration bundle;
+5. сначала выполняет `db push --dry-run`, затем применяет схему только к preview-проекту;
+6. разворачивает `admin-employees` и `admin-maintenance` только в preview;
+7. создаёт тестовые аккаунты `preview-admin`, `preview-manager`, `preview-barista`, `preview-waiter`;
+8. публикует frontend в отдельный Storage bucket `open-test-preview`;
+9. выполняет авторизованные smoke-тесты и восстанавливает изменённые тестовые данные;
+10. сохраняет URL и отчёт как GitHub Actions artifact.
 
 ## Что не используется
 
-- production-база не изменяется;
-- production Edge Functions не обновляются;
-- данные сотрудников из production не копируются;
-- GitHub Pages и ветка `main` не изменяются;
-- секретные значения не записываются в файлы репозитория и комментарии PR.
+- платный Supabase Branching;
+- production-база и production Edge Functions;
+- настоящие сотрудники и их данные;
+- production-администратор `grigory`;
+- GitHub Pages и ветка `main`;
+- ключи, пароли или токены в файлах репозитория.
 
 ## 1. Создать Supabase Access Token
 
 1. Открыть настройки аккаунта Supabase.
-2. Перейти в раздел **Access Tokens**.
-3. Создать новый токен, например с названием `sovremennik-github-preview`.
+2. Перейти в **Access Tokens**.
+3. Создать токен, например `sovremennik-github-preview`.
 4. Скопировать значение сразу после создания.
 
-Токен даёт GitHub Actions право создать изолированную Supabase Branch и развернуть в ней функции. Не публикуйте его в чате, PR, issue или файле.
+Токен не отправлять в чат, PR, issue или файлы.
 
-## 2. Добавить секреты в GitHub
+## 2. Подготовить два пароля
 
-Открыть репозиторий:
+### Пароль базы preview
 
-`Settings → Secrets and variables → Actions → New repository secret`
+Использовать Database Password, который был задан при создании проекта `sovremennik-preview`.
 
-Добавить два Repository Secret:
+Если пароль потерян, его нужно сбросить в настройках базы тестового проекта. Не использовать пароль production-базы.
+
+### Пароль тестовых сотрудников
+
+Создать отдельный случайный пароль длиной не менее 16 символов. Он будет использоваться только четырьмя тестовыми аккаунтами.
+
+Не использовать пароль администратора приложения, GitHub или Supabase.
+
+## 3. Добавить три Repository Secret в GitHub
+
+Открыть:
+
+`grudsside/sovremennik-menu → Settings → Secrets and variables → Actions → Secrets`
+
+Добавить:
 
 ### `SUPABASE_ACCESS_TOKEN`
 
-Значение: Supabase Access Token из предыдущего шага.
+Значение: Supabase Access Token из шага 1.
+
+### `PREVIEW_DB_PASSWORD`
+
+Значение: Database Password отдельного проекта `sovremennik-preview`.
 
 ### `PREVIEW_TEST_PASSWORD`
 
-Значение: отдельный сложный пароль только для четырёх тестовых аккаунтов preview.
+Значение: отдельный сложный пароль тестовых сотрудников.
 
-Требования:
+Все три значения добавлять именно в **Secrets**, не в **Variables**.
 
-- не использовать текущий production-пароль;
-- не использовать пароль администратора приложения;
-- рекомендуемая длина — не менее 16 символов;
-- пароль хранится только в GitHub Actions Secrets.
+Публичный ключ и service-role/secret key проекта копировать вручную не нужно: workflow получает их через Management API, маскирует и использует только в рамках запуска.
 
-## 3. Запустить workflow
+## 4. Перезапустить workflow
 
-После добавления обоих секретов:
+Пока workflow находится в Draft PR, удобнее перезапустить уже созданный запуск:
 
-1. Открыть вкладку **Actions** в репозитории.
+1. Открыть вкладку **Actions**.
 2. Выбрать **Supabase live preview**.
-3. Нажать **Run workflow**.
-4. Выбрать ветку `feat/open-test-admin-controls-20260720`.
-5. Поле имени Supabase-ветки оставить пустым.
-6. Нажать **Run workflow**.
+3. Открыть самый свежий запуск для PR #32.
+4. Нажать **Re-run jobs**.
+5. Выбрать **Re-run all jobs**.
+6. Не включать debug logging.
 
-Workflow автоматически:
+После добавления секретов задание `Deploy dedicated Free Supabase preview` не должно быть `skipped`.
 
-1. создаст или переиспользует data-less ветку `preview-pr-32`;
-2. проверит, что Project Ref не совпадает с production;
-3. применит миграцию технического режима;
-4. развернёт `admin-employees` и `admin-maintenance`;
-5. создаст тестовые аккаунты `preview-admin`, `preview-manager`, `preview-barista`, `preview-waiter`;
-6. опубликует приложение в отдельном публичном Storage bucket тестовой ветки;
-7. выполнит авторизованные smoke-тесты;
-8. восстановит изменённые тестовые роль и состояние раздела;
-9. сохранит URL и отчёт как GitHub Actions artifact.
+## 5. Проверить результат
 
-## Защита от production-деплоя
+Успешный запуск должен завершиться зелёной галочкой. В Summary появятся:
 
-Workflow завершится ошибкой до миграции и функций, если полученный preview Project Ref совпадёт с production Project Ref `tjibbzfdughhjenumzxo`.
+- URL отдельной тестовой версии;
+- Project Ref `enkftanmqlwvjydliwue`;
+- количество загруженных frontend-файлов;
+- количество авторизованных проверок;
+- подтверждение восстановления тестовых данных;
+- подтверждение, что production не изменён.
 
-Production-релиз остаётся отдельным действием и не выполняется этим workflow.
+Также появится artifact с именем примерно `live-preview-32`.
+
+## Если возникла ошибка
+
+Не запускать workflow многократно подряд. Сделать скриншот:
+
+- названия красного шага;
+- сообщения ошибки;
+- верхней части страницы запуска.
+
+Токен и пароли в чат не отправлять.
+
+## Production gate
+
+Даже после успешного preview PR остаётся Draft. Merge, GitHub Pages и production Supabase допускаются только после проверки тестового URL владельцем и отдельного явного подтверждения production-релиза.
