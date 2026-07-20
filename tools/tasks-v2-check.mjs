@@ -346,10 +346,10 @@ assert.match(styles, /\.tasks-v2__form\{[\s\S]*?position:static;[\s\S]*?height:a
 assert.doesNotMatch(styles, /100(?:d)?vh|position:\s*fixed|body[^\n{]*scroll[^\n{]*lock/i, 'The task form must not use viewport sizing, fixed positioning or body scroll lock');
 assert.doesNotMatch(source, /task-modal|openTaskModal|closeTaskModal/, 'Tasks v2 must not introduce a modal form workflow');
 
-assert.match(loader, /SOVREMENNIK_TASKS_MAINTENANCE = true;[\s\S]*tasks-v2\.js/, 'Maintenance must be enabled before tasks v2 loads');
+assert.doesNotMatch(loader, /SOVREMENNIK_TASKS_MAINTENANCE|tasks-maintenance\.(?:js|css)/, 'The production loader must not activate or load maintenance');
+assert.match(loader, /tasks-v2\.js\?v=20260720-1/, 'The production loader must include the released tasks v2 module');
 assert.match(loader, /tasks-v2\.js[\s\S]*interface-v3\.js/, 'Tasks v2 must load before its interface lifecycle adapter');
 assert.doesNotMatch(loader, /tasks-hotfix\.js|mobile-tasks-performance\.(?:js|css)/, 'Old task override layers must stay disabled');
-assert.match(loader, /mobile-active-panel\.js[\s\S]*tasks-maintenance\.js/, 'Maintenance must remain the last script');
 assert.match(interfaceV3, /tasksV2\(\)\?\.activate/, 'Interface v3 must activate the module only for its panel');
 assert.match(interfaceV3, /tasksV2\(\)\?\.deactivate/, 'Interface v3 must deactivate the module on navigation and full renders');
 assert.doesNotMatch(interfaceV3, /renderTasksList|renderTaskModal|loadTaskAssignees|refreshTasks/, 'Interface v3 must not use the legacy task workflow');

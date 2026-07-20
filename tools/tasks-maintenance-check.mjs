@@ -1,18 +1,62 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+const releaseId = '20260720-1';
 const loader = readFileSync('assets/js/push.js', 'utf8');
-const script = readFileSync('assets/js/tasks-maintenance.js', 'utf8');
-const styles = readFileSync('assets/css/tasks-maintenance.css', 'utf8');
+const index = readFileSync('index.html', 'utf8');
+const maintenanceScript = readFileSync('assets/js/tasks-maintenance.js', 'utf8');
+const maintenanceStyles = readFileSync('assets/css/tasks-maintenance.css', 'utf8');
 
-assert.match(loader, /tasks-maintenance\.css\?v=20260719-1/, 'Maintenance CSS must be cache-busted');
-assert.match(loader, /mobile-active-panel\.js[\s\S]*tasks-maintenance\.js\?v=20260719-1/, 'Maintenance script must load last');
-assert.match(script, /Ведутся технические работы и раздел временно недоступен, приносим свои извинения\./, 'The requested maintenance notice must be displayed');
-assert.match(script, /window\.loadTasks = disabledAsync/, 'Remote task loading must be disabled');
-assert.match(script, /window\.loadTaskAssignees = disabledAsync/, 'Assignee loading must be disabled');
-assert.match(script, /window\.renderTasksList = maintenanceMarkup/, 'Task list rendering must be replaced by the notice');
-assert.match(script, /window\.renderTaskModal = function\(\)\{ return ''; \}/, 'Task modal rendering must be disabled');
-assert.match(script, /document\.querySelectorAll\('#task-modal'\).*remove/, 'Existing task modals must be removed');
-assert.match(styles, /\.tasks-maintenance-card/, 'The maintenance notice must have dedicated styling');
+assert.doesNotMatch(
+  loader,
+  /SOVREMENNIK_TASKS_MAINTENANCE\s*=\s*true/,
+  'The production loader must not enable tasks maintenance'
+);
+assert.doesNotMatch(
+  loader,
+  /tasks-maintenance\.(?:js|css)/,
+  'The production loader must not load the maintenance interception layer'
+);
+assert.match(
+  loader,
+  new RegExp(`assets/js/tasks-v2\\.js\\?v=${releaseId}`),
+  'Tasks v2 must remain connected in the production loader'
+);
+assert.doesNotMatch(
+  loader,
+  /tasks-hotfix\.js|mobile-tasks-performance\.(?:js|css)/,
+  'Legacy task override layers must stay disconnected'
+);
 
-console.log('Tasks maintenance checks passed.');
+const releasedAssets = [
+  'assets/css/tasks-v2.css',
+  'assets/js/interface-redesign.js',
+  'assets/js/tasks-v2.js',
+  'assets/js/interface-v3.js',
+  'assets/js/interface-followup.js',
+  'assets/js/mobile-active-panel.js'
+];
+
+for(const asset of releasedAssets){
+  const escapedAsset = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.match(
+    loader,
+    new RegExp(`${escapedAsset}\\?v=${releaseId}`),
+    `${asset} must use the release cache-bust`
+  );
+}
+
+assert.match(
+  index,
+  new RegExp(`assets/js/push\\.js\\?v=${releaseId}`),
+  'index.html must cache-bust the production loader'
+);
+assert.ok(
+  loader.indexOf(`assets/js/tasks-v2.js?v=${releaseId}`) < loader.indexOf(`assets/js/interface-v3.js?v=${releaseId}`),
+  'Tasks v2 must load before its lifecycle adapter'
+);
+
+assert.match(maintenanceScript, /window\.loadTasks = disabledAsync/, 'Emergency maintenance JS must remain available in the repository');
+assert.match(maintenanceStyles, /\.tasks-maintenance-card/, 'Emergency maintenance CSS must remain available in the repository');
+
+console.log(`Tasks release mode checks passed for ${releaseId}.`);

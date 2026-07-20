@@ -12,9 +12,9 @@ const [script, styles, activePanelScript, activePanelStyles, loader, workflow] =
 ]);
 
 assert.match(loader, /interface-followup\.css\?v=20260719-1/, 'Follow-up CSS must load after the interface bundles');
-assert.match(loader, /interface-followup\.js\?v=20260719-2/, 'Updated follow-up JS must be cache-busted');
+assert.match(loader, /interface-followup\.js\?v=20260720-1/, 'Updated follow-up JS must use the release cache-bust');
 assert.match(loader, /mobile-active-panel\.css\?v=20260719-2/, 'Mobile active-panel CSS must remain loaded');
-assert.match(loader, /mobile-active-panel\.js\?v=20260719-3/, 'Updated mobile active-panel JS must be cache-busted');
+assert.match(loader, /mobile-active-panel\.js\?v=20260720-1/, 'Updated mobile active-panel JS must use the release cache-bust');
 assert.doesNotMatch(loader, /mobile-tasks-performance\.(?:js|css)/, 'The old mobile task override must stay disabled');
 assert.match(script, /function isOrdinaryShift\(/, 'Upcoming events must identify ordinary shifts');
 assert.match(script, /!isOrdinaryShift\(item\.event\)/, 'Upcoming events must exclude ordinary shifts');
