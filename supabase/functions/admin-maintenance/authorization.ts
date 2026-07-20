@@ -32,16 +32,36 @@ export function evaluateAdminAccess(
   lookupError?: unknown,
 ): AdminAccessDecision {
   if (lookupError) {
-    return { ok: false, status: 500, code: "profile_lookup_failed", error: "Profile lookup failed" };
+    return {
+      ok: false,
+      status: 500,
+      code: "profile_lookup_failed",
+      error: "Profile lookup failed",
+    };
   }
   if (!profile || typeof profile !== "object") {
-    return { ok: false, status: 403, code: "profile_not_found", error: "Profile not found" };
+    return {
+      ok: false,
+      status: 403,
+      code: "profile_not_found",
+      error: "Profile not found",
+    };
   }
   if (profile.is_active !== true) {
-    return { ok: false, status: 403, code: "account_disabled", error: "Account disabled" };
+    return {
+      ok: false,
+      status: 403,
+      code: "account_disabled",
+      error: "Account disabled",
+    };
   }
   if (normalizeRole(profile.role) !== "admin") {
-    return { ok: false, status: 403, code: "admin_role_required", error: "Admin role required" };
+    return {
+      ok: false,
+      status: 403,
+      code: "admin_role_required",
+      error: "Admin role required",
+    };
   }
   return { ok: true, role: "admin" };
 }
