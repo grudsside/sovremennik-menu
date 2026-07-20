@@ -95,7 +95,7 @@ jobs:
         run: deno fmt --check supabase/functions/_shared/ supabase/functions/push-send/ supabase/functions/notify-event/
 
       - name: Check admin Edge Function formatting
-        run: deno fmt --check supabase/functions/admin-employees/ supabase/functions/admin-maintenance/
+        run: deno fmt --check supabase/functions/admin-employees/index.ts supabase/functions/admin-maintenance/
 
       - name: Test active profile validation
         run: deno test supabase/functions/_shared/auth.test.ts
