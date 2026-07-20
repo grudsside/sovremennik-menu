@@ -15,6 +15,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+const editableRoles = new Set(["admin", "manager", "barista", "waiter"]);
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -116,6 +117,52 @@ serve(async (req) => {
     if (upsert.error) return json({ ok: false, error: upsert.error.message }, 400);
 
     return json({ ok: true, employee: { id: userId, name, login, role, is_active: true } });
+  }
+
+  if (action === "set_role") {
+    const userId = String(body.userId || "").trim();
+    const login = String(body.login || "").trim().toLowerCase();
+    const requestedRole = String(body.role || "").trim();
+    const role = normalizeRole(requestedRole);
+
+    if (!userId && !login) return json({ ok: false, error: "userId or login is required" }, 400);
+    if (!requestedRole || !editableRoles.has(role)) return json({ ok: false, error: "Unsupported role" }, 400);
+
+    let targetQuery = admin
+      .from("profiles")
+      .select("id, login, name, role, is_active");
+    targetQuery = userId ? targetQuery.eq("id", userId) : targetQuery.eq("login", login);
+    const { data: target, error: targetError } = await targetQuery.single();
+    if (targetError || !target?.id) return json({ ok: false, error: "Employee not found" }, 404);
+
+    if (target.id === authData.user.id && role !== "admin") {
+      return json({ ok: false, error: "Cannot change current admin role" }, 400);
+    }
+
+    if (
+      target.is_active === true
+      && normalizeRole(target.role) === "admin"
+      && role !== "admin"
+    ) {
+      const { count, error: countError } = await admin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "admin")
+        .eq("is_active", true);
+      if (countError) return json({ ok: false, error: countError.message }, 400);
+      if ((count || 0) <= 1) {
+        return json({ ok: false, error: "Cannot demote the last active admin" }, 400);
+      }
+    }
+
+    const updated = await admin
+      .from("profiles")
+      .update({ role })
+      .eq("id", target.id)
+      .select("id, login, name, role, is_active")
+      .single();
+    if (updated.error) return json({ ok: false, error: updated.error.message }, 400);
+    return json({ ok: true, employee: updated.data });
   }
 
   if (action === "set_active") {
