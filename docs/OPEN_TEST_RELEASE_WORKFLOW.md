@@ -1,17 +1,37 @@
 # Обновления во время открытого тестирования
 
-Production (`main` / GitHub Pages) больше не используется для первичной проверки изменений.
+Production (`main` / GitHub Pages / production Supabase) не используется для первичной проверки изменений.
 
 ## Обязательный порядок
 
 1. Создать отдельную ветку от актуального `main`.
 2. Внести изменение и добавить автоматическую регрессионную проверку.
-3. Открыть **draft pull request**.
+3. Открыть Draft Pull Request.
 4. Дождаться успешного GitHub Actions `Repository checks`.
-5. Проверить preview на компьютере и мобильном устройстве под нужными ролями.
-6. Зафиксировать результат проверки в PR.
-7. Перевести PR из draft только после подтверждения владельца.
-8. Объединить с `main` только после явного одобрения production-релиза.
+5. Развернуть изменение в отдельном preview-окружении.
+6. Проверить preview на компьютере и мобильном устройстве под нужными ролями.
+7. Зафиксировать результат проверки в PR.
+8. Перевести PR из Draft только после подтверждения владельца.
+9. Объединить с `main` и обновить production только после отдельного явного одобрения.
+
+## Preview-окружение на Supabase Free
+
+Для тестирования используется отдельный бесплатный проект:
+
+- Project Ref: `enkftanmqlwvjydliwue`
+- Project URL: `https://enkftanmqlwvjydliwue.supabase.co`
+
+Workflow жёстко проверяет, что preview Project Ref не совпадает с production Project Ref `tjibbzfdughhjenumzxo`.
+
+Preview-проект получает собственные:
+
+- базу данных и RLS-политики;
+- тестовые Auth-аккаунты;
+- Edge Functions;
+- Storage bucket для тестовой версии frontend;
+- URL приложения.
+
+Production-данные и production-пользователи не копируются.
 
 ## Для этого обновления
 
@@ -27,7 +47,7 @@ Production (`main` / GitHub Pages) больше не используется д
 - состояние хранится централизованно в Supabase;
 - закрытый раздел недоступен всем ролям, включая администратора;
 - управление остаётся в разделе «Сотрудники»;
-- «Главная» и «Сотрудники» не могут быть закрыты, чтобы администратор всегда мог вернуть доступ;
+- «Главная» и «Сотрудники» не могут быть закрыты;
 - клиенты только читают состояние, изменения выполняет защищённая Edge Function.
 
 ### Мобильный просмотр фото
@@ -36,14 +56,13 @@ Production (`main` / GitHub Pages) больше не используется д
 - закрытие работает кнопкой, касанием по фону и клавишей Escape;
 - обработчик делегирован и сохраняется после мобильной перерисовки карточек.
 
-## Развёртывание preview
+## Production gate
 
-Перед полноценным preview применить миграцию и развернуть Edge Function в тестовом Supabase-проекте или изолированном preview-окружении:
+Перед production обязательны:
 
-```powershell
-npx.cmd supabase db push --project-ref <PREVIEW_PROJECT_REF>
-npx.cmd supabase functions deploy admin-employees --project-ref <PREVIEW_PROJECT_REF> --use-api
-npx.cmd supabase functions deploy admin-maintenance --project-ref <PREVIEW_PROJECT_REF> --use-api
-```
-
-Production-проект не обновлять до завершения preview и явного подтверждения релиза.
+1. зелёный Repository checks;
+2. зелёный полный bootstrap схемы на чистой PostgreSQL;
+3. зелёный desktop/mobile browser-preview;
+4. зелёный авторизованный smoke-test на отдельном Supabase Free проекте;
+5. проверка preview URL владельцем;
+6. явное подтверждение production-релиза.
