@@ -17,12 +17,17 @@ const supabaseUrl = required('PREVIEW_SUPABASE_URL').replace(/\/+$/, '');
 const publicKey = required('PREVIEW_PUBLIC_KEY');
 const secretKey = required('PREVIEW_SECRET_KEY');
 const password = required('PREVIEW_TEST_PASSWORD');
-const branchRef = required('PREVIEW_BRANCH_PROJECT_REF');
-const parentRef = String(process.env.PARENT_SUPABASE_PROJECT_REF || '').trim();
+const previewProjectRef = required('PREVIEW_PROJECT_REF');
+const productionProjectRef = String(process.env.PRODUCTION_SUPABASE_PROJECT_REF || '').trim();
 
-assert(!parentRef || branchRef !== parentRef, 'Preview project ref must differ from production.');
-if (parentRef) {
-  assert(!supabaseUrl.includes(`${parentRef}.supabase.co`), 'Preview URL must not target production.');
+assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Preview project ref must differ from production.');
+assert.equal(
+  new URL(supabaseUrl).hostname,
+  `${previewProjectRef}.supabase.co`,
+  'Preview URL must match the dedicated preview project ref.',
+);
+if (productionProjectRef) {
+  assert(!supabaseUrl.includes(`${productionProjectRef}.supabase.co`), 'Preview URL must not target production.');
 }
 
 const admin = createClient(supabaseUrl, secretKey, {
@@ -101,6 +106,7 @@ const excludedTopLevel = new Set([
   '.git',
   '.github',
   '.vscode',
+  '.live-preview-workspace',
   'artifacts',
   'docs',
   'node_modules',
@@ -229,7 +235,7 @@ const site = await publishFrontend();
 
 const report = {
   ok: true,
-  branchRef,
+  projectRef: previewProjectRef,
   siteUrl: site.publicUrl,
   uploadedFiles: site.uploaded,
   users: seededUsers.map(({ login, role }) => ({ login, role })),
