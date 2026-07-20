@@ -117,3 +117,33 @@ jobs:
 
       - name: Type-check admin-maintenance
         run: deno check --node-modules-dir=auto supabase/functions/admin-maintenance/index.ts
+
+  preview-smoke:
+    name: Isolated browser preview
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Run desktop and mobile preview smoke tests
+        run: node tools/open-test-browser-smoke.mjs
+
+      - name: Upload preview screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-test-preview-screenshots
+          path: artifacts/open-test-preview
+          if-no-files-found: warn
+          retention-days: 14
