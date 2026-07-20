@@ -45,6 +45,9 @@ jobs:
           node tools/tasks-v2-check.mjs
           node tools/tasks-v2-integration-check.mjs
 
+      - name: Check interface observer loop
+        run: node tools/interface-observer-loop-check.mjs
+
       - name: Check interface follow-up regressions
         run: node tools/interface-followup-check.mjs
 
