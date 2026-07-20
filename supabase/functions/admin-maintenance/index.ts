@@ -5,7 +5,8 @@ import { evaluateAdminAccess } from "./authorization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -24,13 +25,20 @@ const allowedSections = new Set([
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json; charset=utf-8",
+    },
   });
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return json({ ok: false, error: "Method not allowed" }, 405);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -39,7 +47,10 @@ serve(async (req) => {
     return json({ ok: false, error: "Function configuration error" }, 500);
   }
 
-  const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  const jwt = (req.headers.get("Authorization") || "").replace(
+    /^Bearer\s+/i,
+    "",
+  ).trim();
   if (!jwt) return json({ ok: false, error: "Auth required" }, 401);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -50,8 +61,12 @@ serve(async (req) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: authData, error: authError } = await requester.auth.getUser(jwt);
-  if (authError || !authData.user) return json({ ok: false, error: "Invalid auth" }, 401);
+  const { data: authData, error: authError } = await requester.auth.getUser(
+    jwt,
+  );
+  if (authError || !authData.user) {
+    return json({ ok: false, error: "Invalid auth" }, 401);
+  }
 
   let { data: profile, error: profileError } = await requester
     .from("profiles")
@@ -70,15 +85,26 @@ serve(async (req) => {
     profileError = fallback.error;
     access = evaluateAdminAccess(profile, profileError);
   }
-  if (!access.ok) return json({ ok: false, error: access.error, code: access.code }, access.status);
+  if (!access.ok) {
+    return json(
+      { ok: false, error: access.error, code: access.code },
+      access.status,
+    );
+  }
 
   const body = await req.json().catch(() => ({}));
-  if (body.action !== "set") return json({ ok: false, error: "Unknown action" }, 400);
+  if (body.action !== "set") {
+    return json({ ok: false, error: "Unknown action" }, 400);
+  }
 
   const sectionId = String(body.sectionId || "").trim();
   const isClosed = body.isClosed;
-  if (!allowedSections.has(sectionId)) return json({ ok: false, error: "Unsupported section" }, 400);
-  if (typeof isClosed !== "boolean") return json({ ok: false, error: "isClosed must be boolean" }, 400);
+  if (!allowedSections.has(sectionId)) {
+    return json({ ok: false, error: "Unsupported section" }, 400);
+  }
+  if (typeof isClosed !== "boolean") {
+    return json({ ok: false, error: "isClosed must be boolean" }, 400);
+  }
 
   const result = await admin
     .from("section_maintenance")
@@ -91,6 +117,8 @@ serve(async (req) => {
     .select("section_id, is_closed, updated_at, updated_by")
     .single();
 
-  if (result.error) return json({ ok: false, error: result.error.message }, 400);
+  if (result.error) {
+    return json({ ok: false, error: result.error.message }, 400);
+  }
   return json({ ok: true, maintenance: result.data });
 });
