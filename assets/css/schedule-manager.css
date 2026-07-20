@@ -1,0 +1,168 @@
+/* Современник schedule manager — shift controls and spreadsheet import */
+.schedule-manager-toolbar{
+  align-items:center;
+  gap:14px;
+}
+.schedule-manager-actions,
+.schedule-form-actions,
+.schedule-import-actions,
+.schedule-event-actions{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.schedule-manager-actions{
+  justify-content:flex-end;
+}
+.schedule-day--today{
+  outline:2px solid color-mix(in srgb, var(--olive, #626b36) 55%, transparent);
+  outline-offset:-2px;
+}
+.schedule-event{
+  min-width:0;
+}
+.schedule-event-actions{
+  margin-top:7px;
+}
+.schedule-event-action{
+  min-height:30px;
+  padding:5px 9px;
+  border:1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius:9px;
+  background:rgba(255,255,255,.68);
+  color:inherit;
+  font:inherit;
+  font-size:.72rem;
+  font-weight:750;
+  cursor:pointer;
+}
+.schedule-event-action:hover{
+  background:#fff;
+}
+.schedule-event-action--danger{
+  color:#8d3932;
+}
+.schedule-manager-form,
+.schedule-import-wrap{
+  margin-top:18px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--surface-soft, #f6f4ed);
+}
+.schedule-manager-form>summary,
+.schedule-import-wrap>summary{
+  padding:15px 17px;
+  color:var(--ink);
+  font-weight:800;
+  cursor:pointer;
+}
+.schedule-manager-form .schedule-event-form,
+.schedule-import-panel{
+  padding:0 17px 17px;
+}
+.schedule-shift-fields[hidden]{
+  display:none!important;
+}
+.schedule-file-label{
+  display:grid;
+  gap:8px;
+  margin-top:14px;
+  color:var(--ink);
+  font-weight:750;
+}
+.schedule-file-label input{
+  width:100%;
+  padding:11px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+  color:var(--ink);
+  font:inherit;
+}
+.schedule-import-panel>p{
+  margin:0;
+  color:var(--muted);
+  line-height:1.55;
+}
+.schedule-import-preview{
+  margin-top:14px;
+}
+.schedule-import-preview>p{
+  margin:0 0 10px;
+}
+.schedule-import-table-wrap{
+  max-height:320px;
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+.schedule-import-table-wrap table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.82rem;
+}
+.schedule-import-table-wrap th,
+.schedule-import-table-wrap td{
+  padding:9px 10px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+  vertical-align:top;
+}
+.schedule-import-table-wrap th{
+  position:sticky;
+  top:0;
+  background:var(--surface-soft, #f6f4ed);
+  color:var(--ink);
+  z-index:1;
+}
+.schedule-import-actions{
+  margin-top:12px;
+}
+.schedule-import-status,
+.schedule-status{
+  min-height:1.4em;
+}
+
+@media (max-width:920px), (pointer:coarse){
+  .schedule-manager-toolbar{
+    align-items:stretch;
+  }
+  .schedule-manager-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+  }
+  .schedule-manager-actions .small-action{
+    width:100%;
+    min-height:46px;
+  }
+  .schedule-event-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .schedule-event-action{
+    min-height:36px;
+  }
+  .schedule-manager-form .schedule-event-form,
+  .schedule-import-panel{
+    padding:0 14px 14px;
+  }
+}
+
+@media (max-width:520px){
+  .schedule-manager-actions,
+  .schedule-form-actions,
+  .schedule-import-actions{
+    grid-template-columns:1fr;
+  }
+  .schedule-form-actions,
+  .schedule-import-actions{
+    display:grid;
+  }
+  .schedule-form-actions .small-action,
+  .schedule-import-actions .small-action{
+    width:100%;
+  }
+}
