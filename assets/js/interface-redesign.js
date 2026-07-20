@@ -4,6 +4,7 @@
 
   const tabMeta = {
     home: ['⌂','Главная','Рабочая база и документы'],
+    tasks: ['✓','Мои задачи','Актуальные задачи и сроки'],
     method: ['▤','Методичка','Меню, составы и рекомендации'],
     theory: ['◇','Теория','Обучающие материалы'],
     checklists: ['✓','Чек-листы','Рабочие задачи смены'],
@@ -14,8 +15,17 @@
     employees: ['♙','Сотрудники','Управление командой'],
     control: ['▥','Контроль','Отчёты и проверки']
   };
+  let enhanceQueued = false;
+
+  function v3OwnsShell(){
+    return Boolean(document.body?.dataset?.interfaceVersion);
+  }
 
   function ensureShell(){
+    // interface-v3 is the final owner of the shell. Keeping this legacy
+    // enhancer active after v3 starts creates competing DOM observers.
+    if(v3OwnsShell()) return;
+
     const hero = document.querySelector('.hero');
     const heroCopy = document.querySelector('.hero-copy');
     const tabs = document.querySelector('.main-tabs');
@@ -94,14 +104,15 @@
   }
 
   function updateContext(target){
+    if(v3OwnsShell()) return;
     const key = target || activeTarget();
     const meta = tabMeta[key] || ['•','Современник','Рабочая база и документы'];
     const copy = document.querySelector('.shell-context-copy');
     if(!copy) return;
     const title = copy.querySelector('strong');
     const subtitle = copy.querySelector('span');
-    if(title) title.textContent = meta[1];
-    if(subtitle) subtitle.textContent = meta[2];
+    if(title && title.textContent !== meta[1]) title.textContent = meta[1];
+    if(subtitle && subtitle.textContent !== meta[2]) subtitle.textContent = meta[2];
   }
 
   function closeMenu(){
@@ -113,15 +124,25 @@
     }
   }
 
+  function queueEnsureShell(){
+    if(enhanceQueued || v3OwnsShell()) return;
+    enhanceQueued = true;
+    window.requestAnimationFrame(function(){
+      enhanceQueued = false;
+      ensureShell();
+    });
+  }
+
   function observe(){
     const root = document.querySelector('.page') || document.body;
     const observer = new MutationObserver(function(mutations){
+      if(v3OwnsShell()) return;
       let needsEnhance = false;
       for(const mutation of mutations){
         if(mutation.type === 'childList') needsEnhance = true;
         if(mutation.type === 'attributes' && mutation.target.classList?.contains('main-tab')) updateContext();
       }
-      if(needsEnhance) window.requestAnimationFrame(ensureShell);
+      if(needsEnhance) queueEnsureShell();
     });
     observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
   }

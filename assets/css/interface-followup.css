@@ -1,34 +1,4 @@
-/* Современник interface follow-up — mobile tasks, dashboard and notification polish */
-body.task-modal-open{
-  overflow:hidden!important;
-  overscroll-behavior:none;
-}
-body.task-modal-open .hero{
-  backdrop-filter:none!important;
-  -webkit-backdrop-filter:none!important;
-}
-body.task-modal-open .top-panel{
-  animation:none!important;
-}
-.task-modal{
-  box-sizing:border-box;
-  isolation:isolate;
-}
-.task-modal,.task-modal *{
-  box-sizing:border-box;
-}
-.task-form-card{
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior:contain;
-  touch-action:pan-y;
-}
-.task-details>summary,
-.task-actions-row button,
-.task-form-actions button,
-[data-refresh-service],
-[data-open-task-modal]{
-  touch-action:manipulation;
-}
+/* Современник interface follow-up — dashboard and notification polish */
 
 .v3-upcoming-item{
   grid-template-columns:72px minmax(0,1fr)!important;
@@ -154,62 +124,6 @@ body.task-modal-open .top-panel{
 }
 .control-summary-refresh-status:empty{
   display:none;
-}
-
-@media (max-width:920px){
-  #top-tasks{
-    animation:none!important;
-  }
-  .task-modal{
-    align-items:flex-end!important;
-    justify-content:center!important;
-    padding:0!important;
-    background:rgba(17,30,25,.58)!important;
-    backdrop-filter:none!important;
-    -webkit-backdrop-filter:none!important;
-  }
-  .task-form-card{
-    width:100%!important;
-    max-width:none!important;
-    max-height:calc(100dvh - env(safe-area-inset-top) - 8px)!important;
-    margin:0!important;
-    padding:18px 16px calc(18px + env(safe-area-inset-bottom))!important;
-    border-radius:22px 22px 0 0!important;
-    overflow-x:hidden!important;
-    overflow-y:auto!important;
-    background:var(--surface)!important;
-    box-shadow:0 -18px 50px rgba(17,30,25,.24)!important;
-    animation:none!important;
-    transform:translateZ(0);
-    -webkit-transform:translateZ(0);
-  }
-  .task-form-card .card-head{
-    position:sticky;
-    top:-18px;
-    z-index:2;
-    margin:-2px -2px 12px;
-    padding:2px 2px 12px;
-    background:var(--surface);
-    border-bottom:1px solid var(--line);
-  }
-  .task-form-card input,
-  .task-form-card select,
-  .task-form-card textarea{
-    width:100%;
-    font-size:16px!important;
-  }
-  .task-form-card textarea{
-    min-height:108px;
-  }
-  .task-form-actions .small-action,
-  .task-actions-row .small-action,
-  #top-tasks [data-refresh-service],
-  #top-tasks [data-open-task-modal]{
-    min-height:48px;
-  }
-  .task-details>summary{
-    min-height:48px;
-  }
 }
 
 @media (max-width:640px){

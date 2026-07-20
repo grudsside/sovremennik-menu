@@ -2,7 +2,7 @@
 (function(){
   'use strict';
 
-  const VERSION = '2026-07-19-mobile-active-panel-2';
+  const VERSION = '2026-07-19-mobile-active-panel-3';
   const QUERY = '(max-width: 920px), (pointer: coarse)';
   const media = window.matchMedia(QUERY);
   const renderAppBeforeLean = typeof renderApp === 'function' ? renderApp : null;
@@ -20,12 +20,6 @@
 
   function activePanel(){
     return document.querySelector(`#top-${CSS.escape(activeTop())}`);
-  }
-
-  function closeOrphanTaskModal(){
-    if(activeTop() === 'tasks') return;
-    document.querySelectorAll('body > #task-modal').forEach(modal => modal.remove());
-    document.body.classList.remove('task-modal-open', 'task-form-panel-open');
   }
 
   function pruneInactivePanels(){
@@ -46,7 +40,6 @@
       current.classList.add('active');
       current.removeAttribute('aria-hidden');
     }
-    closeOrphanTaskModal();
     document.body.classList.add('mobile-active-panel-only');
     document.documentElement.dataset.mobilePanelCount = String(panels.querySelectorAll(':scope > .top-panel').length);
   }

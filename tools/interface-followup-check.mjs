@@ -2,11 +2,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [script, styles, mobileScript, mobileStyles, activePanelScript, activePanelStyles, loader, workflow] = await Promise.all([
+const [script, styles, activePanelScript, activePanelStyles, loader, workflow] = await Promise.all([
   read('assets/js/interface-followup.js'),
   read('assets/css/interface-followup.css'),
-  read('assets/js/mobile-tasks-performance.js'),
-  read('assets/css/mobile-tasks-performance.css'),
   read('assets/js/mobile-active-panel.js'),
   read('assets/css/mobile-active-panel.css'),
   read('assets/js/push.js'),
@@ -14,43 +12,29 @@ const [script, styles, mobileScript, mobileStyles, activePanelScript, activePane
 ]);
 
 assert.match(loader, /interface-followup\.css\?v=20260719-1/, 'Follow-up CSS must load after the interface bundles');
-assert.match(loader, /interface-followup\.js\?v=20260719-1/, 'Follow-up JS must load after task hotfixes');
-assert.match(loader, /mobile-tasks-performance\.css\?v=20260719-2/, 'Mobile task performance CSS must be cache-busted');
-assert.match(loader, /mobile-tasks-performance\.js\?v=20260719-3/, 'Mobile task performance JS must load after interface follow-up');
-assert.match(loader, /mobile-active-panel\.css\?v=20260719-2/, 'Mobile active-panel CSS must be cache-busted');
-assert.match(loader, /mobile-active-panel\.js\?v=20260719-2/, 'Mobile active-panel JS must load last');
+assert.match(loader, /interface-followup\.js\?v=20260720-1/, 'Updated follow-up JS must use the release cache-bust');
+assert.match(loader, /mobile-active-panel\.css\?v=20260719-2/, 'Mobile active-panel CSS must remain loaded');
+assert.match(loader, /mobile-active-panel\.js\?v=20260720-1/, 'Updated mobile active-panel JS must use the release cache-bust');
+assert.doesNotMatch(loader, /mobile-tasks-performance\.(?:js|css)/, 'The old mobile task override must stay disabled');
 assert.match(script, /function isOrdinaryShift\(/, 'Upcoming events must identify ordinary shifts');
 assert.match(script, /!isOrdinaryShift\(item\.event\)/, 'Upcoming events must exclude ordinary shifts');
 assert.match(script, /Заготовочный план/, 'The preparation-plan placeholder must replace checklists');
 assert.match(script, /revisionAvailableToday\(\)/, 'The home dashboard must show daily revision availability');
 assert.match(script, /table:'coffee_revisions'/, 'Revision availability must synchronize across employees');
-assert.match(script, /document\.body\.appendChild\(modal\)/, 'The desktop task modal must remain portaled outside animated panels');
+assert.match(script, /SovremennikTasksV2\?\.getActiveCount/, 'Home metrics must read the isolated module count');
+assert.doesNotMatch(script, /task-modal|data-task-|loadTasks|refreshTasks|openTaskModal|closeTaskModal/, 'Follow-up must not intercept task actions');
 assert.match(script, /data-refresh-control-summary-all/, 'Control summary must have one global refresh action');
 assert.match(styles, /\.v3-date-day/, 'Upcoming date day must have centered dedicated styling');
 assert.match(styles, /\.notification-mark-all:not\(:disabled\)/, 'The active mark-all button must be visually prominent');
-assert.match(mobileScript, /MOBILE_PAGE_SIZE = 12/, 'Mobile task rendering must be paginated to limit DOM work');
-assert.match(mobileScript, /mobile-task-summary/, 'Mobile tasks must use lightweight buttons instead of details elements');
-assert.match(mobileScript, /function openTaskModalOptimized\(/, 'The task modal must have a dedicated mobile-safe opener');
-assert.doesNotMatch(mobileScript, /\.focus\(/, 'The mobile task modal must not force iOS keyboard focus');
-assert.match(mobileScript, /const MOBILE_TASK_QUERY = '\(max-width: 920px\), \(pointer: coarse\)'/, 'Mobile task behavior must use the same breakpoint and pointer query as CSS');
-assert.match(mobileScript, /taskPanel\.appendChild\(modal\)/, 'The mobile task form must stay inside the ordinary tasks page');
-assert.match(mobileScript, /task-form-panel-open/, 'The mobile task form must use page mode instead of body scroll locking');
-assert.match(mobileStyles, /transform:none!important/, 'The iOS task modal must avoid transformed scrolling containers');
-assert.match(mobileStyles, /\.task-modal\{\s*position:static!important/, 'The mobile task form must not use a fixed viewport container');
-assert.match(mobileStyles, /height:auto!important/, 'The mobile task form height must follow its content');
-assert.doesNotMatch(mobileStyles, /100dvh/, 'The mobile task form must not resize with the iOS dynamic viewport');
-assert.doesNotMatch(mobileStyles, /position:absolute!important/, 'The mobile task form must not create a nested absolute scroller');
-assert.match(mobileStyles, /body\.task-form-panel-open\{\s*overflow:visible!important/, 'The mobile task page must keep document scrolling enabled');
-assert.match(mobileStyles, /body\.mobile-tasks-active \.hero/, 'Expensive header blur must be disabled in the mobile task section');
-assert.match(mobileStyles, /border-left-width:1px!important/, 'Notification cards must keep a complete permanent border');
-assert.match(mobileStyles, /translateY\(-2px\)/, 'Notification hover must animate without creating the missing border');
 assert.match(activePanelScript, /function pruneInactivePanels\(/, 'Mobile mode must remove inactive panels from the DOM');
 assert.match(activePanelScript, /node\.id !== keepId\) node\.remove\(\)/, 'Inactive mobile panels must be physically removed');
 assert.match(activePanelScript, /function renderAppLean\(/, 'Full renders must be followed by mobile DOM pruning');
 assert.match(activePanelScript, /if\(!expected\) renderAppLean\(\)/, 'Navigation must recreate only the requested missing panel');
-assert.match(activePanelScript, /classList\.remove\('task-modal-open', 'task-form-panel-open'\)/, 'Navigation must clear both desktop and mobile task-form modes');
+assert.doesNotMatch(activePanelScript, /task-modal|task-form-panel-open/, 'The mobile panel layer must not contain task-specific cleanup');
 assert.match(activePanelStyles, /body\.mobile-active-panel-only #panels/, 'Mobile active-panel layout containment must be enabled');
 assert.match(activePanelStyles, /animation:none!important/, 'Mobile active panels must avoid expensive transition work');
 assert.match(workflow, /node tools\/interface-followup-check\.mjs/, 'CI must run the interface follow-up regression check');
+assert.match(workflow, /node tools\/tasks-v2-check\.mjs/, 'CI must run the isolated task-module check');
+assert.match(workflow, /node tools\/tasks-v2-integration-check\.mjs/, 'CI must run the push-route and external-render integration check');
 
 console.log('Interface follow-up regression checks passed.');

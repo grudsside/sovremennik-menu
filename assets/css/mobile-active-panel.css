@@ -11,26 +11,4 @@
   body.mobile-active-panel-only #panels>.top-panel:not(.active){
     display:none!important;
   }
-  body.mobile-tasks-active .hero,
-  body.task-modal-open .hero{
-    backdrop-filter:none!important;
-    -webkit-backdrop-filter:none!important;
-    box-shadow:none!important;
-  }
-  body.mobile-tasks-active #top-tasks,
-  body.mobile-tasks-active .v3-tasks-card,
-  body.mobile-tasks-active .mobile-task-card,
-  body.mobile-tasks-active .mobile-task-body,
-  body.task-modal-open .task-modal,
-  body.task-modal-open .task-form-card{
-    animation:none!important;
-    transition:none!important;
-    filter:none!important;
-    backdrop-filter:none!important;
-    -webkit-backdrop-filter:none!important;
-    will-change:auto!important;
-  }
-  body.mobile-tasks-active .mobile-task-card{
-    contain:content;
-  }
 }
