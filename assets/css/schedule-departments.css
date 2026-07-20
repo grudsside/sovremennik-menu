@@ -1,0 +1,211 @@
+/* Современник schedule departments — bar/hall tabs and phone agenda */
+#top-schedule .schedule-department-tabs{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  max-width:420px;
+  margin:0 0 18px;
+  padding:5px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--surface-soft,#f6f4ed);
+}
+#top-schedule .schedule-department-tab{
+  min-height:44px;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:var(--muted);
+  font:inherit;
+  font-weight:800;
+  cursor:pointer;
+}
+#top-schedule .schedule-department-tab.active{
+  background:var(--olive,#626b36);
+  color:#fff;
+  box-shadow:0 8px 22px rgba(55,65,32,.18);
+}
+#top-schedule .schedule-mobile-agenda{
+  display:none;
+}
+#top-schedule .schedule-event--embedded{
+  padding:7px 8px;
+}
+#top-schedule .schedule-event--embedded strong{
+  font-size:.78rem;
+  line-height:1.2;
+}
+#top-schedule .schedule-event--embedded span{
+  font-size:.7rem;
+}
+#top-schedule .schedule-event--vacation{
+  background:#f0d9d4;
+  border-color:#dba69c;
+}
+#top-schedule .schedule-hall-source-note{
+  margin:16px 0 0;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--surface-soft,#f6f4ed);
+  color:var(--muted);
+  line-height:1.45;
+}
+
+@media (max-width:760px){
+  #top-schedule{
+    overflow-x:hidden;
+  }
+  #top-schedule .section-heading{
+    margin-bottom:12px;
+  }
+  #top-schedule .schedule-department-tabs{
+    position:sticky;
+    top:calc(env(safe-area-inset-top,0px) + 8px);
+    z-index:8;
+    max-width:none;
+    margin:0 0 12px;
+    background:color-mix(in srgb,var(--surface-soft,#f6f4ed) 94%,transparent);
+    backdrop-filter:blur(10px);
+  }
+  #top-schedule .schedule-card{
+    padding:12px;
+    border-radius:18px;
+  }
+  #top-schedule .schedule-manager-toolbar{
+    display:grid;
+    gap:10px;
+    margin-bottom:12px;
+  }
+  #top-schedule .schedule-month-nav{
+    display:grid;
+    grid-template-columns:46px minmax(0,1fr) 46px;
+    align-items:center;
+    width:100%;
+    gap:8px;
+  }
+  #top-schedule .schedule-month-nav .small-action{
+    width:46px;
+    min-width:46px;
+    min-height:44px;
+    padding:8px;
+  }
+  #top-schedule .schedule-month-title{
+    min-width:0;
+    text-align:center;
+    font-size:1.04rem;
+    text-transform:capitalize;
+  }
+  #top-schedule .schedule-manager-actions{
+    grid-template-columns:1fr 1fr;
+  }
+  #top-schedule .schedule-desktop-grid{
+    display:none;
+  }
+  #top-schedule .schedule-mobile-agenda{
+    display:grid;
+    gap:12px;
+  }
+  #top-schedule .schedule-mobile-day{
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:16px;
+    background:var(--surface,#fff);
+    box-shadow:0 8px 22px rgba(36,48,31,.06);
+  }
+  #top-schedule .schedule-mobile-day>header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    background:var(--surface-soft,#f6f4ed);
+  }
+  #top-schedule .schedule-mobile-day>header span{
+    color:var(--olive,#626b36);
+    font-size:.78rem;
+    font-weight:850;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+  }
+  #top-schedule .schedule-mobile-day>header strong{
+    color:var(--ink);
+    font-size:1rem;
+  }
+  #top-schedule .schedule-mobile-day--today{
+    border-color:color-mix(in srgb,var(--olive,#626b36) 65%,var(--line));
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--olive,#626b36) 18%,transparent);
+  }
+  #top-schedule .schedule-mobile-events{
+    display:grid;
+    gap:8px;
+    padding:10px;
+  }
+  #top-schedule .schedule-mobile-event{
+    display:grid;
+    gap:4px;
+    padding:11px 12px;
+    border:1px solid color-mix(in srgb,var(--olive,#626b36) 22%,var(--line));
+    border-radius:13px;
+    background:color-mix(in srgb,var(--surface-soft,#f6f4ed) 55%,#fff);
+  }
+  #top-schedule .schedule-mobile-event strong{
+    color:var(--ink);
+    font-size:.96rem;
+    line-height:1.25;
+  }
+  #top-schedule .schedule-mobile-event span{
+    color:var(--muted);
+    font-size:.83rem;
+    line-height:1.35;
+  }
+  #top-schedule .schedule-mobile-event--vacation{
+    border-color:#dba69c;
+    background:#f7e8e4;
+  }
+  #top-schedule .schedule-mobile-empty{
+    padding:24px 16px;
+    border:1px dashed var(--line);
+    border-radius:16px;
+    color:var(--muted);
+    text-align:center;
+  }
+  #top-schedule .schedule-manager-form,
+  #top-schedule .schedule-import-wrap{
+    margin-top:12px;
+    border-radius:14px;
+  }
+  #top-schedule .schedule-manager-form>summary,
+  #top-schedule .schedule-import-wrap>summary{
+    min-height:48px;
+    padding:14px;
+  }
+  #top-schedule .schedule-event-form .form-grid{
+    grid-template-columns:1fr;
+  }
+  #top-schedule .schedule-file-label input{
+    min-height:48px;
+  }
+}
+
+@media (max-width:430px){
+  #top-schedule .schedule-card{
+    margin-inline:-2px;
+    padding:10px;
+  }
+  #top-schedule .schedule-manager-actions{
+    grid-template-columns:1fr;
+  }
+  #top-schedule .schedule-department-tab{
+    min-height:42px;
+  }
+  #top-schedule .schedule-mobile-day>header{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:2px;
+  }
+  #top-schedule .schedule-mobile-event{
+    padding:10px;
+  }
+}

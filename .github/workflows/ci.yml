@@ -54,6 +54,9 @@ jobs:
       - name: Check schedule manager regressions
         run: node tools/schedule-manager-check.mjs
 
+      - name: Check schedule department regressions
+        run: node tools/schedule-departments-check.mjs
+
       - name: Check iPhone task form regressions
         run: node tools/iphone-task-freeze-check.mjs
 
