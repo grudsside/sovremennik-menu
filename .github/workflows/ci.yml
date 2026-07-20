@@ -66,8 +66,11 @@ jobs:
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 
-      - name: Check employee activation controls
+      - name: Check employee activation and role controls
         run: node tools/employee-status-check.mjs
+
+      - name: Check open-test admin controls
+        run: node tools/open-test-admin-controls-check.mjs
 
       - name: Check notification history
         run: |
@@ -91,6 +94,9 @@ jobs:
       - name: Check authenticated Edge Function formatting
         run: deno fmt --check supabase/functions/_shared/ supabase/functions/push-send/ supabase/functions/notify-event/
 
+      - name: Check admin Edge Function formatting
+        run: deno fmt --check supabase/functions/admin-employees/ supabase/functions/admin-maintenance/
+
       - name: Test active profile validation
         run: deno test supabase/functions/_shared/auth.test.ts
 
@@ -108,3 +114,6 @@ jobs:
 
       - name: Type-check admin-employees
         run: deno check --node-modules-dir=auto supabase/functions/admin-employees/index.ts
+
+      - name: Type-check admin-maintenance
+        run: deno check --node-modules-dir=auto supabase/functions/admin-maintenance/index.ts
