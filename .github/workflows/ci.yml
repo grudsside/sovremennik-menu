@@ -118,6 +118,37 @@ jobs:
       - name: Type-check admin-maintenance
         run: deno check --node-modules-dir=auto supabase/functions/admin-maintenance/index.ts
 
+  database-preview:
+    name: Isolated database preview
+    needs: checks
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: preview
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply and test maintenance migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/section-maintenance-db-smoke.sql
+
   preview-smoke:
     name: Isolated browser preview
     needs: checks
