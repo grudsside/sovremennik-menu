@@ -158,10 +158,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Apply and test maintenance migration
+      - name: Apply and test full Free preview schema
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/section-maintenance-db-smoke.sql
+        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
 
   preview-smoke:
     name: Isolated browser preview
