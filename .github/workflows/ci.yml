@@ -66,17 +66,6 @@ jobs:
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 
-      - name: Inventory Supabase SQL bootstrap
-        run: node tools/live-preview-sql-inventory.mjs
-
-      - name: Upload SQL inventory
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-preview-sql-inventory
-          path: artifacts/live-preview/sql-inventory.txt
-          if-no-files-found: error
-          retention-days: 2
-
       - name: Check employee activation and role controls
         run: node tools/employee-status-check.mjs
 
