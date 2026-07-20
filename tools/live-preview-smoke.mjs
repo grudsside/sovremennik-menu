@@ -15,9 +15,15 @@ const supabaseUrl = required('PREVIEW_SUPABASE_URL').replace(/\/+$/, '');
 const publicKey = required('PREVIEW_PUBLIC_KEY');
 const secretKey = required('PREVIEW_SECRET_KEY');
 const testPassword = required('PREVIEW_TEST_PASSWORD');
-const branchRef = required('PREVIEW_BRANCH_PROJECT_REF');
-const parentRef = String(process.env.PARENT_SUPABASE_PROJECT_REF || '').trim();
-assert(!parentRef || branchRef !== parentRef, 'Smoke test must not target production.');
+const previewProjectRef = required('PREVIEW_PROJECT_REF');
+const productionProjectRef = String(process.env.PRODUCTION_SUPABASE_PROJECT_REF || '').trim();
+
+assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Smoke test must not target production.');
+assert.equal(
+  new URL(supabaseUrl).hostname,
+  `${previewProjectRef}.supabase.co`,
+  'Smoke test URL must match the dedicated preview project.',
+);
 
 const service = createClient(supabaseUrl, secretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -45,6 +51,8 @@ async function invoke(instance, name, body, shouldSucceed = true) {
 
 await fs.mkdir(outputDir, { recursive: true });
 const deployment = JSON.parse(await fs.readFile(path.join(outputDir, 'deployment.json'), 'utf8'));
+assert.equal(deployment.projectRef, previewProjectRef, 'Deployment report belongs to another Supabase project.');
+
 const siteResponse = await fetch(deployment.siteUrl, { redirect: 'follow' });
 assert.equal(siteResponse.status, 200, 'Preview index must be publicly readable.');
 const siteHtml = await siteResponse.text();
@@ -152,7 +160,7 @@ assert.equal(finalMaintenance.data.is_closed, false);
 
 const report = {
   ok: true,
-  branchRef,
+  projectRef: previewProjectRef,
   siteUrl: deployment.siteUrl,
   checks,
   restored: { previewBaristaRole: finalRole.data.role, scheduleClosed: finalMaintenance.data.is_closed },
@@ -163,7 +171,7 @@ await fs.writeFile(path.join(outputDir, 'summary.md'), [
   '## Live Supabase preview',
   '',
   `- URL: ${deployment.siteUrl}`,
-  `- Isolated branch ref: \`${branchRef}\``,
+  `- Dedicated preview project ref: \`${previewProjectRef}\``,
   `- Uploaded frontend files: ${deployment.uploadedFiles}`,
   `- Authenticated checks: ${checks.length}`,
   '- Test data restored after the run.',
