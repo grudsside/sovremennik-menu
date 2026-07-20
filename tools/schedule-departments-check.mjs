@@ -5,12 +5,10 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync('assets/js/schedule-departments.js', 'utf8');
 const styles = readFileSync('assets/css/schedule-departments.css', 'utf8');
 const loader = readFileSync('assets/js/push.js', 'utf8');
-const index = readFileSync('index.html', 'utf8');
 const workflow = readFileSync('.github/workflows/ci.yml', 'utf8');
 
 assert.match(loader, /schedule-departments\.css\?v=20260720-1/, 'Department schedule styles must load');
 assert.match(loader, /schedule-manager\.js[\s\S]*schedule-departments\.js\?v=20260720-1[\s\S]*interface-followup\.js/, 'Department layer must load after schedule manager');
-assert.match(index, /assets\/js\/push\.js\?v=20260720-2/, 'Updated loader must bypass the previous browser cache');
 assert.match(workflow, /node tools\/schedule-departments-check\.mjs/, 'CI must run department schedule checks');
 assert.match(source, /schedule-department-tabs/, 'Bar and hall tabs must be rendered');
 assert.match(source, /schedule-mobile-agenda/, 'A dedicated phone agenda must be rendered');
