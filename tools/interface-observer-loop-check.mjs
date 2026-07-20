@@ -23,6 +23,14 @@ assert.match(
 );
 assert.match(source, /if\(enhanceQueued \|\| v3OwnsShell\(\)\) return;/, 'Observer work must be coalesced and disabled after v3 starts');
 
+const shellButtonIndex = source.indexOf('class="shell-menu-btn"');
+const v3OwnershipGuardIndex = source.indexOf('if(v3OwnsShell()) return;');
+assert.ok(shellButtonIndex >= 0, 'The structural shell must contain the mobile menu button');
+assert.ok(
+  v3OwnershipGuardIndex > shellButtonIndex,
+  'The structural mobile shell must be created before the legacy enhancer yields to interface-v3'
+);
+
 class FakeClassList {
   constructor(...values){ this.values = new Set(values); }
   add(...values){ values.forEach(value => this.values.add(value)); }

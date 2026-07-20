@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const releaseId = '20260720-1';
+const shellHotfixId = '20260720-2';
 const loader = readFileSync('assets/js/push.js', 'utf8');
 const index = readFileSync('index.html', 'utf8');
 const maintenanceScript = readFileSync('assets/js/tasks-maintenance.js', 'utf8');
@@ -30,7 +31,6 @@ assert.doesNotMatch(
 
 const releasedAssets = [
   'assets/css/tasks-v2.css',
-  'assets/js/interface-redesign.js',
   'assets/js/tasks-v2.js',
   'assets/js/interface-v3.js',
   'assets/js/interface-followup.js',
@@ -47,6 +47,11 @@ for(const asset of releasedAssets){
 }
 
 assert.match(
+  loader,
+  new RegExp(`assets/js/interface-redesign\\.js\\?v=${shellHotfixId}`),
+  'The mobile shell hotfix must have its own cache-bust'
+);
+assert.match(
   index,
   new RegExp(`assets/js/push\\.js\\?v=${releaseId}`),
   'index.html must cache-bust the production loader'
@@ -59,4 +64,4 @@ assert.ok(
 assert.match(maintenanceScript, /window\.loadTasks = disabledAsync/, 'Emergency maintenance JS must remain available in the repository');
 assert.match(maintenanceStyles, /\.tasks-maintenance-card/, 'Emergency maintenance CSS must remain available in the repository');
 
-console.log(`Tasks release mode checks passed for ${releaseId}.`);
+console.log(`Tasks release mode checks passed for ${releaseId}; shell hotfix ${shellHotfixId}.`);

@@ -22,10 +22,6 @@
   }
 
   function ensureShell(){
-    // interface-v3 is the final owner of the shell. Keeping this legacy
-    // enhancer active after v3 starts creates competing DOM observers.
-    if(v3OwnsShell()) return;
-
     const hero = document.querySelector('.hero');
     const heroCopy = document.querySelector('.hero-copy');
     const tabs = document.querySelector('.main-tabs');
@@ -54,8 +50,13 @@
       overlay.className = 'shell-overlay';
       overlay.setAttribute('aria-hidden','true');
       document.body.appendChild(overlay);
-      overlay.addEventListener('click', closeMenu);
+      if(!v3OwnsShell()) overlay.addEventListener('click', closeMenu);
     }
+
+    // interface-v3 is the final owner of behaviour and navigation markup.
+    // The structural shell above must still be restored when v3 starts before
+    // DOMContentLoaded; otherwise the mobile menu button never appears.
+    if(v3OwnsShell()) return;
 
     const menuButton = context.querySelector('.shell-menu-btn');
     if(menuButton && !menuButton.dataset.bound){
