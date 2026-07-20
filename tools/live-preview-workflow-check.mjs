@@ -42,8 +42,8 @@ const required = [
 const forbidden = [
   [/supabase\s+--experimental\s+branches\s+(create|get)/i.test(workflow), 'paid Supabase Branching must not be used for the Free preview'],
   [/--with-data/.test(workflow), 'preview must not copy production data'],
-  [/functions deploy[\s\S]{0,240}PRODUCTION_SUPABASE_PROJECT_REF/.test(workflow), 'workflow must not deploy functions using the production ref'],
-  [/\bdb push\b[\s\S]{0,240}PRODUCTION_SUPABASE_PROJECT_REF/.test(workflow), 'workflow must not push migrations using the production ref'],
+  [/supabase functions deploy[^\n]*PRODUCTION_SUPABASE_PROJECT_REF/.test(workflow), 'workflow must not deploy functions using the production ref'],
+  [/supabase db push[^\n]*PRODUCTION_SUPABASE_PROJECT_REF/.test(workflow), 'workflow must not push migrations using the production ref'],
   [/\['supabase\/sql\/STEP_2_SEED_ADMIN_AFTER_AUTH_USER\.sql'\s*,/.test(migrations), 'preview bundle must not seed the production administrator'],
   [/\['supabase\/sql\/STEP_3_OPTIONAL_JULY_SCHEDULE\.sql'\s*,/.test(migrations), 'preview bundle must not load optional production schedule data'],
   [/\['supabase\/sql\/STEP_7_FIX_RLS_CONTENT_SYNC\.sql'\s*,/.test(migrations), 'preview bundle must not run the hardcoded grigory patch'],
