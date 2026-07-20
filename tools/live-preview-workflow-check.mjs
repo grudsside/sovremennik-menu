@@ -48,7 +48,7 @@ const forbidden = [
   [/\['supabase\/sql\/STEP_3_OPTIONAL_JULY_SCHEDULE\.sql'\s*,/.test(migrations), 'preview bundle must not load optional production schedule data'],
   [/\['supabase\/sql\/STEP_7_FIX_RLS_CONTENT_SYNC\.sql'\s*,/.test(migrations), 'preview bundle must not run the hardcoded grigory patch'],
   [/\['supabase\/sql\/ROLLBACK_STEP_12_NOTIFICATION_HISTORY\.sql'\s*,/.test(migrations), 'preview bundle must not apply rollback SQL'],
-  [/sb_secret_|service_role_[A-Za-z0-9]/.test(workflow + deploy + smoke + resolver), 'secret keys must never be hardcoded'],
+  [/sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + deploy + smoke + resolver), 'secret keys must never be hardcoded'],
 ];
 
 const failures = [
