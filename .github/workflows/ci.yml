@@ -66,6 +66,9 @@ jobs:
       - name: Check RLS migration structure
         run: node tools/rls-sql-check.mjs
 
+      - name: Inventory Supabase SQL bootstrap
+        run: node tools/live-preview-sql-inventory.mjs
+
       - name: Check employee activation and role controls
         run: node tools/employee-status-check.mjs
 
