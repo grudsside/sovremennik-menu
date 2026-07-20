@@ -15,13 +15,9 @@ on:
       - 'data/**'
       - 'supabase/**'
       - 'tools/live-preview-*.mjs'
+      - 'tools/free-preview-db-smoke.sql'
       - '.github/workflows/live-preview.yml'
   workflow_dispatch:
-    inputs:
-      branch_name:
-        description: 'Optional Supabase preview branch name'
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -41,34 +37,36 @@ jobs:
         id: detect
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PREVIEW_DB_PASSWORD: ${{ secrets.PREVIEW_DB_PASSWORD }}
           PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
         shell: bash
         run: |
-          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$PREVIEW_TEST_PASSWORD" ]]; then
+          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$PREVIEW_DB_PASSWORD" && -n "$PREVIEW_TEST_PASSWORD" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "Supabase preview credentials are configured." >> "$GITHUB_STEP_SUMMARY"
+            echo "Supabase Free preview credentials are configured." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             {
-              echo "## Supabase live preview is prepared but not started"
+              echo "## Supabase Free preview is prepared but not started"
               echo
-              echo "Repository secrets \`SUPABASE_ACCESS_TOKEN\` and \`PREVIEW_TEST_PASSWORD\` are required."
-              echo "No production database, Edge Function, Storage object, or GitHub Pages deployment was changed."
+              echo "Repository secrets \`SUPABASE_ACCESS_TOKEN\`, \`PREVIEW_DB_PASSWORD\` and \`PREVIEW_TEST_PASSWORD\` are required."
+              echo "No production database, Edge Function, Storage object, GitHub Pages deployment or main branch was changed."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
   deploy-preview:
-    name: Deploy isolated Supabase preview
+    name: Deploy dedicated Free Supabase preview
     needs: detect-configuration
     if: needs.detect-configuration.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PREVIEW_DB_PASSWORD }}
       PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
-      PARENT_SUPABASE_PROJECT_REF: tjibbzfdughhjenumzxo
-      REQUESTED_BRANCH_NAME: ${{ inputs.branch_name }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PRODUCTION_SUPABASE_PROJECT_REF: tjibbzfdughhjenumzxo
+      PREVIEW_PROJECT_REF: enkftanmqlwvjydliwue
+      PREVIEW_SUPABASE_URL: https://enkftanmqlwvjydliwue.supabase.co
     steps:
       - name: Checkout preview source
         uses: actions/checkout@v4
@@ -83,110 +81,81 @@ jobs:
         with:
           version: latest
 
-      - name: Resolve isolated branch name
-        shell: bash
-        run: |
-          if [[ -n "$REQUESTED_BRANCH_NAME" ]]; then
-            branch="$REQUESTED_BRANCH_NAME"
-          elif [[ -n "$PR_NUMBER" ]]; then
-            branch="preview-pr-$PR_NUMBER"
-          else
-            branch="preview-${GITHUB_REF_NAME}-${GITHUB_RUN_ID}"
-          fi
-          branch="$(printf '%s' "$branch" | tr '/_ ' '-' | tr -cd '[:alnum:]-' | cut -c1-48)"
-          if [[ -z "$branch" || "$branch" == "main" || "$branch" == "production" ]]; then
-            echo "Unsafe preview branch name." >&2
-            exit 1
-          fi
-          echo "SUPABASE_PREVIEW_BRANCH=$branch" >> "$GITHUB_ENV"
-          echo "Using isolated Supabase branch: \`$branch\`" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Create or reuse data-less Supabase branch
+      - name: Validate dedicated preview target
         shell: bash
         run: |
           set -euo pipefail
-          if ! supabase --experimental branches get "$SUPABASE_PREVIEW_BRANCH" \
-            --project-ref "$PARENT_SUPABASE_PROJECT_REF" -o env > branch.env 2>/dev/null; then
-            supabase --experimental branches create "$SUPABASE_PREVIEW_BRANCH" \
-              --project-ref "$PARENT_SUPABASE_PROJECT_REF"
-          fi
+          expected_url="https://${PREVIEW_PROJECT_REF}.supabase.co"
+          derived_ref="${PREVIEW_SUPABASE_URL#https://}"
+          derived_ref="${derived_ref%%.*}"
 
-          ready=false
-          for attempt in $(seq 1 36); do
-            if supabase --experimental branches get "$SUPABASE_PREVIEW_BRANCH" \
-              --project-ref "$PARENT_SUPABASE_PROJECT_REF" -o env > branch.env 2>/dev/null; then
-              if grep -Eq '^(SUPABASE_URL|API_URL)=' branch.env \
-                && grep -Eq '^(POSTGRES_URL_NON_POOLING|POSTGRES_URL)=' branch.env; then
-                ready=true
-                break
-              fi
-            fi
-            sleep 10
-          done
-          if [[ "$ready" != "true" ]]; then
-            echo "Supabase preview branch did not become ready." >&2
-            exit 1
-          fi
-
-      - name: Export branch credentials safely
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -E '^[A-Z0-9_]+=' branch.env > branch.clean.env
-          set -a
-          source branch.clean.env
-          set +a
-
-          preview_url="${SUPABASE_URL:-${API_URL:-}}"
-          public_key="${SUPABASE_PUBLISHABLE_KEY:-${PUBLISHABLE_KEY:-${SUPABASE_ANON_KEY:-${ANON_KEY:-}}}}"
-          secret_key="${SUPABASE_SECRET_KEY:-${SECRET_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-${SERVICE_ROLE_KEY:-}}}}"
-          database_url="${POSTGRES_URL_NON_POOLING:-${POSTGRES_URL:-}}"
-
-          if [[ -z "$preview_url" || -z "$public_key" || -z "$secret_key" || -z "$database_url" ]]; then
-            echo "Supabase branch credentials are incomplete." >&2
-            exit 1
-          fi
-
-          branch_ref="${preview_url#https://}"
-          branch_ref="${branch_ref%%.*}"
-          if [[ -z "$branch_ref" || "$branch_ref" == "$PARENT_SUPABASE_PROJECT_REF" ]]; then
+          if [[ "$PREVIEW_PROJECT_REF" == "$PRODUCTION_SUPABASE_PROJECT_REF" ]]; then
             echo "Refusing to deploy against the production project." >&2
             exit 1
           fi
+          if [[ "$PREVIEW_SUPABASE_URL" != "$expected_url" || "$derived_ref" != "$PREVIEW_PROJECT_REF" ]]; then
+            echo "Preview URL and Project Ref do not match." >&2
+            exit 1
+          fi
+          echo "Dedicated Free preview target validated: \`$PREVIEW_PROJECT_REF\`." >> "$GITHUB_STEP_SUMMARY"
 
-          echo "::add-mask::$public_key"
-          echo "::add-mask::$secret_key"
-          echo "::add-mask::$database_url"
-          echo "::add-mask::$PREVIEW_TEST_PASSWORD"
-
-          {
-            echo "PREVIEW_SUPABASE_URL=$preview_url"
-            echo "PREVIEW_PUBLIC_KEY=$public_key"
-            echo "PREVIEW_SECRET_KEY=$secret_key"
-            echo "PREVIEW_DATABASE_URL=$database_url"
-            echo "PREVIEW_BRANCH_PROJECT_REF=$branch_ref"
-          } >> "$GITHUB_ENV"
-
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
-      - name: Apply maintenance migration to preview branch
+      - name: Verify Supabase Management API access
         shell: bash
         run: |
-          psql "$PREVIEW_DATABASE_URL" \
-            -v ON_ERROR_STOP=1 \
-            -f supabase/migrations/20260720193000_section_maintenance.sql
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PREVIEW_PROJECT_REF" \
+            --output preview-project.json
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('preview-project.json','utf8')); const ref=String(p.ref||p.id||''); if(ref && ref!==process.env.PREVIEW_PROJECT_REF){throw new Error('Management API returned another project.')}"
+          rm -f preview-project.json
+
+      - name: Resolve preview API keys securely
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PREVIEW_PROJECT_REF/api-keys?reveal=true" \
+            --output preview-api-keys.json
+          node tools/live-preview-resolve-keys.mjs preview-api-keys.json
+          rm -f preview-api-keys.json
+
+      - name: Prepare deterministic preview migrations
+        run: node tools/live-preview-prepare-migrations.mjs
+
+      - name: Link dedicated preview project
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preview database changes
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: supabase db push --dry-run --include-all
+
+      - name: Apply database changes to dedicated preview only
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: supabase db push --include-all --yes
 
       - name: Deploy protected preview Edge Functions
         shell: bash
         run: |
+          set -euo pipefail
+          if [[ "$PREVIEW_PROJECT_REF" == "$PRODUCTION_SUPABASE_PROJECT_REF" ]]; then
+            echo "Refusing to deploy Edge Functions against production." >&2
+            exit 1
+          fi
           supabase functions deploy admin-employees \
-            --project-ref "$PREVIEW_BRANCH_PROJECT_REF" \
+            --project-ref "$PREVIEW_PROJECT_REF" \
             --use-api
           supabase functions deploy admin-maintenance \
-            --project-ref "$PREVIEW_BRANCH_PROJECT_REF" \
+            --project-ref "$PREVIEW_PROJECT_REF" \
             --use-api
 
       - name: Install preview test dependencies
