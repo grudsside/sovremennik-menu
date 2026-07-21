@@ -25,6 +25,7 @@
   function calculateRevisionSeries(records, options = {}){
     const tareKg = Number.isFinite(Number(options.tareKg)) ? Number(options.tareKg) : DEFAULT_TARE_KG;
     let previousClean = null;
+    let previousTotalGrainBalance = null;
 
     return (records || []).map(source => {
       const item = { ...source };
@@ -32,6 +33,8 @@
       const openedPacks = numberValue(item.openedPacks ?? item.opened_packs);
       const writeOffs = numberValue(item.writeOffs ?? item.write_offs);
       const sales = numberValue(item.iikoSales ?? item.iiko_sales);
+      const grainDelivery = numberValue(item.grainDelivery ?? item.grain_delivery);
+      const stockBalanceOverride = numberValue(item.stockBalanceOverride ?? item.stock_balance_override);
       const storedClean = numberValue(item.cleanHopperWeight ?? item.clean_hopper_weight);
       const cleanWeight = hopperWeight === null
         ? storedClean
@@ -51,13 +54,24 @@
         ? round2((totalLossWeight / sales) * 100)
         : null;
 
+      let totalGrainBalance = null;
+      if(stockBalanceOverride !== null){
+        totalGrainBalance = round3(stockBalanceOverride);
+      } else if(previousTotalGrainBalance !== null && usage !== null){
+        totalGrainBalance = round3(previousTotalGrainBalance + (grainDelivery ?? 0) - usage);
+      }
+
       item.cleanHopperWeight = cleanWeight === null ? '' : String(cleanWeight);
       item.totalCoffeeUsage = usage === null ? '' : String(usage);
       item.difference = difference === null ? '' : String(difference);
       item.totalLossWeight = totalLossWeight === null ? '' : String(totalLossWeight);
       item.losses = lossPercent === null ? '' : `${lossPercent}%`;
+      item.grainDelivery = grainDelivery === null ? '' : String(grainDelivery);
+      item.stockBalanceOverride = stockBalanceOverride === null ? '' : String(stockBalanceOverride);
+      item.totalGrainBalance = totalGrainBalance === null ? '' : String(totalGrainBalance);
 
       if(cleanWeight !== null) previousClean = cleanWeight;
+      previousTotalGrainBalance = totalGrainBalance;
       return item;
     });
   }
