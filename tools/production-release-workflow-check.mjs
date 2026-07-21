@@ -26,6 +26,8 @@ const required = [
   [workflow.includes(`! grep -q '${previewRef}'`), 'workflow must reject preview configuration on production Pages'],
   [workflow.includes('issues: write') && workflow.includes('Publish permanent release receipt'), 'workflow must publish a permanent audit receipt'],
   [workflow.includes('issues/33/comments'), 'release receipt must be attached to the approved production PR'],
+  [workflow.includes("printf '%s\\n\\n' \"$heading\""), 'release receipt must use YAML-safe printf construction'],
+  [workflow.includes('/tmp/production-release-comment.md'), 'release receipt must be written to a temporary file before posting'],
   [release.includes(`/projects/${'${projectRef}'}/database/query`), 'release must use the Management API database query endpoint'],
   [release.includes('20260720193000_section_maintenance.sql'), 'release must apply the reviewed maintenance migration'],
   [release.includes('exactly 9 allowed maintenance sections'), 'release must verify all maintenance rows'],
@@ -41,6 +43,7 @@ const forbidden = [
   [workflow.includes('PREVIEW_DB_PASSWORD') || workflow.includes('PREVIEW_TEST_PASSWORD'), 'production release must not use preview credentials'],
   [/sbp_[A-Za-z0-9_-]{16,}|sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + release), 'secrets must never be hardcoded'],
   [workflow.includes('--no-verify-jwt'), 'production admin functions must keep JWT verification enabled'],
+  [workflow.includes('body="${heading}\n'), 'release receipt must not use YAML-breaking unindented multiline assignment'],
 ];
 
 const failures = [
