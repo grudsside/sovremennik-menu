@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const root = process.cwd();
 const outputDir = path.join(root, 'artifacts', 'live-preview');
 const bucketId = 'open-test-preview';
+const launcherFile = 'preview-launcher.html';
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -204,10 +205,22 @@ async function ensureBucket() {
   if (updated.error) throw updated.error;
 }
 
+function buildLauncher(indexSource, storageBaseUrl) {
+  assert.match(indexSource, /<head>/i, 'Preview index does not contain a head element.');
+  const baseTag = [
+    '<head>',
+    `  <base href="${storageBaseUrl}">`,
+    '  <meta name="robots" content="noindex,nofollow">',
+    '  <script>window.SOVREMENNIK_LOCAL_PREVIEW = true;</script>',
+  ].join('\n');
+  return indexSource.replace(/<head>/i, baseTag);
+}
+
 async function publishFrontend() {
   await ensureBucket();
   const files = await collectFiles(root);
-  assert(files.some(file => file.relativePath === 'index.html'), 'Preview bundle does not contain index.html.');
+  const indexFile = files.find(file => file.relativePath === 'index.html');
+  assert(indexFile, 'Preview bundle does not contain index.html.');
 
   let uploaded = 0;
   for (const file of files) {
@@ -223,17 +236,14 @@ async function publishFrontend() {
     uploaded += 1;
   }
 
-  const storageSourceUrl = admin.storage.from(bucketId).getPublicUrl('index.html').data.publicUrl;
-  assert(storageSourceUrl, 'Supabase Storage did not return a source URL.');
+  const storageBaseUrl = `${supabaseUrl}/storage/v1/object/public/${bucketId}/`;
+  const storageSourceUrl = new URL('index.html', storageBaseUrl).href;
+  const indexSource = await fs.readFile(indexFile.absolutePath, 'utf8');
+  const launcherSource = buildLauncher(indexSource, storageBaseUrl);
+  const launcherPath = path.join(outputDir, launcherFile);
+  await fs.writeFile(launcherPath, launcherSource, 'utf8');
 
-  const siteUrl = `${supabaseUrl}/functions/v1/preview-site/`;
-  assert.equal(
-    new URL(siteUrl).hostname,
-    `${previewProjectRef}.supabase.co`,
-    'Rendered preview URL must belong to the dedicated preview project.',
-  );
-
-  return { siteUrl, storageSourceUrl, uploaded };
+  return { launcherFile, launcherPath, storageBaseUrl, storageSourceUrl, uploaded };
 }
 
 await fs.mkdir(outputDir, { recursive: true });
@@ -248,7 +258,8 @@ try {
   const report = {
     ok: true,
     projectRef: previewProjectRef,
-    siteUrl: site.siteUrl,
+    launcherFile: site.launcherFile,
+    storageBaseUrl: site.storageBaseUrl,
     storageSourceUrl: site.storageSourceUrl,
     uploadedFiles: site.uploaded,
     users: seededUsers.map(({ login, role }) => ({ login, role })),
@@ -256,7 +267,11 @@ try {
   };
 
   await fs.writeFile(path.join(outputDir, 'deployment.json'), JSON.stringify(report, null, 2));
-  await fs.writeFile(path.join(outputDir, 'preview-url.txt'), `${site.siteUrl}\n`);
+  await fs.writeFile(path.join(outputDir, 'preview-url.txt'), [
+    'Supabase Free rewrites hosted HTML to text/plain.',
+    `Open ${site.launcherFile} from this artifact instead.`,
+    '',
+  ].join('\n'));
   await fs.writeFile(path.join(outputDir, 'accounts.md'), [
     '# Preview accounts',
     '',
@@ -266,7 +281,7 @@ try {
     '',
   ].join('\n'));
 
-  console.log(`Live preview published: ${site.siteUrl}`);
+  console.log(`Live preview launcher generated: ${site.launcherFile}`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   await fs.writeFile(path.join(outputDir, 'deployment-error.json'), JSON.stringify({
