@@ -1,0 +1,111 @@
+.revision-correction {
+  margin-top: 16px;
+  border: 1px solid rgba(36, 69, 54, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.revision-correction > summary {
+  cursor: pointer;
+  padding: 16px 18px;
+  font-weight: 700;
+  color: #244536;
+}
+
+.revision-correction[open] > summary {
+  border-bottom: 1px solid rgba(36, 69, 54, 0.14);
+}
+
+.revision-correction-note {
+  margin: 16px 18px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(180, 151, 79, 0.12);
+  line-height: 1.45;
+}
+
+.revision-correction-grid select,
+.revision-correction-grid input,
+.revision-correction-reason textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.revision-correction-reason {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.revision-correction-reason textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.revision-correction-submit {
+  margin-top: 14px;
+}
+
+.revision-edit-history {
+  margin: 20px 18px 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(36, 69, 54, 0.14);
+}
+
+.revision-edit-history h4 {
+  margin: 0 0 12px;
+}
+
+.revision-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.revision-history-item {
+  padding: 12px 14px;
+  border: 1px solid rgba(36, 69, 54, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.revision-history-item p {
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.revision-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revision-history-head span,
+.revision-history-changes,
+.revision-history-empty {
+  color: #647067;
+  font-size: 0.9rem;
+}
+
+.revision-history-empty.error {
+  color: #a23b32;
+}
+
+@media (max-width: 720px) {
+  .revision-correction > summary {
+    padding: 14px;
+  }
+
+  .revision-correction-note,
+  .revision-edit-history {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .revision-history-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
