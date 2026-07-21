@@ -52,20 +52,27 @@ async function invoke(instance, name, body, shouldSucceed = true) {
 await fs.mkdir(outputDir, { recursive: true });
 const deployment = JSON.parse(await fs.readFile(path.join(outputDir, 'deployment.json'), 'utf8'));
 assert.equal(deployment.projectRef, previewProjectRef, 'Deployment report belongs to another Supabase project.');
-assert.match(deployment.siteUrl, /\/functions\/v1\/preview-site\/$/, 'Preview must use the rendering Edge Function.');
-
-const siteResponse = await fetch(deployment.siteUrl, { redirect: 'follow' });
-assert.equal(siteResponse.status, 200, 'Preview index must be publicly readable.');
+assert.equal(deployment.launcherFile, 'preview-launcher.html', 'Preview artifact must contain the local launcher.');
 assert.match(
-  siteResponse.headers.get('content-type') || '',
-  /^text\/html(?:;|$)/i,
-  'Preview index must be rendered as HTML instead of Storage plain text.',
+  deployment.storageBaseUrl,
+  new RegExp(`^https://${previewProjectRef}\\.supabase\\.co/storage/v1/object/public/open-test-preview/$`),
+  'Preview assets must use the dedicated Storage bucket.',
 );
-const siteHtml = await siteResponse.text();
-assert.match(siteHtml, /assets\/js\/supabase-config\.js/i, 'Preview index must load its configuration.');
-assert.match(siteHtml, /Современник|Sovremennik/i, 'Preview index must be the application.');
 
-const configResponse = await fetch(new URL('assets/js/supabase-config.js', deployment.siteUrl));
+const launcherPath = path.join(outputDir, deployment.launcherFile);
+const launcherSource = await fs.readFile(launcherPath, 'utf8');
+assert.match(launcherSource, /<base\s+href=/i, 'Preview launcher must define an asset base URL.');
+assert.match(launcherSource, new RegExp(previewProjectRef), 'Preview launcher must target the dedicated project.');
+assert.doesNotMatch(
+  launcherSource,
+  new RegExp(productionProjectRef || 'tjibbzfdughhjenumzxo'),
+  'Preview launcher must not target production.',
+);
+assert.match(launcherSource, /assets\/js\/supabase-config\.js/i, 'Preview launcher must load its configuration.');
+assert.match(launcherSource, /Современник|Sovremennik/i, 'Preview launcher must contain the application.');
+
+const configUrl = new URL('assets/js/supabase-config.js', deployment.storageBaseUrl);
+const configResponse = await fetch(configUrl);
 assert.equal(configResponse.status, 200, 'Preview configuration asset must be publicly readable.');
 assert.match(
   configResponse.headers.get('content-type') || '',
@@ -93,7 +100,7 @@ const baristaProfile = profiles.data.find(row => row.login === 'preview-barista'
 assert(adminProfile?.id && baristaProfile?.id, 'Seeded preview profiles were not found.');
 
 const checks = [
-  'preview HTML rendered by Edge Function',
+  'downloadable preview launcher generated',
   'preview JavaScript served with executable MIME type',
 ];
 let roleChanged = false;
@@ -185,7 +192,8 @@ assert.equal(finalMaintenance.data.is_closed, false);
 const report = {
   ok: true,
   projectRef: previewProjectRef,
-  siteUrl: deployment.siteUrl,
+  launcherFile: deployment.launcherFile,
+  storageBaseUrl: deployment.storageBaseUrl,
   checks,
   restored: { previewBaristaRole: finalRole.data.role, scheduleClosed: finalMaintenance.data.is_closed },
   completedAt: new Date().toISOString(),
@@ -194,11 +202,11 @@ await fs.writeFile(path.join(outputDir, 'smoke-report.json'), JSON.stringify(rep
 await fs.writeFile(path.join(outputDir, 'summary.md'), [
   '## Live Supabase preview',
   '',
-  `- URL: ${deployment.siteUrl}`,
+  `- Open the downloaded artifact file: \`${deployment.launcherFile}\``,
   `- Dedicated preview project ref: \`${previewProjectRef}\``,
   `- Uploaded frontend files: ${deployment.uploadedFiles}`,
-  `- Authenticated and rendering checks: ${checks.length}`,
-  '- HTML, CSS and JavaScript are served through the public preview-site Edge Function.',
+  `- Authenticated and launcher checks: ${checks.length}`,
+  '- Supabase Free rewrites hosted HTML to text/plain, so the launcher opens locally and loads assets from the dedicated preview Storage bucket.',
   '- Test data restored after the run.',
   '- Production project was not modified.',
   '',
