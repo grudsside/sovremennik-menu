@@ -35,30 +35,42 @@
       const sales = numberValue(item.iikoSales ?? item.iiko_sales);
       const grainDelivery = numberValue(item.grainDelivery ?? item.grain_delivery);
       const stockBalanceOverride = numberValue(item.stockBalanceOverride ?? item.stock_balance_override);
+      const openingClean = numberValue(item.openingCleanHopperWeight ?? item.opening_clean_hopper_weight);
+      const openingTotalGrain = numberValue(item.openingTotalGrainBalance ?? item.opening_total_grain_balance);
       const storedClean = numberValue(item.cleanHopperWeight ?? item.clean_hopper_weight);
+      const storedUsage = numberValue(item.totalCoffeeUsage ?? item.total_coffee_usage);
+      const storedDifference = numberValue(item.difference);
+      const storedTotalLoss = numberValue(item.totalLossWeight ?? item.total_loss_weight);
+      const storedLossPercent = numberValue(item.losses ?? item.losses_percent);
+      const storedTotalGrain = numberValue(item.totalGrainBalance ?? item.total_grain_balance);
       const cleanWeight = hopperWeight === null
         ? storedClean
         : round3(Math.max(0, hopperWeight - tareKg));
 
-      const usage = previousClean !== null && openedPacks !== null && cleanWeight !== null
-        ? round3(previousClean + openedPacks - cleanWeight)
-        : null;
+      const effectivePreviousClean = openingClean !== null ? openingClean : previousClean;
+      const usage = effectivePreviousClean !== null && openedPacks !== null && cleanWeight !== null
+        ? round3(effectivePreviousClean + openedPacks - cleanWeight)
+        : storedUsage;
       const difference = usage !== null && sales !== null && writeOffs !== null
         ? round3(sales - writeOffs - usage)
-        : null;
+        : storedDifference;
       const unaccountedLoss = difference === null ? null : round3(Math.max(0, -difference));
       const totalLossWeight = difference !== null && writeOffs !== null
         ? round3(writeOffs + unaccountedLoss)
-        : null;
+        : storedTotalLoss;
       const lossPercent = totalLossWeight !== null && sales !== null && sales > 0
         ? round2((totalLossWeight / sales) * 100)
-        : null;
+        : storedLossPercent;
 
       let totalGrainBalance = null;
       if(stockBalanceOverride !== null){
         totalGrainBalance = round3(stockBalanceOverride);
+      } else if(openingTotalGrain !== null && usage !== null){
+        totalGrainBalance = round3(openingTotalGrain + (grainDelivery ?? 0) - usage);
       } else if(previousTotalGrainBalance !== null && usage !== null){
         totalGrainBalance = round3(previousTotalGrainBalance + (grainDelivery ?? 0) - usage);
+      } else {
+        totalGrainBalance = storedTotalGrain;
       }
 
       item.cleanHopperWeight = cleanWeight === null ? '' : String(cleanWeight);
