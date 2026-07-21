@@ -168,20 +168,20 @@ jobs:
             details='At least one production deployment or verification step failed. Review the linked workflow run before using the new controls.'
           fi
 
-          body="${heading}
-
-${details}
-
-- Commit: \`${GITHUB_SHA}\`
-- Workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-- Production app: https://grudsside.github.io/sovremennik-menu/
-- Production Supabase Ref: \`tjibbzfdughhjenumzxo\`
-- Preview project was not used."
+          {
+            printf '%s\n\n' "$heading"
+            printf '%s\n\n' "$details"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Workflow: https://github.com/%s/actions/runs/%s\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf -- '- Production app: https://grudsside.github.io/sovremennik-menu/\n'
+            printf -- '- Production Supabase Ref: `tjibbzfdughhjenumzxo`\n'
+            printf -- '- Preview project was not used.\n'
+          } > /tmp/production-release-comment.md
 
           gh api \
             --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/33/comments" \
-            --field body="$body"
+            --raw-field body="$(cat /tmp/production-release-comment.md)"
 
       - name: Upload production release report
         if: always()
