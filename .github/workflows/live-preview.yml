@@ -166,13 +166,16 @@ jobs:
         run: npm install --no-save @supabase/supabase-js@2
 
       - name: Seed preview accounts and publish frontend
-        run: node tools/live-preview-deploy.mjs
+        run: |
+          node tools/live-preview-deploy.mjs
+          node tools/live-preview-feature-config.mjs
 
       - name: Run authenticated live smoke test
         shell: bash
         run: |
           set -o pipefail
           node tools/live-preview-smoke.mjs 2> >(tee artifacts/live-preview/smoke-error.log >&2)
+          node tools/live-preview-coffee-revision-smoke.mjs 2> >(tee artifacts/live-preview/coffee-revision-smoke-error.log >&2)
 
       - name: Publish preview result
         if: always()

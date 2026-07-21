@@ -18,6 +18,9 @@ const plan = [
   ['supabase/sql/STEP_10B_HARDEN_RLS_VIEW_PRIVILEGES.sql', '20260720100100_step_10b_finalize_rls.sql'],
   ['supabase/sql/STEP_12_NOTIFICATION_HISTORY.sql', '20260720120000_step_12_notification_history.sql'],
   ['supabase/migrations/20260720193000_section_maintenance.sql', '20260720193000_section_maintenance.sql'],
+  ['supabase/migrations/20260721183000_coffee_revision_admin_correction.sql', '20260721183000_coffee_revision_admin_correction.sql'],
+  ['supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql', '20260721190000_coffee_revision_formula_corrections.sql'],
+  ['supabase/migrations/20260721203000_coffee_revision_total_stock.sql', '20260721203000_coffee_revision_total_stock.sql'],
 ];
 
 const forbiddenSources = [

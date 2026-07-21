@@ -1,0 +1,221 @@
+.revision-correction {
+  margin-top: 16px;
+  border: 1px solid rgba(36, 69, 54, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.revision-correction > summary {
+  cursor: pointer;
+  padding: 16px 18px;
+  font-weight: 700;
+  color: #244536;
+}
+
+.revision-correction[open] > summary {
+  border-bottom: 1px solid rgba(36, 69, 54, 0.14);
+}
+
+.revision-correction-note {
+  margin: 16px 18px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(180, 151, 79, 0.12);
+  line-height: 1.45;
+}
+
+.revision-correction-grid {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.revision-correction-grid > .employee-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  align-self: start;
+}
+
+/* 1 ряд: ревизия, ответственный, проверено */
+.revision-correction-grid > .employee-field:nth-child(1) {
+  order: 1;
+  grid-column: span 6;
+}
+
+.revision-correction-grid > .employee-field:nth-child(2) {
+  order: 2;
+  grid-column: span 3;
+}
+
+.revision-correction-grid > .employee-field:nth-child(10) {
+  order: 3;
+  grid-column: span 3;
+}
+
+/* 2 ряд: операционные показатели */
+.revision-correction-grid > .employee-field:nth-child(3) {
+  order: 4;
+  grid-column: span 3;
+}
+
+.revision-correction-grid > .employee-field:nth-child(4) {
+  order: 5;
+  grid-column: span 3;
+}
+
+.revision-correction-grid > .employee-field:nth-child(8) {
+  order: 6;
+  grid-column: span 3;
+}
+
+.revision-correction-grid > .employee-field:nth-child(9) {
+  order: 7;
+  grid-column: span 3;
+}
+
+/* 3 ряд: общий складской остаток */
+.revision-correction-grid > .employee-field:nth-child(5) {
+  order: 8;
+  grid-column: span 4;
+}
+
+.revision-correction-grid > .employee-field:nth-child(6) {
+  order: 9;
+  grid-column: span 4;
+}
+
+.revision-correction-grid > .employee-field:nth-child(7) {
+  order: 10;
+  grid-column: span 4;
+}
+
+.revision-correction-grid select,
+.revision-correction-grid input,
+.revision-correction-reason textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.revision-correction-grid select,
+.revision-correction-grid input {
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.revision-correction-grid input[readonly] {
+  cursor: default;
+}
+
+.revision-correction-grid .employee-field small {
+  display: block;
+  margin: 0;
+  color: #647067;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.revision-correction-reason {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.revision-correction-reason textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.revision-correction-submit {
+  margin-top: 14px;
+}
+
+.revision-edit-history {
+  margin: 20px 18px 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(36, 69, 54, 0.14);
+}
+
+.revision-edit-history h4 {
+  margin: 0 0 12px;
+}
+
+.revision-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.revision-history-item {
+  padding: 12px 14px;
+  border: 1px solid rgba(36, 69, 54, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.revision-history-item p {
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.revision-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.revision-history-head span,
+.revision-history-changes,
+.revision-history-empty {
+  color: #647067;
+  font-size: 0.9rem;
+}
+
+.revision-history-empty.error {
+  color: #a23b32;
+}
+
+@media (max-width: 1100px) {
+  .revision-correction-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .revision-correction-grid > .employee-field {
+    grid-column: span 1 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .revision-correction > summary {
+    padding: 14px;
+  }
+
+  .revision-correction-note,
+  .revision-edit-history {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+
+  .revision-correction-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .revision-correction-grid > .employee-field {
+    grid-column: 1 / -1 !important;
+  }
+
+  .revision-history-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
