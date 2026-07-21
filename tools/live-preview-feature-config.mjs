@@ -23,7 +23,7 @@ assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Pre
 assert.equal(new URL(supabaseUrl).hostname, `${previewProjectRef}.supabase.co`, 'Preview URL must match the dedicated project.');
 
 const functionBase = `${supabaseUrl}/functions/v1`;
-const version = '20260721-1';
+const version = '20260721-2';
 const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   url: supabaseUrl,
   anonKey: publicKey,
@@ -37,10 +37,9 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   preview: true,
 }, null, 2)};
 
-(function loadCoffeeRevisionEditor(){
+(function loadCoffeeRevisionTools(){
   const version = '${version}';
   const cssId = 'coffee-revision-editor-css';
-  const scriptId = 'coffee-revision-editor-js';
 
   if(!document.getElementById(cssId)){
     const link = document.createElement('link');
@@ -50,22 +49,38 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
     document.head.appendChild(link);
   }
 
-  const loadScript = () => {
-    if(document.getElementById(scriptId)) return;
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = \`assets/js/coffee-revision-editor.js?v=\${version}\`;
-    script.defer = true;
-    document.body.appendChild(script);
+  function appendScript(id, path){
+    return new Promise((resolve, reject) => {
+      if(document.getElementById(id)) return resolve();
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = \`\${path}?v=\${version}\`;
+      script.async = false;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(\`Не удалось загрузить \${path}\`));
+      document.body.appendChild(script);
+    });
+  }
+
+  const loadScripts = async () => {
+    try {
+      await appendScript('coffee-revision-formula-core-js', 'assets/js/coffee-revision-formula-core.js');
+      await appendScript('coffee-revision-formula-fix-js', 'assets/js/coffee-revision-formula-fix.js');
+      await appendScript('coffee-revision-editor-js', 'assets/js/coffee-revision-editor.js');
+    } catch(error){
+      console.error('Coffee revision tools failed to load', error);
+    }
   };
 
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadScript, { once:true });
-  else loadScript();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadScripts, { once:true });
+  else loadScripts();
 })();
 `;
 
 assert.match(configSource, new RegExp(previewProjectRef), 'Generated config must target preview.');
 if (productionProjectRef) assert.doesNotMatch(configSource, new RegExp(productionProjectRef), 'Generated config must not mention production.');
+assert.match(configSource, /coffee-revision-formula-core\.js/, 'Generated config must load the formula core.');
+assert.match(configSource, /coffee-revision-formula-fix\.js/, 'Generated config must load the formula integration.');
 assert.match(configSource, /coffee-revision-editor\.js/, 'Generated config must load the correction editor.');
 
 const service = createClient(supabaseUrl, secretKey, {
@@ -83,6 +98,8 @@ const response = await fetch(`${publicUrl}?v=${Date.now()}`, { cache: 'no-store'
 assert.equal(response.status, 200, 'Published preview config must be readable.');
 const published = await response.text();
 assert.match(published, new RegExp(previewProjectRef), 'Published config must target preview.');
+assert.match(published, /coffee-revision-formula-core\.js/, 'Published config must load the formula core.');
+assert.match(published, /coffee-revision-formula-fix\.js/, 'Published config must load the formula integration.');
 assert.match(published, /coffee-revision-editor\.js/, 'Published config must load the revision editor.');
 if (productionProjectRef) assert.doesNotMatch(published, new RegExp(productionProjectRef), 'Published config must not target production.');
 
@@ -95,4 +112,4 @@ await fs.writeFile(path.join(outputDir, 'feature-config.json'), JSON.stringify({
   generatedAt: new Date().toISOString(),
 }, null, 2));
 
-console.log('Preview configuration with coffee revision editor published.');
+console.log('Preview configuration with coffee revision tools published.');
