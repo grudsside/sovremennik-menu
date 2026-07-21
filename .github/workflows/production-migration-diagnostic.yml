@@ -1,0 +1,53 @@
+name: Production migration diagnostic
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-migration-diagnostic.yml'
+      - 'tools/production-admin-controls-release-diagnostic.mjs'
+      - 'tools/production-admin-controls-release.mjs'
+      - 'supabase/migrations/20260720193000_section_maintenance.sql'
+      - 'supabase/migrations/20260721183000_coffee_revision_admin_correction.sql'
+      - 'supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql'
+      - 'supabase/migrations/20260721203000_coffee_revision_total_stock.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-migration-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Capture production migration result
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run migration diagnostic
+        run: node tools/production-admin-controls-release-diagnostic.mjs
+
+      - name: Upload diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-migration-diagnostic
+          path: artifacts/production-release
+          if-no-files-found: error
+          retention-days: 7
