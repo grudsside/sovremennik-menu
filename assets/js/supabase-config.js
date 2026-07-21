@@ -12,7 +12,7 @@ window.SOVREMENNIK_SUPABASE = {
 };
 
 (function loadCoffeeRevisionTools(){
-  const version = '20260721-4';
+  const version = '20260721-5';
   const cssId = 'coffee-revision-editor-css';
 
   if(!document.getElementById(cssId)){
@@ -41,6 +41,8 @@ window.SOVREMENNIK_SUPABASE = {
       await appendScript('coffee-revision-formula-core-js', 'assets/js/coffee-revision-formula-core.js');
       await appendScript('coffee-revision-formula-fix-js', 'assets/js/coffee-revision-formula-fix.js');
       await appendScript('coffee-revision-editor-js', 'assets/js/coffee-revision-editor.js');
+      await appendScript('coffee-revision-summary-core-js', 'assets/js/coffee-revision-summary-core.js');
+      await appendScript('coffee-revision-integrity-fix-js', 'assets/js/coffee-revision-integrity-fix.js');
     } catch(error){
       console.error('Coffee revision tools failed to load', error);
     }
