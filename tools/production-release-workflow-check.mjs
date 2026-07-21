@@ -35,6 +35,12 @@ const required = [
   [workflow.includes('coffee-revision-editor.js') && workflow.includes('coffee-revision-formula-fix.js'), 'workflow must verify coffee revision frontend assets'],
   [workflow.includes('grid-template-columns: repeat(12') && workflow.includes('height: 48px'), 'workflow must verify ordered equal-height correction controls'],
   [workflow.includes(`! grep -q '${previewRef}'`), 'workflow must reject preview configuration on production Pages'],
+  [workflow.includes('statuses: write'), 'workflow must be allowed to publish a commit status'],
+  [workflow.includes('Publish machine-readable production status'), 'workflow must publish a machine-readable release status'],
+  [workflow.includes("context='production/admin-controls'"), 'production status must use a stable context'],
+  [workflow.includes('repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}'), 'production status must be attached to the released commit'],
+  [workflow.includes("state='success'") && workflow.includes("state='failure'"), 'production status must represent both success and failure'],
+  [workflow.includes('name: Publish machine-readable production status\n        if: always()\n        continue-on-error: true'), 'status reporting must run after both successful and failed releases without masking deployment results'],
   [workflow.includes('issues: write') && workflow.includes('Publish permanent release receipt'), 'workflow must publish a permanent audit receipt'],
   [workflow.includes('issues/33/comments'), 'release receipt must be attached to the approved production PR'],
   [workflow.includes("printf '%s\\n\\n' \"$heading\""), 'release receipt must use YAML-safe printf construction'],
@@ -78,4 +84,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Production maintenance and coffee revision release safety checks passed.');
+console.log('Production release safety and machine-readable status checks passed.');
