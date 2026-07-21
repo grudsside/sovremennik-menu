@@ -70,6 +70,7 @@ $$;
 \ir ../supabase/sql/STEP_10B_HARDEN_RLS_VIEW_PRIVILEGES.sql
 \ir ../supabase/sql/STEP_12_NOTIFICATION_HISTORY.sql
 \ir ../supabase/migrations/20260720193000_section_maintenance.sql
+\ir ../supabase/migrations/20260721183000_coffee_revision_admin_correction.sql
 
 DO $$
 DECLARE
@@ -83,6 +84,9 @@ BEGIN
   END IF;
   IF to_regclass('public.section_maintenance') IS NULL THEN
     RAISE EXCEPTION 'section_maintenance table was not created';
+  END IF;
+  IF to_regclass('public.coffee_revision_edits') IS NULL THEN
+    RAISE EXCEPTION 'coffee revision correction audit table was not created';
   END IF;
 
   IF NOT EXISTS (
@@ -99,6 +103,10 @@ BEGIN
     RAISE EXCEPTION 'menu item payload column is missing';
   END IF;
 
+  IF to_regprocedure('public.correct_coffee_revision(date,numeric,integer,numeric,numeric,text,text)') IS NULL THEN
+    RAISE EXCEPTION 'protected coffee revision correction function is missing';
+  END IF;
+
   SELECT count(*) INTO maintenance_count FROM public.section_maintenance;
   IF maintenance_count <> 9 THEN
     RAISE EXCEPTION 'Expected 9 maintenance rows, got %', maintenance_count;
@@ -112,6 +120,24 @@ BEGIN
     RAISE EXCEPTION 'Authenticated preview clients must not update maintenance state directly';
   END IF;
 
+  IF NOT has_table_privilege('authenticated', 'public.coffee_revision_edits', 'SELECT') THEN
+    RAISE EXCEPTION 'Authenticated role must receive select privilege for audit RLS evaluation';
+  END IF;
+
+  IF has_table_privilege('authenticated', 'public.coffee_revision_edits', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.coffee_revision_edits', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.coffee_revision_edits', 'DELETE') THEN
+    RAISE EXCEPTION 'Authenticated clients must not write correction audit rows directly';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'authenticated',
+    'public.correct_coffee_revision(date,numeric,integer,numeric,numeric,text,text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Authenticated clients must be able to call the protected correction RPC';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
     WHERE schemaname = 'public'
@@ -119,6 +145,15 @@ BEGIN
       AND policyname = 'notification_events_update_read_active_own'
   ) THEN
     RAISE EXCEPTION 'Notification read policy is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'coffee_revision_edits'
+      AND policyname = 'coffee_revision_edits_select_admin'
+  ) THEN
+    RAISE EXCEPTION 'Coffee revision edit history admin policy is missing';
   END IF;
 END
 $$;
