@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: production-migration-diagnostic
@@ -41,7 +42,37 @@ jobs:
           node-version: '22'
 
       - name: Run migration diagnostic
+        id: diagnostic
+        continue-on-error: true
         run: node tools/production-admin-controls-release-diagnostic.mjs
+
+      - name: Publish diagnostic commit status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$DIAGNOSTIC_OUTCOME" == 'success' ]]; then
+            state='success'
+            description='Production migrations and verification passed'
+          else
+            state='failure'
+            if [[ -f artifacts/production-release/failure-summary.txt ]]; then
+              description="$(tr '\n' ' ' < artifacts/production-release/failure-summary.txt | cut -c1-135)"
+            else
+              description='Production migration diagnostic failed'
+            fi
+          fi
+
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/migration-diagnostic' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
       - name: Upload diagnostic report
         if: always()
@@ -51,3 +82,7 @@ jobs:
           path: artifacts/production-release
           if-no-files-found: error
           retention-days: 7
+
+      - name: Fail job when diagnostic failed
+        if: steps.diagnostic.outcome != 'success'
+        run: exit 1
