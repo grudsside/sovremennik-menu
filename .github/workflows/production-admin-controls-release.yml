@@ -8,6 +8,14 @@ on:
       - '.github/workflows/production-admin-controls-release.yml'
       - 'tools/production-admin-controls-release.mjs'
       - 'supabase/migrations/20260720193000_section_maintenance.sql'
+      - 'supabase/migrations/20260721183000_coffee_revision_admin_correction.sql'
+      - 'supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql'
+      - 'supabase/migrations/20260721203000_coffee_revision_total_stock.sql'
+      - 'assets/js/coffee-revision-editor.js'
+      - 'assets/js/coffee-revision-formula-core.js'
+      - 'assets/js/coffee-revision-formula-fix.js'
+      - 'assets/css/coffee-revision-editor.css'
+      - 'assets/js/supabase-config.js'
       - 'supabase/functions/admin-employees/**'
       - 'supabase/functions/admin-maintenance/**'
   workflow_dispatch:
@@ -25,7 +33,7 @@ jobs:
     name: Deploy and verify production release
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
@@ -55,7 +63,7 @@ jobs:
           [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
           [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
 
-      - name: Apply and verify maintenance migration
+      - name: Apply and verify production migrations
         run: node tools/production-admin-controls-release.mjs
 
       - name: Deploy protected production Edge Functions
@@ -109,11 +117,24 @@ jobs:
               "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
             config="$(curl --fail --silent --show-error \
               "${PRODUCTION_PAGES_URL}/assets/js/supabase-config.js?release=${GITHUB_SHA}" || true)"
+            revision_editor="$(curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-editor.js?release=${GITHUB_SHA}" || true)"
+            revision_formula="$(curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-formula-fix.js?release=${GITHUB_SHA}" || true)"
+            revision_styles="$(curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/assets/css/coffee-revision-editor.css?release=${GITHUB_SHA}" || true)"
 
             if grep -q 'assets/js/push.js' <<< "$html" \
               && grep -q 'section-maintenance.js' <<< "$loader" \
               && grep -q 'mobile-photo-expand.js' <<< "$loader" \
               && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
+              && grep -q '20260721-4' <<< "$config" \
+              && grep -q 'coffee-revision-editor.js' <<< "$config" \
+              && grep -q 'name="grainDelivery"' <<< "$revision_editor" \
+              && grep -q 'name="stockBalanceOverride"' <<< "$revision_editor" \
+              && grep -q 'Общий остаток зерна' <<< "$revision_formula" \
+              && grep -q 'grid-template-columns: repeat(12' <<< "$revision_styles" \
+              && grep -q 'height: 48px' <<< "$revision_styles" \
               && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
               published=true
               break
@@ -130,7 +151,11 @@ jobs:
             assets/js/section-maintenance.js \
             assets/css/section-maintenance.css \
             assets/js/mobile-photo-expand.js \
-            assets/css/mobile-photo-expand.css; do
+            assets/css/mobile-photo-expand.css \
+            assets/js/coffee-revision-editor.js \
+            assets/js/coffee-revision-formula-core.js \
+            assets/js/coffee-revision-formula-fix.js \
+            assets/css/coffee-revision-editor.css; do
             curl --fail --silent --show-error \
               "${PRODUCTION_PAGES_URL}/${asset}?release=${GITHUB_SHA}" \
               --output /dev/null
@@ -143,12 +168,12 @@ jobs:
           {
             echo '## Production release verified'
             echo
-            echo '- Project Ref: `tjibbzfdughhjenumzxo`'
-            echo '- Migration `20260720193000_section_maintenance.sql` applied and verified.'
-            echo '- `admin-employees` deployed with JWT verification.'
-            echo '- `admin-maintenance` deployed with JWT verification.'
-            echo '- Unauthenticated function requests are rejected.'
-            echo '- GitHub Pages serves the maintenance and mobile-photo assets.'
+            echo '- Maintenance and coffee revision migrations applied and verified.'
+            echo '- Administrator revision correction, audit history and role restrictions are active.'
+            echo '- Coffee loss formulas, deliveries and rolling total grain stock are verified.'
+            echo '- The correction form uses the ordered responsive layout with equal-height controls.'
+            echo '- `admin-employees` and `admin-maintenance` remain protected by JWT verification.'
+            echo '- GitHub Pages serves the new revision assets and production configuration.'
             echo '- Frontend configuration points to production, not preview.'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -163,10 +188,10 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_STATUS" == 'success' ]]; then
             heading='✅ Production release verified'
-            details='Database migration, protected Edge Functions, authentication gates and GitHub Pages frontend all passed.'
+            details='Coffee revision migrations, protected correction, formulas, rolling stock, Edge Function gates and GitHub Pages frontend all passed.'
           else
             heading='❌ Production release requires attention'
-            details='At least one production deployment or verification step failed. Review the linked workflow run before using the new controls.'
+            details='At least one production deployment or verification step failed. Review the linked workflow run before using the new revision controls.'
           fi
 
           {
