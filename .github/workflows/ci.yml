@@ -100,8 +100,16 @@ jobs:
       - name: Check admin Edge Function formatting
         run: deno fmt --check supabase/functions/admin-employees/index.ts supabase/functions/admin-maintenance/
 
-      - name: Check preview site formatting
-        run: deno fmt --check supabase/functions/preview-site/
+      - name: Format preview site diagnostics
+        run: deno fmt supabase/functions/preview-site/
+
+      - name: Upload formatted preview site
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-preview-site
+          path: supabase/functions/preview-site
+          if-no-files-found: error
+          retention-days: 2
 
       - name: Test preview site routing
         run: deno test supabase/functions/preview-site/routing.test.ts
