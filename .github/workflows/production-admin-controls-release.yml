@@ -11,9 +11,12 @@ on:
       - 'supabase/migrations/20260721183000_coffee_revision_admin_correction.sql'
       - 'supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql'
       - 'supabase/migrations/20260721203000_coffee_revision_total_stock.sql'
+      - 'supabase/migrations/20260721223000_coffee_revision_integrity_summary.sql'
       - 'assets/js/coffee-revision-editor.js'
       - 'assets/js/coffee-revision-formula-core.js'
       - 'assets/js/coffee-revision-formula-fix.js'
+      - 'assets/js/coffee-revision-summary-core.js'
+      - 'assets/js/coffee-revision-integrity-fix.js'
       - 'assets/css/coffee-revision-editor.css'
       - 'assets/js/supabase-config.js'
       - 'supabase/functions/admin-employees/**'
@@ -122,6 +125,10 @@ jobs:
               "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-editor.js?release=${GITHUB_SHA}" || true)"
             revision_formula="$(curl --fail --silent --show-error \
               "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-formula-fix.js?release=${GITHUB_SHA}" || true)"
+            revision_summary="$(curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-summary-core.js?release=${GITHUB_SHA}" || true)"
+            revision_integrity="$(curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/assets/js/coffee-revision-integrity-fix.js?release=${GITHUB_SHA}" || true)"
             revision_styles="$(curl --fail --silent --show-error \
               "${PRODUCTION_PAGES_URL}/assets/css/coffee-revision-editor.css?release=${GITHUB_SHA}" || true)"
 
@@ -129,11 +136,16 @@ jobs:
               && grep -q 'section-maintenance.js' <<< "$loader" \
               && grep -q 'mobile-photo-expand.js' <<< "$loader" \
               && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
-              && grep -q '20260721-4' <<< "$config" \
+              && grep -q '20260721-5' <<< "$config" \
               && grep -q 'coffee-revision-editor.js' <<< "$config" \
+              && grep -q 'coffee-revision-summary-core.js' <<< "$config" \
+              && grep -q 'coffee-revision-integrity-fix.js' <<< "$config" \
               && grep -q 'name="grainDelivery"' <<< "$revision_editor" \
               && grep -q 'name="stockBalanceOverride"' <<< "$revision_editor" \
               && grep -q 'Общий остаток зерна' <<< "$revision_formula" \
+              && grep -q 'calculatePeriodSummary' <<< "$revision_summary" \
+              && grep -q 'Повторная отправка заблокирована' <<< "$revision_integrity" \
+              && grep -q 'Потери от продаж 7 дн.' <<< "$revision_integrity" \
               && grep -q 'grid-template-columns: repeat(12' <<< "$revision_styles" \
               && grep -q 'height: 48px' <<< "$revision_styles" \
               && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
@@ -156,6 +168,8 @@ jobs:
             assets/js/coffee-revision-editor.js \
             assets/js/coffee-revision-formula-core.js \
             assets/js/coffee-revision-formula-fix.js \
+            assets/js/coffee-revision-summary-core.js \
+            assets/js/coffee-revision-integrity-fix.js \
             assets/css/coffee-revision-editor.css; do
             curl --fail --silent --show-error \
               "${PRODUCTION_PAGES_URL}/${asset}?release=${GITHUB_SHA}" \
@@ -170,9 +184,11 @@ jobs:
             echo '## Production release verified'
             echo
             echo '- Maintenance and coffee revision migrations applied and verified.'
+            echo '- Confirmed values for 13–15 July restored with audit history.'
+            echo '- Duplicate revision dates can no longer overwrite operational values.'
             echo '- Administrator revision correction, audit history and role restrictions are active.'
-            echo '- Coffee loss formulas, deliveries and rolling total grain stock are verified.'
-            echo '- The correction form uses the ordered responsive layout with equal-height controls.'
+            echo '- Coffee loss formulas, opening anchors, deliveries and rolling total grain stock are verified.'
+            echo '- Revision summary uses period totals instead of averaging daily percentages.'
             echo '- `admin-employees` and `admin-maintenance` remain protected by JWT verification.'
             echo '- GitHub Pages serves the new revision assets and production configuration.'
             echo '- Frontend configuration points to production, not preview.'
@@ -214,7 +230,7 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_STATUS" == 'success' ]]; then
             heading='✅ Production release verified'
-            details='Coffee revision migrations, protected correction, formulas, rolling stock, Edge Function gates and GitHub Pages frontend all passed.'
+            details='Coffee revision source data, duplicate protection, weighted summary, formulas, rolling stock, Edge Function gates and GitHub Pages frontend all passed.'
           else
             heading='❌ Production release requires attention'
             details='At least one production deployment or verification step failed. Review the linked workflow run before using the new revision controls.'
