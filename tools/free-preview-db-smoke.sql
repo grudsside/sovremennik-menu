@@ -71,6 +71,7 @@ $$;
 \ir ../supabase/sql/STEP_12_NOTIFICATION_HISTORY.sql
 \ir ../supabase/migrations/20260720193000_section_maintenance.sql
 \ir ../supabase/migrations/20260721183000_coffee_revision_admin_correction.sql
+\ir ../supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql
 
 DO $$
 DECLARE
@@ -101,6 +102,13 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'menu_item_overrides' AND column_name = 'payload'
   ) THEN
     RAISE EXCEPTION 'menu item payload column is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'coffee_revision_report' AND column_name = 'total_loss_weight'
+  ) THEN
+    RAISE EXCEPTION 'coffee revision total_loss_weight formula column is missing';
   END IF;
 
   IF to_regprocedure('public.correct_coffee_revision(date,numeric,integer,numeric,numeric,text,text)') IS NULL THEN
@@ -155,6 +163,50 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Coffee revision edit history admin policy is missing';
   END IF;
+END
+$$;
+
+DO $$
+DECLARE
+  day_two record;
+  day_three record;
+BEGIN
+  DELETE FROM public.coffee_revision_edits WHERE revision_date BETWEEN DATE '2099-12-27' AND DATE '2099-12-29';
+  DELETE FROM public.coffee_revisions WHERE revision_date BETWEEN DATE '2099-12-27' AND DATE '2099-12-29';
+
+  INSERT INTO public.coffee_revisions (revision_date, employee_name, hopper_weight, opened_packs, write_offs, iiko_sales)
+  VALUES
+    (DATE '2099-12-27', 'Formula Test', 1.847, 0, 0, 0),
+    (DATE '2099-12-28', 'Formula Test', 1.347, 4, 0.200, 4.400),
+    (DATE '2099-12-29', 'Formula Test', 1.047, 4, 0.100, 4.500);
+
+  SELECT clean_hopper_weight, total_coffee_usage, difference, total_loss_weight, losses_percent
+    INTO day_two
+  FROM public.coffee_revision_report
+  WHERE revision_date = DATE '2099-12-28';
+
+  IF day_two.clean_hopper_weight <> 0.500
+     OR day_two.total_coffee_usage <> 4.500
+     OR day_two.difference <> -0.300
+     OR day_two.total_loss_weight <> 0.500
+     OR day_two.losses_percent <> 11.36 THEN
+    RAISE EXCEPTION 'Day two coffee formulas are incorrect: %', row_to_json(day_two);
+  END IF;
+
+  SELECT clean_hopper_weight, total_coffee_usage, difference, total_loss_weight, losses_percent
+    INTO day_three
+  FROM public.coffee_revision_report
+  WHERE revision_date = DATE '2099-12-29';
+
+  IF day_three.clean_hopper_weight <> 0.200
+     OR day_three.total_coffee_usage <> 4.300
+     OR day_three.difference <> 0.100
+     OR day_three.total_loss_weight <> 0.100
+     OR day_three.losses_percent <> 2.22 THEN
+    RAISE EXCEPTION 'Day three coffee formulas are incorrect: %', row_to_json(day_three);
+  END IF;
+
+  DELETE FROM public.coffee_revisions WHERE revision_date BETWEEN DATE '2099-12-27' AND DATE '2099-12-29';
 END
 $$;
 
