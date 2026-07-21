@@ -23,6 +23,7 @@ on:
 permissions:
   contents: read
   issues: write
+  statuses: write
 
 concurrency:
   group: production-admin-controls-release
@@ -176,6 +177,31 @@ jobs:
             echo '- GitHub Pages serves the new revision assets and production configuration.'
             echo '- Frontend configuration points to production, not preview.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Production deployment and verification passed'
+          else
+            state='failure'
+            description='Production deployment or verification failed'
+          fi
+
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/admin-controls' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
       - name: Publish permanent release receipt
         if: always()
