@@ -7,15 +7,19 @@ create or replace view public.coffee_revision_report as
 with base as (
   select
     cr.*,
-    case
-      when cr.hopper_weight is null then null
-      else greatest(cr.hopper_weight - 0.847, 0)::numeric(10,3)
-    end as clean_hopper_weight,
-    lag(
+    (
       case
         when cr.hopper_weight is null then null
-        else greatest(cr.hopper_weight - 0.847, 0)::numeric(10,3)
+        else greatest(cr.hopper_weight - 0.847, 0)
       end
+    )::numeric(10,3) as clean_hopper_weight,
+    lag(
+      (
+        case
+          when cr.hopper_weight is null then null
+          else greatest(cr.hopper_weight - 0.847, 0)
+        end
+      )::numeric(10,3)
     ) over (order by cr.revision_date) as previous_clean_hopper_weight
   from public.coffee_revisions cr
 ), usage_calc as (
