@@ -194,15 +194,14 @@ async function ensureBucket() {
       fileSizeLimit: '50MB',
     });
     if (created.error) throw created.error;
-  } else {
-    const updated = await admin.storage.updateBucket(bucketId, {
-      public: true,
-      fileSizeLimit: '50MB',
-    });
-    if (updated.error) throw updated.error;
-    const emptied = await admin.storage.emptyBucket(bucketId);
-    if (emptied.error) throw emptied.error;
+    return;
   }
+
+  const updated = await admin.storage.updateBucket(bucketId, {
+    public: true,
+    fileSizeLimit: '50MB',
+  });
+  if (updated.error) throw updated.error;
 }
 
 async function publishFrontend() {
@@ -238,28 +237,44 @@ async function publishFrontend() {
 }
 
 await fs.mkdir(outputDir, { recursive: true });
-const seededUsers = await seedPreviewUsers();
-const site = await publishFrontend();
+let phase = 'seed preview accounts';
 
-const report = {
-  ok: true,
-  projectRef: previewProjectRef,
-  siteUrl: site.siteUrl,
-  storageSourceUrl: site.storageSourceUrl,
-  uploadedFiles: site.uploaded,
-  users: seededUsers.map(({ login, role }) => ({ login, role })),
-  generatedAt: new Date().toISOString(),
-};
+try {
+  const seededUsers = await seedPreviewUsers();
+  phase = 'publish frontend files';
+  const site = await publishFrontend();
+  phase = 'write deployment report';
 
-await fs.writeFile(path.join(outputDir, 'deployment.json'), JSON.stringify(report, null, 2));
-await fs.writeFile(path.join(outputDir, 'preview-url.txt'), `${site.siteUrl}\n`);
-await fs.writeFile(path.join(outputDir, 'accounts.md'), [
-  '# Preview accounts',
-  '',
-  ...seededUsers.map(user => `- \`${user.login}\` — ${user.role}`),
-  '',
-  'Password is stored only in the GitHub Actions secret `PREVIEW_TEST_PASSWORD`.',
-  '',
-].join('\n'));
+  const report = {
+    ok: true,
+    projectRef: previewProjectRef,
+    siteUrl: site.siteUrl,
+    storageSourceUrl: site.storageSourceUrl,
+    uploadedFiles: site.uploaded,
+    users: seededUsers.map(({ login, role }) => ({ login, role })),
+    generatedAt: new Date().toISOString(),
+  };
 
-console.log(`Live preview published: ${site.siteUrl}`);
+  await fs.writeFile(path.join(outputDir, 'deployment.json'), JSON.stringify(report, null, 2));
+  await fs.writeFile(path.join(outputDir, 'preview-url.txt'), `${site.siteUrl}\n`);
+  await fs.writeFile(path.join(outputDir, 'accounts.md'), [
+    '# Preview accounts',
+    '',
+    ...seededUsers.map(user => `- \`${user.login}\` — ${user.role}`),
+    '',
+    'Password is stored only in the GitHub Actions secret `PREVIEW_TEST_PASSWORD`.',
+    '',
+  ].join('\n'));
+
+  console.log(`Live preview published: ${site.siteUrl}`);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  await fs.writeFile(path.join(outputDir, 'deployment-error.json'), JSON.stringify({
+    ok: false,
+    phase,
+    message,
+    generatedAt: new Date().toISOString(),
+  }, null, 2));
+  console.error(`Live preview deployment failed during ${phase}: ${message}`);
+  throw error;
+}
