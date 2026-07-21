@@ -131,10 +131,10 @@ jobs:
         run: deno test supabase/functions/admin-employees/authorization.test.ts
 
       - name: Type-check admin-employees
-        run: deno check supabase/functions/admin-employees/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/admin-employees/index.ts
 
       - name: Type-check admin-maintenance
-        run: deno check supabase/functions/admin-maintenance/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/admin-maintenance/index.ts
 
   database-preview:
     name: Isolated database preview
