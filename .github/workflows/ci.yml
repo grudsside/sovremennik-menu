@@ -75,6 +75,9 @@ jobs:
       - name: Check live preview deployment safety
         run: node tools/live-preview-workflow-check.mjs
 
+      - name: Check production release deployment safety
+        run: node tools/production-release-workflow-check.mjs
+
       - name: Check notification history
         run: |
           node tools/notification-history-check.mjs

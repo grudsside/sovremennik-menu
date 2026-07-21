@@ -1,0 +1,119 @@
+name: Production admin controls release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-admin-controls-release.yml'
+      - 'tools/production-admin-controls-release.mjs'
+      - 'supabase/migrations/20260720193000_section_maintenance.sql'
+      - 'supabase/functions/admin-employees/**'
+      - 'supabase/functions/admin-maintenance/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-admin-controls-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy production database and Edge Functions
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate production target and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+
+      - name: Apply and verify maintenance migration
+        run: node tools/production-admin-controls-release.mjs
+
+      - name: Deploy protected production Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || exit 1
+          supabase functions deploy admin-employees \
+            --project-ref "$PRODUCTION_PROJECT_REF" \
+            --use-api
+          supabase functions deploy admin-maintenance \
+            --project-ref "$PRODUCTION_PROJECT_REF" \
+            --use-api
+
+      - name: Verify production function authentication gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          for function_name in admin-employees admin-maintenance; do
+            verified=false
+            for attempt in {1..10}; do
+              status="$(curl --silent --show-error \
+                --output "/tmp/${function_name}.txt" \
+                --write-out '%{http_code}' \
+                --request POST \
+                --header 'Content-Type: application/json' \
+                --data '{}' \
+                "${PRODUCTION_SUPABASE_URL}/functions/v1/${function_name}")"
+              if [[ "$status" == '401' || "$status" == '403' ]]; then
+                verified=true
+                break
+              fi
+              sleep 3
+            done
+            [[ "$verified" == 'true' ]] || {
+              echo "${function_name} did not enforce authentication after deployment." >&2
+              cat "/tmp/${function_name}.txt" >&2 || true
+              exit 1
+            }
+          done
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Production Supabase release'
+            echo
+            echo '- Project Ref: `tjibbzfdughhjenumzxo`'
+            echo '- Migration `20260720193000_section_maintenance.sql` applied and verified.'
+            echo '- `admin-employees` deployed with JWT verification.'
+            echo '- `admin-maintenance` deployed with JWT verification.'
+            echo '- Unauthenticated requests are rejected.'
+            echo '- Preview project was not used by this workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-admin-controls-release
+          path: artifacts/production-release
+          if-no-files-found: warn
+          retention-days: 30
