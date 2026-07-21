@@ -23,7 +23,7 @@ assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Pre
 assert.equal(new URL(supabaseUrl).hostname, `${previewProjectRef}.supabase.co`, 'Preview URL must match the dedicated project.');
 
 const functionBase = `${supabaseUrl}/functions/v1`;
-const version = '20260721-3';
+const version = '20260721-4';
 const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   url: supabaseUrl,
   anonKey: publicKey,
