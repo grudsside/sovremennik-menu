@@ -157,6 +157,10 @@ jobs:
           supabase functions deploy admin-maintenance \
             --project-ref "$PREVIEW_PROJECT_REF" \
             --use-api
+          supabase functions deploy preview-site \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
 
       - name: Install preview test dependencies
         run: npm install --no-save @supabase/supabase-js@2
