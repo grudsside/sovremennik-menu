@@ -22,10 +22,22 @@ Deno.test("nested preview assets resolve safely", () => {
 });
 
 Deno.test("unsafe or malformed paths are rejected", () => {
-  assertEquals(resolveAssetPath("/functions/v1/another-function/index.html"), null);
-  assertEquals(resolveAssetPath("/functions/v1/preview-site/../index.html"), null);
-  assertEquals(resolveAssetPath("/functions/v1/preview-site/%2e%2e/index.html"), null);
-  assertEquals(resolveAssetPath("/functions/v1/preview-site/assets//app.js"), null);
+  assertEquals(
+    resolveAssetPath("/functions/v1/another-function/index.html"),
+    null,
+  );
+  assertEquals(
+    resolveAssetPath("/functions/v1/preview-site/../index.html"),
+    null,
+  );
+  assertEquals(
+    resolveAssetPath("/functions/v1/preview-site/%2e%2e/index.html"),
+    null,
+  );
+  assertEquals(
+    resolveAssetPath("/functions/v1/preview-site/assets//app.js"),
+    null,
+  );
   assertEquals(resolveAssetPath("/functions/v1/preview-site/%E0%A4%A"), null);
 });
 
