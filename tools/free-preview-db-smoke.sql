@@ -63,6 +63,7 @@ $$;
 \ir ../supabase/migrations/20260721183000_coffee_revision_admin_correction.sql
 \ir ../supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql
 \ir ../supabase/migrations/20260721203000_coffee_revision_total_stock.sql
+\ir ../supabase/migrations/20260721223000_coffee_revision_integrity_summary.sql
 
 DO $$
 DECLARE
@@ -97,6 +98,16 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'coffee_revisions' AND column_name = 'stock_balance_override'
   ) THEN RAISE EXCEPTION 'coffee revision stock_balance_override column is missing'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'coffee_revisions' AND column_name = 'opening_clean_hopper_weight'
+  ) THEN RAISE EXCEPTION 'coffee revision opening_clean_hopper_weight column is missing'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'coffee_revisions' AND column_name = 'opening_total_grain_balance'
+  ) THEN RAISE EXCEPTION 'coffee revision opening_total_grain_balance column is missing'; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -159,17 +170,17 @@ BEGIN
 
   INSERT INTO public.coffee_revisions (
     revision_date, employee_name, hopper_weight, opened_packs, write_offs, iiko_sales,
-    grain_delivery, stock_balance_override
+    grain_delivery, stock_balance_override, opening_clean_hopper_weight, opening_total_grain_balance
   ) VALUES
-    (DATE '2099-12-27', 'Formula Test', 1.847, 0, 0, 0, 0, 60.000),
-    (DATE '2099-12-28', 'Formula Test', 1.347, 4, 0.200, 4.400, 10.000, NULL),
-    (DATE '2099-12-29', 'Formula Test', 1.047, 4, 0.100, 4.500, 0, 58.000),
-    (DATE '2099-12-30', 'Formula Test', 0.947, 2, 0.100, 2.000, 5.000, NULL);
+    (DATE '2099-12-27', 'Formula Test', 1.847, 0, 0, 0, 0, NULL, 1.000, 60.000),
+    (DATE '2099-12-28', 'Formula Test', 1.347, 4, 0.200, 4.400, 10.000, NULL, NULL, NULL),
+    (DATE '2099-12-29', 'Formula Test', 1.047, 4, 0.100, 4.500, 0, 58.000, NULL, NULL),
+    (DATE '2099-12-30', 'Formula Test', 0.947, 2, 0.100, 2.000, 5.000, NULL, NULL, NULL);
 
   SELECT total_coffee_usage, total_grain_balance INTO day_one
   FROM public.coffee_revision_report WHERE revision_date = DATE '2099-12-27';
-  IF day_one.total_coffee_usage IS NOT NULL OR day_one.total_grain_balance <> 60.000 THEN
-    RAISE EXCEPTION 'Opening stock control point is incorrect: %', row_to_json(day_one);
+  IF day_one.total_coffee_usage <> 0.000 OR day_one.total_grain_balance <> 60.000 THEN
+    RAISE EXCEPTION 'Opening stock anchors are incorrect: %', row_to_json(day_one);
   END IF;
 
   SELECT clean_hopper_weight, total_coffee_usage, difference, total_loss_weight, losses_percent,

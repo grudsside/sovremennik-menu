@@ -76,8 +76,10 @@ try {
       write_offs:0,
       iiko_sales:0,
       grain_delivery:0,
-      stock_balance_override:60,
-      checked:'Stock baseline',
+      stock_balance_override:null,
+      opening_clean_hopper_weight:1,
+      opening_total_grain_balance:60,
+      checked:'Opening anchor',
     },
     {
       revision_date:secondDate,
@@ -114,6 +116,30 @@ try {
     },
   ]);
   if (seeded.error) throw seeded.error;
+
+  const openingFormula = await admin
+    .from('coffee_revision_report')
+    .select('total_coffee_usage,total_grain_balance')
+    .eq('revision_date', firstDate)
+    .single();
+  if (openingFormula.error) throw openingFormula.error;
+  assert.equal(Number(openingFormula.data.total_coffee_usage), 0);
+  assert.equal(Number(openingFormula.data.total_grain_balance), 60);
+  checks.push('opening clean hopper and total grain anchors calculate the first available day');
+
+  const baristaOverwrite = await barista
+    .from('coffee_revisions')
+    .update({ hopper_weight:9 })
+    .eq('revision_date', secondDate);
+  assert(baristaOverwrite.error, 'Barista operational overwrite must be rejected.');
+  checks.push('barista duplicate operational overwrite rejected');
+
+  const adminOverwrite = await admin
+    .from('coffee_revisions')
+    .update({ opened_packs:9 })
+    .eq('revision_date', secondDate);
+  assert(adminOverwrite.error, 'Admin direct operational overwrite must use the audited correction RPC.');
+  checks.push('admin direct operational overwrite rejected');
 
   const manualUpdate = await admin
     .from('coffee_revisions')
@@ -247,4 +273,4 @@ await fs.writeFile(path.join(outputDir, 'coffee-revision-smoke.json'), JSON.stri
   completedAt:new Date().toISOString(),
 }, null, 2));
 
-console.log('Audited coffee revision correction, formula and total stock preview smoke test passed.');
+console.log('Audited coffee revision duplicate protection, formula and total stock preview smoke test passed.');

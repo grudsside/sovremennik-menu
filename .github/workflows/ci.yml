@@ -69,6 +69,9 @@ jobs:
       - name: Check coffee revision correction
         run: node tools/coffee-revision-editor-check.mjs
 
+      - name: Check coffee revision duplicate protection and summary
+        run: node tools/coffee-revision-integrity-check.mjs
+
       - name: Check employee activation and role controls
         run: node tools/employee-status-check.mjs
 
