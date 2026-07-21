@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 const outputDir = path.join(process.cwd(), 'artifacts', 'live-preview');
-const testDate = '2099-12-29';
+const testDates = ['2099-12-27', '2099-12-28', '2099-12-29'];
+const [firstDate, secondDate, correctionDate] = testDates;
 
 function required(name) {
   const value = String(process.env[name] || '').trim();
@@ -56,33 +57,80 @@ const barista = await signedClient('preview-barista');
 const checks = [];
 
 async function cleanTestData() {
-  const auditDelete = await service.from('coffee_revision_edits').delete().eq('revision_date', testDate);
+  const auditDelete = await service.from('coffee_revision_edits').delete().in('revision_date', testDates);
   if (auditDelete.error) throw auditDelete.error;
-  const revisionDelete = await service.from('coffee_revisions').delete().eq('revision_date', testDate);
+  const revisionDelete = await service.from('coffee_revisions').delete().in('revision_date', testDates);
   if (revisionDelete.error) throw revisionDelete.error;
 }
 
 try {
   await cleanTestData();
 
-  const seeded = await service.from('coffee_revisions').insert({
-    revision_date: testDate,
-    employee_id: baristaProfile.id,
-    employee_name: baristaProfile.name,
-    hopper_weight: 1.247,
-    opened_packs: 2,
-    write_offs: 0.111,
-    iiko_sales: 3.2,
-    checked: 'До исправления',
-  });
+  const seeded = await service.from('coffee_revisions').insert([
+    {
+      revision_date: firstDate,
+      employee_id: baristaProfile.id,
+      employee_name: baristaProfile.name,
+      hopper_weight: 1.847,
+      opened_packs: 0,
+      write_offs: 0,
+      iiko_sales: 0,
+      checked: 'Formula baseline',
+    },
+    {
+      revision_date: secondDate,
+      employee_id: baristaProfile.id,
+      employee_name: baristaProfile.name,
+      hopper_weight: 1.347,
+      opened_packs: 4,
+      write_offs: 0.1,
+      iiko_sales: 4.3,
+      checked: 'До ручного ввода',
+    },
+    {
+      revision_date: correctionDate,
+      employee_id: baristaProfile.id,
+      employee_name: baristaProfile.name,
+      hopper_weight: 1.147,
+      opened_packs: 3,
+      write_offs: 0.111,
+      iiko_sales: 3.2,
+      checked: 'До исправления',
+    },
+  ]);
   if (seeded.error) throw seeded.error;
 
+  const manualUpdate = await admin
+    .from('coffee_revisions')
+    .update({ write_offs:0.2, iiko_sales:4.4, checked:'Preview Admin' })
+    .eq('revision_date', secondDate)
+    .select('revision_date,employee_id,employee_name,write_offs,iiko_sales,checked')
+    .single();
+  if (manualUpdate.error) throw manualUpdate.error;
+  assert.equal(manualUpdate.data.employee_id, baristaProfile.id, 'Manual control update must preserve the original employee.');
+  assert.equal(Number(manualUpdate.data.write_offs), 0.2);
+  assert.equal(Number(manualUpdate.data.iiko_sales), 4.4);
+  checks.push('manual write-offs and iiko update accepted without upsert');
+
+  const dayTwoFormula = await admin
+    .from('coffee_revision_report')
+    .select('clean_hopper_weight,total_coffee_usage,difference,total_loss_weight,losses_percent')
+    .eq('revision_date', secondDate)
+    .single();
+  if (dayTwoFormula.error) throw dayTwoFormula.error;
+  assert.equal(Number(dayTwoFormula.data.clean_hopper_weight), 0.5);
+  assert.equal(Number(dayTwoFormula.data.total_coffee_usage), 4.5);
+  assert.equal(Number(dayTwoFormula.data.difference), -0.3);
+  assert.equal(Number(dayTwoFormula.data.total_loss_weight), 0.5);
+  assert.equal(Number(dayTwoFormula.data.losses_percent), 11.36);
+  checks.push('negative discrepancy and write-offs included in total losses');
+
   const corrected = await admin.rpc('correct_coffee_revision', {
-    p_revision_date: testDate,
-    p_hopper_weight: 1.347,
-    p_opened_packs: 3,
-    p_write_offs: 0.222,
-    p_iiko_sales: 4.1,
+    p_revision_date: correctionDate,
+    p_hopper_weight: 1.047,
+    p_opened_packs: 4,
+    p_write_offs: 0.1,
+    p_iiko_sales: 4.5,
     p_checked: 'Preview Admin',
     p_reason: 'Автоматическая проверка исправления ревизии',
   });
@@ -91,32 +139,45 @@ try {
 
   const revision = await service.from('coffee_revisions')
     .select('revision_date,employee_id,employee_name,hopper_weight,opened_packs,write_offs,iiko_sales,checked')
-    .eq('revision_date', testDate)
+    .eq('revision_date', correctionDate)
     .single();
   if (revision.error) throw revision.error;
   assert.equal(revision.data.employee_id, baristaProfile.id, 'Original employee id must remain unchanged.');
   assert.equal(revision.data.employee_name, baristaProfile.name, 'Original employee name must remain unchanged.');
-  assert.equal(Number(revision.data.hopper_weight), 1.347);
-  assert.equal(revision.data.opened_packs, 3);
-  assert.equal(Number(revision.data.write_offs), 0.222);
-  assert.equal(Number(revision.data.iiko_sales), 4.1);
+  assert.equal(Number(revision.data.hopper_weight), 1.047);
+  assert.equal(revision.data.opened_packs, 4);
+  assert.equal(Number(revision.data.write_offs), 0.1);
+  assert.equal(Number(revision.data.iiko_sales), 4.5);
   assert.equal(revision.data.checked, 'Preview Admin');
   checks.push('date and original employee preserved');
 
+  const dayThreeFormula = await admin
+    .from('coffee_revision_report')
+    .select('clean_hopper_weight,total_coffee_usage,difference,total_loss_weight,losses_percent')
+    .eq('revision_date', correctionDate)
+    .single();
+  if (dayThreeFormula.error) throw dayThreeFormula.error;
+  assert.equal(Number(dayThreeFormula.data.clean_hopper_weight), 0.2);
+  assert.equal(Number(dayThreeFormula.data.total_coffee_usage), 4.3);
+  assert.equal(Number(dayThreeFormula.data.difference), 0.1);
+  assert.equal(Number(dayThreeFormula.data.total_loss_weight), 0.1);
+  assert.equal(Number(dayThreeFormula.data.losses_percent), 2.22);
+  checks.push('positive surplus excluded from additional losses');
+
   const history = await service.from('coffee_revision_edits')
     .select('revision_date,edited_by,editor_name,reason,before_data,after_data')
-    .eq('revision_date', testDate)
+    .eq('revision_date', correctionDate)
     .single();
   if (history.error) throw history.error;
   assert.equal(history.data.edited_by, adminProfile.id);
   assert.equal(history.data.editor_name, adminProfile.name);
   assert.equal(history.data.reason, 'Автоматическая проверка исправления ревизии');
-  assert.equal(Number(history.data.before_data.hopper_weight), 1.247);
-  assert.equal(Number(history.data.after_data.hopper_weight), 1.347);
+  assert.equal(Number(history.data.before_data.hopper_weight), 1.147);
+  assert.equal(Number(history.data.after_data.hopper_weight), 1.047);
   checks.push('immutable audit entry created');
 
   const managerAttempt = await manager.rpc('correct_coffee_revision', {
-    p_revision_date: testDate,
+    p_revision_date: correctionDate,
     p_hopper_weight: 9,
     p_opened_packs: 9,
     p_write_offs: 9,
@@ -128,7 +189,7 @@ try {
   checks.push('manager correction rejected');
 
   const baristaAttempt = await barista.rpc('correct_coffee_revision', {
-    p_revision_date: testDate,
+    p_revision_date: correctionDate,
     p_hopper_weight: 8,
     p_opened_packs: 8,
     p_write_offs: 8,
@@ -139,7 +200,7 @@ try {
   assert(baristaAttempt.error, 'Barista correction must be rejected.');
   checks.push('barista correction rejected');
 
-  const employeeHistory = await barista.from('coffee_revision_edits').select('id').eq('revision_date', testDate);
+  const employeeHistory = await barista.from('coffee_revision_edits').select('id').eq('revision_date', correctionDate);
   assert(employeeHistory.error || (employeeHistory.data || []).length === 0, 'Barista must not read correction history.');
   checks.push('audit history hidden from employee');
 } finally {
@@ -151,8 +212,8 @@ await fs.writeFile(path.join(outputDir, 'coffee-revision-smoke.json'), JSON.stri
   ok: true,
   projectRef: previewProjectRef,
   checks,
-  cleanedTestDate: testDate,
+  cleanedTestDates: testDates,
   completedAt: new Date().toISOString(),
 }, null, 2));
 
-console.log('Audited coffee revision correction preview smoke test passed.');
+console.log('Audited coffee revision correction and formula preview smoke test passed.');
