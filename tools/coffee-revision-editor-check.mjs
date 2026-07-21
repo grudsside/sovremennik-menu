@@ -28,7 +28,7 @@ const required = [
   [formulaFix.includes(".from('coffee_revisions')") && formulaFix.includes('.update(values)'), 'manual control form must update an existing revision'],
   [formulaFix.includes('Потери всего (кг.)') && formulaFix.includes('Потери от продаж'), 'table must show total loss weight and percentage separately'],
   [formulaFix.includes('Поставка зерна (кг.)') && formulaFix.includes('Общий остаток зерна (кг.)'), 'table must display delivery and total stock'],
-  [styles.includes('.revision-correction') && styles.includes('@media (max-width: 720px)'), 'correction interface must include desktop and mobile styles'],
+  [styles.includes('grid-template-columns: repeat(12') && styles.includes('height: 48px') && styles.includes('@media (max-width: 1100px)') && styles.includes('@media (max-width: 720px)'), 'correction form must use an ordered responsive grid with equal-height controls'],
   [migration.includes('create table if not exists public.coffee_revision_edits'), 'migration must create an audit table'],
   [migration.includes('before_data jsonb not null') && migration.includes('after_data jsonb not null'), 'audit must keep before and after values'],
   [migration.includes('coffee_revision_edits_select_admin'), 'audit history must have an admin-only RLS policy'],
@@ -64,4 +64,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Coffee revision correction and total stock checks passed.');
+console.log('Coffee revision correction, layout and total stock checks passed.');
