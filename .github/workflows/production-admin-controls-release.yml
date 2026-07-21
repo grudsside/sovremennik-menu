@@ -154,6 +154,7 @@ jobs:
 
       - name: Publish permanent release receipt
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_STATUS: ${{ job.status }}
