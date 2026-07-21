@@ -1,0 +1,10 @@
+project_id = "sovremennik-menu"
+
+[functions.admin-employees]
+verify_jwt = true
+
+[functions.admin-maintenance]
+verify_jwt = true
+
+[functions.preview-site]
+verify_jwt = false

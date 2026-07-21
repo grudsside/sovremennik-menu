@@ -1,0 +1,192 @@
+name: Supabase live preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths:
+      - 'index.html'
+      - 'assets/**'
+      - 'data/**'
+      - 'supabase/**'
+      - 'tools/live-preview-*.mjs'
+      - 'tools/free-preview-db-smoke.sql'
+      - '.github/workflows/live-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-live-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-configuration:
+    name: Preview configuration
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.detect.outputs.configured }}
+    steps:
+      - name: Detect required secrets
+        id: detect
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PREVIEW_DB_PASSWORD: ${{ secrets.PREVIEW_DB_PASSWORD }}
+          PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -n "$SUPABASE_ACCESS_TOKEN" && -n "$PREVIEW_DB_PASSWORD" && -n "$PREVIEW_TEST_PASSWORD" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Supabase Free preview credentials are configured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Supabase Free preview is prepared but not started"
+              echo
+              echo "Repository secrets \`SUPABASE_ACCESS_TOKEN\`, \`PREVIEW_DB_PASSWORD\` and \`PREVIEW_TEST_PASSWORD\` are required."
+              echo "No production database, Edge Function, Storage object, GitHub Pages deployment or main branch was changed."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy-preview:
+    name: Deploy dedicated Free Supabase preview
+    needs: detect-configuration
+    if: needs.detect-configuration.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PREVIEW_DB_PASSWORD }}
+      PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
+      PRODUCTION_SUPABASE_PROJECT_REF: tjibbzfdughhjenumzxo
+      PREVIEW_PROJECT_REF: enkftanmqlwvjydliwue
+      PREVIEW_SUPABASE_URL: https://enkftanmqlwvjydliwue.supabase.co
+    steps:
+      - name: Checkout preview source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate dedicated preview target
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_url="https://${PREVIEW_PROJECT_REF}.supabase.co"
+          derived_ref="${PREVIEW_SUPABASE_URL#https://}"
+          derived_ref="${derived_ref%%.*}"
+
+          if [[ "$PREVIEW_PROJECT_REF" == "$PRODUCTION_SUPABASE_PROJECT_REF" ]]; then
+            echo "Refusing to deploy against the production project." >&2
+            exit 1
+          fi
+          if [[ "$PREVIEW_SUPABASE_URL" != "$expected_url" || "$derived_ref" != "$PREVIEW_PROJECT_REF" ]]; then
+            echo "Preview URL and Project Ref do not match." >&2
+            exit 1
+          fi
+          echo "Dedicated Free preview target validated: \`$PREVIEW_PROJECT_REF\`." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Supabase Management API access
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PREVIEW_PROJECT_REF" \
+            --output preview-project.json
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('preview-project.json','utf8')); const ref=String(p.ref||p.id||''); if(ref && ref!==process.env.PREVIEW_PROJECT_REF){throw new Error('Management API returned another project.')}"
+          rm -f preview-project.json
+
+      - name: Resolve preview API keys securely
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PREVIEW_PROJECT_REF/api-keys?reveal=true" \
+            --output preview-api-keys.json
+          node tools/live-preview-resolve-keys.mjs preview-api-keys.json
+          rm -f preview-api-keys.json
+
+      - name: Prepare deterministic preview migrations
+        run: node tools/live-preview-prepare-migrations.mjs
+
+      - name: Link dedicated preview project
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preview database changes
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: supabase db push --dry-run --include-all
+
+      - name: Apply database changes to dedicated preview only
+        working-directory: .live-preview-workspace
+        shell: bash
+        run: supabase db push --include-all --yes
+
+      - name: Deploy protected preview Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PREVIEW_PROJECT_REF" == "$PRODUCTION_SUPABASE_PROJECT_REF" ]]; then
+            echo "Refusing to deploy Edge Functions against production." >&2
+            exit 1
+          fi
+          supabase functions deploy admin-employees \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --use-api
+          supabase functions deploy admin-maintenance \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --use-api
+          supabase functions deploy preview-site \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
+
+      - name: Install preview test dependencies
+        run: npm install --no-save @supabase/supabase-js@2
+
+      - name: Seed preview accounts and publish frontend
+        run: node tools/live-preview-deploy.mjs
+
+      - name: Run authenticated live smoke test
+        shell: bash
+        run: |
+          set -o pipefail
+          node tools/live-preview-smoke.mjs 2> >(tee artifacts/live-preview/smoke-error.log >&2)
+
+      - name: Publish preview result
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f artifacts/live-preview/summary.md ]]; then
+            cat artifacts/live-preview/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload preview report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-preview-${{ github.event.pull_request.number || github.run_id }}
+          path: artifacts/live-preview
+          if-no-files-found: warn
+          retention-days: 14
