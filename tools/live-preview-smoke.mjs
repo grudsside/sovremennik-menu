@@ -52,12 +52,33 @@ async function invoke(instance, name, body, shouldSucceed = true) {
 await fs.mkdir(outputDir, { recursive: true });
 const deployment = JSON.parse(await fs.readFile(path.join(outputDir, 'deployment.json'), 'utf8'));
 assert.equal(deployment.projectRef, previewProjectRef, 'Deployment report belongs to another Supabase project.');
+assert.match(deployment.siteUrl, /\/functions\/v1\/preview-site\/$/, 'Preview must use the rendering Edge Function.');
 
 const siteResponse = await fetch(deployment.siteUrl, { redirect: 'follow' });
 assert.equal(siteResponse.status, 200, 'Preview index must be publicly readable.');
+assert.match(
+  siteResponse.headers.get('content-type') || '',
+  /^text\/html(?:;|$)/i,
+  'Preview index must be rendered as HTML instead of Storage plain text.',
+);
 const siteHtml = await siteResponse.text();
 assert.match(siteHtml, /assets\/js\/supabase-config\.js/i, 'Preview index must load its configuration.');
 assert.match(siteHtml, /Современник|Sovremennik/i, 'Preview index must be the application.');
+
+const configResponse = await fetch(new URL('assets/js/supabase-config.js', deployment.siteUrl));
+assert.equal(configResponse.status, 200, 'Preview configuration asset must be publicly readable.');
+assert.match(
+  configResponse.headers.get('content-type') || '',
+  /javascript/i,
+  'Preview JavaScript must use a browser-executable MIME type.',
+);
+const configSource = await configResponse.text();
+assert.match(configSource, new RegExp(previewProjectRef), 'Preview configuration must target the dedicated project.');
+assert.doesNotMatch(
+  configSource,
+  new RegExp(productionProjectRef || 'tjibbzfdughhjenumzxo'),
+  'Preview configuration must not target production.',
+);
 
 const admin = await signedClient('preview-admin');
 const waiter = await signedClient('preview-waiter');
@@ -71,7 +92,10 @@ const adminProfile = profiles.data.find(row => row.login === 'preview-admin');
 const baristaProfile = profiles.data.find(row => row.login === 'preview-barista');
 assert(adminProfile?.id && baristaProfile?.id, 'Seeded preview profiles were not found.');
 
-const checks = [];
+const checks = [
+  'preview HTML rendered by Edge Function',
+  'preview JavaScript served with executable MIME type',
+];
 let roleChanged = false;
 let scheduleClosed = false;
 
@@ -173,7 +197,8 @@ await fs.writeFile(path.join(outputDir, 'summary.md'), [
   `- URL: ${deployment.siteUrl}`,
   `- Dedicated preview project ref: \`${previewProjectRef}\``,
   `- Uploaded frontend files: ${deployment.uploadedFiles}`,
-  `- Authenticated checks: ${checks.length}`,
+  `- Authenticated and rendering checks: ${checks.length}`,
+  '- HTML, CSS and JavaScript are served through the public preview-site Edge Function.',
   '- Test data restored after the run.',
   '- Production project was not modified.',
   '',
