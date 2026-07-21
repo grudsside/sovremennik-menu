@@ -16,6 +16,7 @@ const coffeeMigrations = [
   '20260721183000_coffee_revision_admin_correction.sql',
   '20260721190000_coffee_revision_formula_corrections.sql',
   '20260721203000_coffee_revision_total_stock.sql',
+  '20260721223000_coffee_revision_integrity_summary.sql',
 ];
 
 const required = [
@@ -27,12 +28,15 @@ const required = [
   [coffeeMigrations.every(file => workflow.includes(file)), 'workflow must trigger for every coffee revision migration'],
   [coffeeMigrations.every(file => release.includes(file)), 'release script must apply every coffee revision migration'],
   [workflow.includes('assets/js/coffee-revision-editor.js') && workflow.includes('assets/css/coffee-revision-editor.css'), 'workflow must trigger for revision interface assets'],
+  [workflow.includes('assets/js/coffee-revision-summary-core.js') && workflow.includes('assets/js/coffee-revision-integrity-fix.js'), 'workflow must trigger for revision summary and duplicate protection assets'],
   [workflow.includes('functions deploy admin-employees'), 'admin-employees must be deployed'],
   [workflow.includes('functions deploy admin-maintenance'), 'admin-maintenance must be deployed'],
   [workflow.includes("status\" == '401'") || workflow.includes("status\" == '403'"), 'workflow must verify authentication gates'],
   [workflow.includes('Verify published GitHub Pages frontend'), 'workflow must verify the published frontend'],
   [workflow.includes('section-maintenance.js') && workflow.includes('mobile-photo-expand.js'), 'workflow must verify existing frontend features'],
   [workflow.includes('coffee-revision-editor.js') && workflow.includes('coffee-revision-formula-fix.js'), 'workflow must verify coffee revision frontend assets'],
+  [workflow.includes('coffee-revision-summary-core.js') && workflow.includes('coffee-revision-integrity-fix.js'), 'workflow must verify summary and duplicate protection frontend assets'],
+  [workflow.includes('Потери от продаж 7 дн.') && workflow.includes('Повторная отправка заблокирована'), 'workflow must verify corrected revision summary and duplicate message'],
   [workflow.includes('grid-template-columns: repeat(12') && workflow.includes('height: 48px'), 'workflow must verify ordered equal-height correction controls'],
   [workflow.includes(`! grep -q '${previewRef}'`), 'workflow must reject preview configuration on production Pages'],
   [workflow.includes('statuses: write'), 'workflow must be allowed to publish a commit status'],
@@ -54,9 +58,13 @@ const required = [
   [release.includes('relrowsecurity'), 'release must verify RLS'],
   [release.includes('coffee_revision_edits') && release.includes('audit RLS'), 'release must verify correction audit protection'],
   [release.includes('grain_delivery') && release.includes('stock_balance_override'), 'release must verify total stock source columns'],
+  [release.includes('opening_clean_hopper_weight') && release.includes('opening_total_grain_balance'), 'release must verify opening calculation anchors'],
   [release.includes('total_loss_weight') && release.includes('total_grain_balance'), 'release must verify report formula columns'],
   [release.includes('security_invoker=true'), 'release must verify the reporting view security mode'],
   [release.includes('correct_coffee_revision(date,numeric,integer,numeric,numeric,text,numeric,numeric,text)'), 'release must verify the stock-aware correction RPC'],
+  [release.includes('Revision already submitted') && release.includes('app.coffee_revision_admin_correction'), 'release must verify protected duplicate overwrite handling'],
+  [release.includes("date '2026-07-13'") && release.includes('day_13.losses_percent <> 16.57'), 'release must verify restored 13 July data'],
+  [release.includes('day_14.losses_percent <> 19.43') && release.includes('day_15.losses_percent <> 3.34'), 'release must verify restored 14–15 July data'],
   [release.includes("date '2199-12-27'") && release.includes('rollback;'), 'formula verification must run in a rolled-back production transaction'],
   [release.includes('day_two.total_grain_balance <> 65.500') && release.includes('day_three.total_grain_balance <> 61.200'), 'release must verify delivery and rolling stock calculations'],
 ];
