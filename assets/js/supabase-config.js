@@ -12,7 +12,7 @@ window.SOVREMENNIK_SUPABASE = {
 };
 
 (function loadCoffeeRevisionTools(){
-  const version = '20260721-2';
+  const version = '20260721-3';
   const cssId = 'coffee-revision-editor-css';
 
   if(!document.getElementById(cssId)){
