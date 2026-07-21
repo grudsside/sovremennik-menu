@@ -11,10 +11,9 @@ window.SOVREMENNIK_SUPABASE = {
   loginDomain: 'sovremennik.local'
 };
 
-(function loadCoffeeRevisionEditor(){
-  const version = '20260721-1';
+(function loadCoffeeRevisionTools(){
+  const version = '20260721-2';
   const cssId = 'coffee-revision-editor-css';
-  const scriptId = 'coffee-revision-editor-js';
 
   if(!document.getElementById(cssId)){
     const link = document.createElement('link');
@@ -24,15 +23,29 @@ window.SOVREMENNIK_SUPABASE = {
     document.head.appendChild(link);
   }
 
-  const loadScript = () => {
-    if(document.getElementById(scriptId)) return;
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = `assets/js/coffee-revision-editor.js?v=${version}`;
-    script.defer = true;
-    document.body.appendChild(script);
+  function appendScript(id, path){
+    return new Promise((resolve, reject) => {
+      if(document.getElementById(id)) return resolve();
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = `${path}?v=${version}`;
+      script.async = false;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`Не удалось загрузить ${path}`));
+      document.body.appendChild(script);
+    });
+  }
+
+  const loadScripts = async () => {
+    try {
+      await appendScript('coffee-revision-formula-core-js', 'assets/js/coffee-revision-formula-core.js');
+      await appendScript('coffee-revision-formula-fix-js', 'assets/js/coffee-revision-formula-fix.js');
+      await appendScript('coffee-revision-editor-js', 'assets/js/coffee-revision-editor.js');
+    } catch(error){
+      console.error('Coffee revision tools failed to load', error);
+    }
   };
 
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadScript, { once:true });
-  else loadScript();
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadScripts, { once:true });
+  else loadScripts();
 })();
