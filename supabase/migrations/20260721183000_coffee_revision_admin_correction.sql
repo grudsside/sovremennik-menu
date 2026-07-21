@@ -6,7 +6,7 @@ begin;
 create table if not exists public.coffee_revision_edits (
   id bigint generated always as identity primary key,
   revision_date date not null,
-  edited_by uuid not null references public.profiles(id),
+  edited_by uuid references public.profiles(id) on delete set null,
   editor_name text not null,
   reason text not null check (char_length(btrim(reason)) between 3 and 500),
   before_data jsonb not null,
@@ -132,7 +132,7 @@ $$;
 revoke execute on function public.correct_coffee_revision(date, numeric, integer, numeric, numeric, text, text)
   from public, anon;
 grant execute on function public.correct_coffee_revision(date, numeric, integer, numeric, numeric, text, text)
-  to authenticated, service_role;
+  to authenticated;
 
 comment on table public.coffee_revision_edits is
   'Immutable audit history of administrator corrections to coffee revisions.';
