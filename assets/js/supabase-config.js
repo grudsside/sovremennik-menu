@@ -10,3 +10,29 @@ window.SOVREMENNIK_SUPABASE = {
   vapidPublicKey: 'BKm7-qVECgd-74cQtk5PtnDaiUAPHpN6_3y3rCQSdC_QL-GX_QhasYVO40226QToDPmfNnxjnmLbTc-HtiEHgF0',
   loginDomain: 'sovremennik.local'
 };
+
+(function loadCoffeeRevisionEditor(){
+  const version = '20260721-1';
+  const cssId = 'coffee-revision-editor-css';
+  const scriptId = 'coffee-revision-editor-js';
+
+  if(!document.getElementById(cssId)){
+    const link = document.createElement('link');
+    link.id = cssId;
+    link.rel = 'stylesheet';
+    link.href = `assets/css/coffee-revision-editor.css?v=${version}`;
+    document.head.appendChild(link);
+  }
+
+  const loadScript = () => {
+    if(document.getElementById(scriptId)) return;
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = `assets/js/coffee-revision-editor.js?v=${version}`;
+    script.defer = true;
+    document.body.appendChild(script);
+  };
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadScript, { once:true });
+  else loadScript();
+})();
