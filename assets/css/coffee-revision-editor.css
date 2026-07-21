@@ -32,6 +32,15 @@
   box-sizing: border-box;
 }
 
+.revision-correction-grid .employee-field small {
+  display: block;
+  margin-top: 6px;
+  color: #647067;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
 .revision-correction-reason {
   display: grid;
   gap: 8px;
