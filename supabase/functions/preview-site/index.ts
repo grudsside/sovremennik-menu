@@ -42,7 +42,9 @@ serve(async (req) => {
 
   const deploymentId = Deno.env.get("DENO_DEPLOYMENT_ID") || "preview";
   const sourceUrl =
-    `${supabaseUrl}/storage/v1/object/public/${bucketId}/${encodeStoragePath(assetPath)}` +
+    `${supabaseUrl}/storage/v1/object/public/${bucketId}/${
+      encodeStoragePath(assetPath)
+    }` +
     `?deployment=${encodeURIComponent(deploymentId)}`;
 
   const sourceHeaders = new Headers();
@@ -62,7 +64,9 @@ serve(async (req) => {
 
   if (!sourceResponse.ok && sourceResponse.status !== 206) {
     return errorResponse(
-      sourceResponse.status === 404 ? "Preview asset not found" : "Preview asset unavailable",
+      sourceResponse.status === 404
+        ? "Preview asset not found"
+        : "Preview asset unavailable",
       sourceResponse.status === 404 ? 404 : 502,
     );
   }
@@ -76,13 +80,15 @@ serve(async (req) => {
     "Referrer-Policy": "no-referrer",
   });
 
-  for (const headerName of [
-    "Accept-Ranges",
-    "Content-Length",
-    "Content-Range",
-    "ETag",
-    "Last-Modified",
-  ]) {
+  for (
+    const headerName of [
+      "Accept-Ranges",
+      "Content-Length",
+      "Content-Range",
+      "ETag",
+      "Last-Modified",
+    ]
+  ) {
     const value = sourceResponse.headers.get(headerName);
     if (value) headers.set(headerName, value);
   }
