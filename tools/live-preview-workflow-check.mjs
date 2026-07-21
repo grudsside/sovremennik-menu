@@ -2,7 +2,9 @@ import fs from 'node:fs';
 
 const workflow = fs.readFileSync('.github/workflows/live-preview.yml', 'utf8');
 const deploy = fs.readFileSync('tools/live-preview-deploy.mjs', 'utf8');
+const featureConfig = fs.readFileSync('tools/live-preview-feature-config.mjs', 'utf8');
 const smoke = fs.readFileSync('tools/live-preview-smoke.mjs', 'utf8');
+const coffeeSmoke = fs.readFileSync('tools/live-preview-coffee-revision-smoke.mjs', 'utf8');
 const resolver = fs.readFileSync('tools/live-preview-resolve-keys.mjs', 'utf8');
 const migrations = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
 const config = fs.readFileSync('supabase/config.toml', 'utf8');
@@ -26,6 +28,8 @@ const required = [
   [workflow.includes('supabase db push --include-all --yes'), 'workflow must apply the reviewed migration bundle'],
   [workflow.includes('functions deploy admin-employees') && workflow.includes('functions deploy admin-maintenance'), 'preview admin functions must be deployed'],
   [workflow.includes('functions deploy preview-site') && workflow.includes('--no-verify-jwt'), 'public preview renderer must be deployed without JWT verification'],
+  [workflow.includes('live-preview-feature-config.mjs'), 'preview must publish configuration that loads the revision editor'],
+  [workflow.includes('live-preview-coffee-revision-smoke.mjs'), 'preview must run the revision correction authorization smoke test'],
   [resolver.includes('PREVIEW_PUBLIC_KEY') && resolver.includes('PREVIEW_SECRET_KEY') && resolver.includes('::add-mask::'), 'preview keys must be masked and exported safely'],
   [deploy.includes("bucketId = 'open-test-preview'"), 'preview frontend must use a dedicated Storage bucket'],
   [deploy.includes("launcherFile = 'preview-launcher.html'") && deploy.includes('buildLauncher'), 'Free preview must generate a downloadable HTML launcher'],
@@ -33,6 +37,8 @@ const required = [
   [deploy.includes('preview-admin') && deploy.includes('preview-manager') && deploy.includes('preview-barista') && deploy.includes('preview-waiter'), 'all role accounts must be seeded'],
   [deploy.includes('Preview project ref must differ from production'), 'preview deploy script must reject production'],
   [deploy.includes('Preview URL must match the dedicated preview project ref'), 'preview deploy script must bind URL to Project Ref'],
+  [featureConfig.includes('coffee-revision-editor.js') && featureConfig.includes('coffee-revision-editor.css'), 'preview configuration must load revision correction assets'],
+  [featureConfig.includes('Preview feature config must not target production'), 'preview correction configuration must reject production'],
   [smoke.includes('downloadable preview launcher generated'), 'live test must verify the downloadable preview launcher'],
   [smoke.includes('Preview JavaScript must use a browser-executable MIME type'), 'live test must verify preview asset MIME types'],
   [smoke.includes('current admin demotion rejected'), 'live test must verify current admin protection'],
@@ -40,11 +46,15 @@ const required = [
   [smoke.includes('direct client maintenance write rejected'), 'live test must verify maintenance write protection'],
   [smoke.includes("sectionId: 'home'"), 'live test must verify protected sections'],
   [smoke.includes("role: 'barista'") && smoke.includes('isClosed: false'), 'live test must restore changed preview data'],
+  [coffeeSmoke.includes('administrator correction accepted'), 'live test must verify administrator correction'],
+  [coffeeSmoke.includes('manager correction rejected') && coffeeSmoke.includes('barista correction rejected'), 'live test must reject non-admin revision corrections'],
+  [coffeeSmoke.includes('immutable audit entry created') && coffeeSmoke.includes('cleanTestData'), 'live correction test must verify audit and cleanup'],
   [previewSite.includes('contentTypeForPath') && previewSite.includes('X-Content-Type-Options'), 'preview renderer must set explicit browser MIME and security headers'],
   [previewSite.includes('req.method !== "GET"') && previewSite.includes('req.method !== "HEAD"'), 'preview renderer must be read-only'],
   [previewRouting.includes('segment === ".."') && previewRouting.includes('decodeURIComponent'), 'preview renderer must reject traversal after URL decoding'],
   [migrations.includes('STEP_1_SCHEMA_AND_POLICIES.sql') && migrations.includes('STEP_10_HARDEN_RLS.sql') && migrations.includes('STEP_12_NOTIFICATION_HISTORY.sql'), 'preview migration bundle must include the application base and current security patches'],
   [migrations.includes('20260720193000_section_maintenance.sql'), 'preview migration bundle must include section maintenance'],
+  [migrations.includes('20260721183000_coffee_revision_admin_correction.sql'), 'preview migration bundle must include audited coffee revision correction'],
   [migrations.includes('STEP_2_SEED_ADMIN_AFTER_AUTH_USER.sql') && migrations.includes('Forbidden preview SQL selected'), 'migration builder must explicitly guard forbidden production-oriented SQL'],
   [config.includes('[functions.admin-employees]') && config.includes('[functions.admin-maintenance]'), 'admin functions must be declared in config.toml'],
   [config.includes('[functions.preview-site]') && /\[functions\.preview-site\][\s\S]*?verify_jwt\s*=\s*false/.test(config), 'preview-site must be explicitly public in config.toml'],
@@ -60,7 +70,7 @@ const forbidden = [
   [/\['supabase\/sql\/STEP_3_OPTIONAL_JULY_SCHEDULE\.sql'\s*,/.test(migrations), 'preview bundle must not load optional production schedule data'],
   [/\['supabase\/sql\/STEP_7_FIX_RLS_CONTENT_SYNC\.sql'\s*,/.test(migrations), 'preview bundle must not run the hardcoded grigory patch'],
   [/\['supabase\/sql\/ROLLBACK_STEP_12_NOTIFICATION_HISTORY\.sql'\s*,/.test(migrations), 'preview bundle must not apply rollback SQL'],
-  [/sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + deploy + smoke + resolver + previewSite), 'secret keys must never be hardcoded'],
+  [/sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + deploy + featureConfig + smoke + coffeeSmoke + resolver + previewSite), 'secret keys must never be hardcoded'],
 ];
 
 const failures = [
