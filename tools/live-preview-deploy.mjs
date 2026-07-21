@@ -224,9 +224,17 @@ async function publishFrontend() {
     uploaded += 1;
   }
 
-  const publicUrl = admin.storage.from(bucketId).getPublicUrl('index.html').data.publicUrl;
-  assert(publicUrl, 'Supabase Storage did not return a preview URL.');
-  return { publicUrl, uploaded };
+  const storageSourceUrl = admin.storage.from(bucketId).getPublicUrl('index.html').data.publicUrl;
+  assert(storageSourceUrl, 'Supabase Storage did not return a source URL.');
+
+  const siteUrl = `${supabaseUrl}/functions/v1/preview-site/`;
+  assert.equal(
+    new URL(siteUrl).hostname,
+    `${previewProjectRef}.supabase.co`,
+    'Rendered preview URL must belong to the dedicated preview project.',
+  );
+
+  return { siteUrl, storageSourceUrl, uploaded };
 }
 
 await fs.mkdir(outputDir, { recursive: true });
@@ -236,14 +244,15 @@ const site = await publishFrontend();
 const report = {
   ok: true,
   projectRef: previewProjectRef,
-  siteUrl: site.publicUrl,
+  siteUrl: site.siteUrl,
+  storageSourceUrl: site.storageSourceUrl,
   uploadedFiles: site.uploaded,
   users: seededUsers.map(({ login, role }) => ({ login, role })),
   generatedAt: new Date().toISOString(),
 };
 
 await fs.writeFile(path.join(outputDir, 'deployment.json'), JSON.stringify(report, null, 2));
-await fs.writeFile(path.join(outputDir, 'preview-url.txt'), `${site.publicUrl}\n`);
+await fs.writeFile(path.join(outputDir, 'preview-url.txt'), `${site.siteUrl}\n`);
 await fs.writeFile(path.join(outputDir, 'accounts.md'), [
   '# Preview accounts',
   '',
@@ -253,4 +262,4 @@ await fs.writeFile(path.join(outputDir, 'accounts.md'), [
   '',
 ].join('\n'));
 
-console.log(`Live preview published: ${site.publicUrl}`);
+console.log(`Live preview published: ${site.siteUrl}`);
