@@ -28,6 +28,7 @@ const required = [
   [workflow.includes('issues/33/comments'), 'release receipt must be attached to the approved production PR'],
   [workflow.includes("printf '%s\\n\\n' \"$heading\""), 'release receipt must use YAML-safe printf construction'],
   [workflow.includes('/tmp/production-release-comment.md'), 'release receipt must be written to a temporary file before posting'],
+  [workflow.includes('name: Publish permanent release receipt\n        if: always()\n        continue-on-error: true'), 'optional receipt publishing must not fail a successful production deployment'],
   [release.includes(`/projects/${'${projectRef}'}/database/query`), 'release must use the Management API database query endpoint'],
   [release.includes('20260720193000_section_maintenance.sql'), 'release must apply the reviewed maintenance migration'],
   [release.includes('exactly 9 allowed maintenance sections'), 'release must verify all maintenance rows'],
