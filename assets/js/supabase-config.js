@@ -13,7 +13,7 @@ window.SOVREMENNIK_SUPABASE = {
 
 (function loadCoffeeRevisionTools(){
   // Previous production verification marker kept for the release gate: 20260721-5
-  const version = '20260722-1';
+  const version = '20260722-2';
 
   function appendStyle(id, path){
     if(document.getElementById(id)) return;
@@ -47,6 +47,7 @@ window.SOVREMENNIK_SUPABASE = {
       await appendScript('coffee-revision-editor-js', 'assets/js/coffee-revision-editor.js');
       await appendScript('coffee-revision-summary-core-js', 'assets/js/coffee-revision-summary-core.js');
       await appendScript('coffee-revision-integrity-fix-js', 'assets/js/coffee-revision-integrity-fix.js');
+      await appendScript('coffee-revision-summary-labels-js', 'assets/js/coffee-revision-summary-labels.js');
     } catch(error){
       console.error('Coffee revision tools failed to load', error);
     }
