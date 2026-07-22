@@ -27,6 +27,26 @@ function clampLimit(value: unknown): number {
   return Math.max(1, Math.min(500, Math.round(parsed)));
 }
 
+function safeEqual(left: string, right: string): boolean {
+  if (!left || !right || left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return mismatch === 0;
+}
+
+async function validatesProjectServiceKey(
+  supabaseUrl: string,
+  key: string,
+): Promise<boolean> {
+  const verifier = createClient(supabaseUrl, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const result = await verifier.from("profiles").select("id").limit(1);
+  return !result.error;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -53,10 +73,16 @@ serve(async (req) => {
     /^Bearer\s+/i,
     "",
   ).trim();
+  const apiKeyHeader = (req.headers.get("apikey") || "").trim();
   const cronSecretHeader = req.headers.get("x-cron-secret") || "";
-  const serviceRoleAuthorized = Boolean(jwt && jwt === serviceRoleKey);
+  let serviceRoleAuthorized = false;
   let profile: Record<string, unknown> | null = null;
   let profileError: unknown = null;
+
+  if (jwt && apiKeyHeader && safeEqual(jwt, apiKeyHeader)) {
+    serviceRoleAuthorized = safeEqual(jwt, serviceRoleKey) ||
+      await validatesProjectServiceKey(supabaseUrl, jwt);
+  }
 
   if (jwt && !serviceRoleAuthorized) {
     const requester = createClient(supabaseUrl, anonKey, {
