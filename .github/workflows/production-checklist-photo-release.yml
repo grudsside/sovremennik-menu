@@ -141,7 +141,7 @@ jobs:
               && grep -q 'checklist-photo-reports.js?v=20260722-1' <<< "$loader" \
               && grep -q 'checklist-photo-reports.css?v=20260722-1' <<< "$loader" \
               && grep -q 'checklist-photo-reports' <<< "$reports" \
-              && grep -q 'calculateCompletion' <<< "$core" \
+              && grep -q 'SovremennikChecklistPhotoCore' <<< "$core" \
               && grep -q '.checklist-photo-field' <<< "$styles" \
               && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
               && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
