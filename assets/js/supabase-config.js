@@ -3,6 +3,7 @@ window.SOVREMENNIK_SUPABASE = {
   anonKey: 'sb_publishable_S0QBmN0f6SYvaPXj_QFvzg_uQmdXSwJ',
   employeeFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/admin-employees',
   maintenanceFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/admin-maintenance',
+  photoRetentionFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/checklist-photo-retention',
   notifyFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/notify-event',
   pushSendFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/push-send',
   deadlineFunctionUrl: 'https://tjibbzfdughhjenumzxo.supabase.co/functions/v1/deadline-checker',
