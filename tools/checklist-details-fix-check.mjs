@@ -16,7 +16,12 @@ const context = {
     }
     return {
       id: row?.id || '',
-      tasks: Array.isArray(details) ? details : [],
+      tasks: Array.isArray(details)
+        ? details.map(item => ({
+          text: item?.text || item?.task || 'Пункт чек-листа',
+          checked: Boolean(item?.checked),
+        }))
+        : [],
       completed: Number(row?.completed || 0),
       total: Number(row?.total || 0),
     };
