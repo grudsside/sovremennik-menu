@@ -23,12 +23,13 @@ assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Pre
 assert.equal(new URL(supabaseUrl).hostname, `${previewProjectRef}.supabase.co`, 'Preview URL must match the dedicated project.');
 
 const functionBase = `${supabaseUrl}/functions/v1`;
-const version = '20260722-2';
+const version = '20260722-3';
 const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   url: supabaseUrl,
   anonKey: publicKey,
   employeeFunctionUrl: `${functionBase}/admin-employees`,
   maintenanceFunctionUrl: `${functionBase}/admin-maintenance`,
+  photoRetentionFunctionUrl: `${functionBase}/checklist-photo-retention`,
   notifyFunctionUrl: '',
   pushSendFunctionUrl: '',
   deadlineFunctionUrl: '',
@@ -85,6 +86,7 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
 
 assert.match(configSource, new RegExp(previewProjectRef), 'Generated config must target preview.');
 if (productionProjectRef) assert.doesNotMatch(configSource, new RegExp(productionProjectRef), 'Generated config must not mention production.');
+assert.match(configSource, /checklist-photo-retention/, 'Generated config must load checklist photo retention endpoint.');
 assert.match(configSource, /coffee-revision-editor\.css/, 'Generated config must load the correction styles.');
 assert.match(configSource, /coffee-revision-report-summary\.css/, 'Generated config must load report summary styles.');
 assert.match(configSource, /coffee-revision-formula-core\.js/, 'Generated config must load the formula core.');
@@ -109,6 +111,7 @@ const response = await fetch(`${publicUrl}?v=${Date.now()}`, { cache: 'no-store'
 assert.equal(response.status, 200, 'Published preview config must be readable.');
 const published = await response.text();
 assert.match(published, new RegExp(previewProjectRef), 'Published config must target preview.');
+assert.match(published, /checklist-photo-retention/, 'Published config must expose checklist photo retention endpoint.');
 assert.match(published, /coffee-revision-editor\.css/, 'Published config must load the correction styles.');
 assert.match(published, /coffee-revision-report-summary\.css/, 'Published config must load report summary styles.');
 assert.match(published, /coffee-revision-formula-core\.js/, 'Published config must load the formula core.');
@@ -125,7 +128,8 @@ await fs.writeFile(path.join(outputDir, 'feature-config.json'), JSON.stringify({
   projectRef: previewProjectRef,
   configPath,
   editorVersion: version,
+  checklistPhotoReports: true,
   generatedAt: new Date().toISOString(),
 }, null, 2));
 
-console.log('Preview configuration with coffee revision and latest-report summary tools published.');
+console.log('Preview configuration with coffee revision and checklist photo-report tools published.');

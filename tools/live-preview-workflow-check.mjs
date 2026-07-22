@@ -5,11 +5,13 @@ const deploy = fs.readFileSync('tools/live-preview-deploy.mjs', 'utf8');
 const featureConfig = fs.readFileSync('tools/live-preview-feature-config.mjs', 'utf8');
 const smoke = fs.readFileSync('tools/live-preview-smoke.mjs', 'utf8');
 const coffeeSmoke = fs.readFileSync('tools/live-preview-coffee-revision-smoke.mjs', 'utf8');
+const photoSmoke = fs.readFileSync('tools/live-preview-checklist-photo-smoke.mjs', 'utf8');
 const resolver = fs.readFileSync('tools/live-preview-resolve-keys.mjs', 'utf8');
 const migrations = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
 const config = fs.readFileSync('supabase/config.toml', 'utf8');
 const previewSite = fs.readFileSync('supabase/functions/preview-site/index.ts', 'utf8');
 const previewRouting = fs.readFileSync('supabase/functions/preview-site/routing.ts', 'utf8');
+const photoRetention = fs.readFileSync('supabase/functions/checklist-photo-retention/index.ts', 'utf8');
 
 const previewRef = 'enkftanmqlwvjydliwue';
 const productionRef = 'tjibbzfdughhjenumzxo';
@@ -27,9 +29,11 @@ const required = [
   [workflow.includes('supabase db push --dry-run --include-all'), 'workflow must preview database changes before applying them'],
   [workflow.includes('supabase db push --include-all --yes'), 'workflow must apply the reviewed migration bundle'],
   [workflow.includes('functions deploy admin-employees') && workflow.includes('functions deploy admin-maintenance'), 'preview admin functions must be deployed'],
+  [workflow.includes('functions deploy checklist-photo-retention') && workflow.includes('--no-verify-jwt'), 'photo cleanup function must be deployed with internal authorization'],
   [workflow.includes('functions deploy preview-site') && workflow.includes('--no-verify-jwt'), 'public preview renderer must be deployed without JWT verification'],
   [workflow.includes('live-preview-feature-config.mjs'), 'preview must publish configuration that loads the revision editor'],
   [workflow.includes('live-preview-coffee-revision-smoke.mjs'), 'preview must run the revision correction authorization smoke test'],
+  [workflow.includes('live-preview-checklist-photo-smoke.mjs'), 'preview must run the checklist photo-report smoke test'],
   [resolver.includes('PREVIEW_PUBLIC_KEY') && resolver.includes('PREVIEW_SECRET_KEY') && resolver.includes('::add-mask::'), 'preview keys must be masked and exported safely'],
   [deploy.includes("bucketId = 'open-test-preview'"), 'preview frontend must use a dedicated Storage bucket'],
   [deploy.includes("launcherFile = 'preview-launcher.html'") && deploy.includes('buildLauncher'), 'Free preview must generate a downloadable HTML launcher'],
@@ -40,6 +44,7 @@ const required = [
   [featureConfig.includes('coffee-revision-editor.js') && featureConfig.includes('coffee-revision-editor.css'), 'preview configuration must load revision correction assets'],
   [featureConfig.includes('coffee-revision-formula-core.js') && featureConfig.includes('coffee-revision-formula-fix.js'), 'preview configuration must load formula and stock tools'],
   [featureConfig.includes('coffee-revision-summary-core.js') && featureConfig.includes('coffee-revision-integrity-fix.js'), 'preview configuration must load summary and duplicate protection tools'],
+  [featureConfig.includes('photoRetentionFunctionUrl') && featureConfig.includes('checklist-photo-retention'), 'preview configuration must expose photo retention endpoint'],
   [featureConfig.includes('Preview feature config must not target production'), 'preview correction configuration must reject production'],
   [smoke.includes('downloadable preview launcher generated'), 'live test must verify the downloadable preview launcher'],
   [smoke.includes('Preview JavaScript must use a browser-executable MIME type'), 'live test must verify preview asset MIME types'],
@@ -55,6 +60,9 @@ const required = [
   [coffeeSmoke.includes('opening clean hopper and total grain anchors calculate the first available day'), 'live test must verify opening calculation anchors'],
   [coffeeSmoke.includes('opening stock, delivery and daily usage calculate end-of-day stock'), 'live test must verify opening stock and delivery calculation'],
   [coffeeSmoke.includes('following days continue from corrected stock with deliveries'), 'live test must verify continuation after a manual stock control point'],
+  [photoSmoke.includes('server rejects checkbox-only completion before photo upload'), 'photo smoke must verify checkbox alone is insufficient'],
+  [photoSmoke.includes('signed thumbnail') && photoSmoke.includes('Unrelated waiter must not see'), 'photo smoke must verify private role-based viewing'],
+  [photoSmoke.includes('retention_90_days') && photoSmoke.includes('Expired full photo must be removed'), 'photo smoke must verify automatic deletion'],
   [previewSite.includes('contentTypeForPath') && previewSite.includes('X-Content-Type-Options'), 'preview renderer must set explicit browser MIME and security headers'],
   [previewSite.includes('req.method !== "GET"') && previewSite.includes('req.method !== "HEAD"'), 'preview renderer must be read-only'],
   [previewRouting.includes('segment === ".."') && previewRouting.includes('decodeURIComponent'), 'preview renderer must reject traversal after URL decoding'],
@@ -64,9 +72,12 @@ const required = [
   [migrations.includes('20260721190000_coffee_revision_formula_corrections.sql'), 'preview migration bundle must include corrected loss formulas'],
   [migrations.includes('20260721203000_coffee_revision_total_stock.sql'), 'preview migration bundle must include deliveries and total stock calculation'],
   [migrations.includes('20260721223000_coffee_revision_integrity_summary.sql'), 'preview migration bundle must include duplicate protection and opening anchors'],
+  [migrations.includes('20260722130000_checklist_photo_reports_preview.sql'), 'preview migration bundle must include checklist photo reports'],
   [migrations.includes('STEP_2_SEED_ADMIN_AFTER_AUTH_USER.sql') && migrations.includes('Forbidden preview SQL selected'), 'migration builder must explicitly guard forbidden production-oriented SQL'],
   [config.includes('[functions.admin-employees]') && config.includes('[functions.admin-maintenance]'), 'admin functions must be declared in config.toml'],
+  [config.includes('[functions.checklist-photo-retention]') && /\[functions\.checklist-photo-retention\][\s\S]*?verify_jwt\s*=\s*false/.test(config), 'photo cleanup must use internal auth for admin and cron calls'],
   [config.includes('[functions.preview-site]') && /\[functions\.preview-site\][\s\S]*?verify_jwt\s*=\s*false/.test(config), 'preview-site must be explicitly public in config.toml'],
+  [photoRetention.includes('CHECKLIST_PHOTO_RETENTION_SECRET') && photoRetention.includes('evaluateRetentionAccess'), 'photo retention must support protected admin and cron authorization'],
 ];
 
 const forbidden = [
@@ -79,7 +90,7 @@ const forbidden = [
   [/\['supabase\/sql\/STEP_3_OPTIONAL_JULY_SCHEDULE\.sql'\s*,/.test(migrations), 'preview bundle must not load optional production schedule data'],
   [/\['supabase\/sql\/STEP_7_FIX_RLS_CONTENT_SYNC\.sql'\s*,/.test(migrations), 'preview bundle must not run the hardcoded grigory patch'],
   [/\['supabase\/sql\/ROLLBACK_STEP_12_NOTIFICATION_HISTORY\.sql'\s*,/.test(migrations), 'preview bundle must not apply rollback SQL'],
-  [/sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + deploy + featureConfig + smoke + coffeeSmoke + resolver + previewSite), 'secret keys must never be hardcoded'],
+  [/sb_secret_[A-Za-z0-9_-]{16,}|service_role_[A-Za-z0-9_-]{16,}/.test(workflow + deploy + featureConfig + smoke + coffeeSmoke + photoSmoke + resolver + previewSite + photoRetention), 'secret keys must never be hardcoded'],
 ];
 
 const failures = [

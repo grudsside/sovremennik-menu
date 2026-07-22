@@ -1,0 +1,110 @@
+/* Современник checklist photo reports — preview styles. */
+body.checklist-photo-viewer-open{overflow:hidden}
+.photo-required-item{border-radius:14px 14px 4px 4px;background:#fbfaf4;padding:12px!important;border:1px solid var(--line)!important;border-bottom:0!important}
+.photo-required-item.photo-awaiting{background:#fff8e8;border-color:#dfc98d!important}
+.photo-required-item.photo-ready{background:#eef5e8;border-color:#bfd0ad!important}
+.photo-required-item.photo-attached-unchecked{background:#f4f3ea;border-color:#cfd1c4!important}
+.checklist-photo-field{margin:-1px 0 12px;padding:12px;border:1px solid var(--line);border-radius:4px 4px 14px 14px;background:#fff;display:grid;gap:9px}
+.checklist-photo-field-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--olive-dark);font-size:12px;font-weight:850;text-transform:uppercase;letter-spacing:.055em}
+.checklist-photo-field-head strong{display:inline-flex;align-items:center;min-height:27px;padding:4px 9px;border-radius:999px;background:var(--surface-olive,#e5e9d7);font-size:11px;letter-spacing:0;text-transform:none}
+.checklist-photo-hint{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.checklist-photo-previews{display:grid;grid-template-columns:repeat(3,minmax(0,120px));gap:8px}
+.checklist-photo-preview{position:relative;overflow:hidden;min-width:0;border:1px solid var(--line);border-radius:12px;background:#f5f2e8}
+.checklist-photo-preview img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover}
+.checklist-photo-preview>span{display:block;padding:6px 8px;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.checklist-photo-preview>button{position:absolute;right:5px;top:5px;width:27px;height:27px;padding:0;border:0;border-radius:50%;background:rgba(35,42,27,.82);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+.checklist-photo-preview.uploaded{border-color:#bfd0ad}
+.checklist-photo-preview.uploaded>span{color:var(--success,#587447);font-weight:800}
+.checklist-photo-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.checklist-photo-pick{min-height:36px!important;padding:7px 12px!important;font-size:12px}
+.checklist-photo-status{color:var(--muted);font-size:12px;font-weight:750}
+
+.checklist-photo-rules-card{margin:14px 0 18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm)}
+.checklist-photo-rules-card>summary{padding:16px 18px;display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer}
+.checklist-photo-rules-card>summary::-webkit-details-marker{display:none}
+.checklist-photo-rules-card>summary>span{display:flex;flex-direction:column;gap:3px}
+.checklist-photo-rules-card>summary strong{color:var(--ink);font-size:16px}
+.checklist-photo-rules-card>summary small{color:var(--muted);font-size:11px;font-weight:600}
+.checklist-photo-rules-card>summary::after{content:'›';font-size:26px;color:var(--olive-dark);transform:rotate(90deg);transition:.16s ease}
+.checklist-photo-rules-card[open]>summary::after{transform:rotate(-90deg)}
+.checklist-photo-rules-body{padding:0 18px 18px;border-top:1px solid var(--line)}
+.photo-rule-checklist-select{display:grid;gap:7px;max-width:520px;margin:16px 0}
+.photo-rule-checklist-select select,.photo-rule-row select,.photo-rule-row input{width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line-strong,var(--line));border-radius:11px;background:#fff}
+.photo-rule-list{display:grid;gap:9px}
+.photo-rule-row{display:grid;grid-template-columns:minmax(260px,1.25fr) 145px minmax(240px,1fr);gap:12px;align-items:end;padding:12px;border:1px solid var(--line);border-radius:14px;background:#faf8f1}
+.photo-rule-enabled{min-height:40px;display:flex!important;align-items:center;gap:10px;cursor:pointer}
+.photo-rule-enabled input{width:19px;height:19px;min-height:0;flex:none}
+.photo-rule-enabled>span{display:flex;flex-direction:column;min-width:0}
+.photo-rule-enabled strong{color:var(--ink);font-size:13px;line-height:1.35}
+.photo-rule-enabled small{margin-top:2px;color:var(--muted);font-size:10px}
+.photo-rule-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+.checklist-control-days{display:grid;gap:13px}
+.control-day-group{border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm);overflow:hidden}
+.control-day-group>summary{min-height:66px;padding:14px 17px;display:flex;align-items:center;justify-content:space-between;gap:15px;list-style:none;background:#f8f6ee;cursor:pointer}
+.control-day-group>summary::-webkit-details-marker{display:none}
+.control-day-group>summary>span:first-child{display:flex;flex-direction:column;gap:3px}
+.control-day-group>summary strong{color:var(--ink);font-size:15px;text-transform:capitalize}
+.control-day-group>summary small{color:var(--muted);font-size:11px;font-weight:650}
+.control-day-percent,.control-submission-metrics>b{display:inline-grid;place-items:center;min-width:58px;min-height:34px;padding:5px 10px;border-radius:999px;font-size:13px;font-weight:900}
+.progress-complete{background:var(--success-soft,#e4eddd);color:var(--success,#587447)}
+.progress-warning{background:var(--warning-soft,#f3ead5);color:var(--warning,#8c6b32)}
+.progress-danger{background:var(--danger-soft,#f4e6df);color:var(--danger,#9a5b42)}
+.control-day-records{padding:11px;display:grid;gap:9px}
+.checklist-submission-details{border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden}
+.checklist-submission-details>summary{padding:12px 13px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;list-style:none;cursor:pointer}
+.checklist-submission-details>summary::-webkit-details-marker{display:none}
+.control-submission-main,.control-submission-metrics{display:flex;flex-direction:column;min-width:0}
+.control-submission-main strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:13px}
+.control-submission-main small,.control-submission-metrics small{margin-top:3px;color:var(--muted);font-size:10.5px}
+.control-submission-metrics{align-items:flex-end;text-align:right}
+.control-submission-progress{height:4px;background:#ebe8dd}
+.control-submission-progress>span{display:block;height:100%;background:var(--olive-dark);transition:width .2s ease}
+.control-checklist-task-list{padding:12px;display:grid;gap:9px;background:#fbfaf5}
+.control-checklist-task{padding:12px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.control-checklist-task.done{border-color:#c8d7bb;background:#f4f8f0}
+.control-checklist-task.photo-missing{border-color:#dfc4b6;background:#fff8f4}
+.control-checklist-task-head{display:flex;align-items:flex-start;gap:10px}
+.control-task-icon{width:25px;height:25px;flex:none;border-radius:8px;display:grid;place-items:center;background:#ece9df;color:var(--muted);font-weight:900}
+.control-checklist-task.done .control-task-icon{background:var(--olive-dark);color:#fff}
+.control-checklist-task.photo-missing .control-task-icon{background:var(--danger-soft,#f4e6df);color:var(--danger,#9a5b42)}
+.control-checklist-task-head>div{display:flex;flex-direction:column;min-width:0}
+.control-checklist-task-head strong{font-size:12.5px;line-height:1.4}
+.control-checklist-task-head small{margin-top:3px;color:var(--muted);font-size:10.5px}
+.control-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-top:10px}
+.control-photo-card{overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#fff}
+.control-photo-card.retained{border-color:#b5c69f}
+.control-photo-card.expired{min-height:100px;padding:13px;display:flex;flex-direction:column;justify-content:center;gap:4px;background:#f1eee7;color:var(--muted)}
+.control-photo-card.expired span{font-weight:800}
+.control-photo-card.expired small{font-size:10px}
+.control-photo-thumb{width:100%;aspect-ratio:4/3;padding:0;border:0;background:#e9e6db;display:grid;place-items:center;color:var(--muted);font-size:11px;cursor:pointer;overflow:hidden}
+.control-photo-thumb img{width:100%;height:100%;display:block;object-fit:cover;transition:transform .18s ease}
+.control-photo-thumb:hover img{transform:scale(1.025)}
+.control-photo-meta{padding:7px 8px;display:grid;gap:5px}
+.control-photo-meta>span{color:var(--muted);font-size:9.5px;line-height:1.3}
+.control-photo-retain{justify-self:start;padding:0;border:0;background:transparent;color:var(--olive-dark);font-size:10px;font-weight:800;cursor:pointer}
+.control-photo-empty{margin:9px 0 0;padding:9px 10px;border-radius:10px;background:var(--danger-soft,#f4e6df);color:var(--danger,#9a5b42);font-size:11px;font-weight:750}
+.control-history-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;padding:4px 0}
+
+.checklist-photo-viewer{position:fixed;inset:0;z-index:1600;padding:28px;background:rgba(20,25,18,.82);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.checklist-photo-viewer[hidden]{display:none!important}
+.checklist-photo-viewer-close{position:fixed;right:18px;top:18px;width:44px;height:44px;padding:0;border:1px solid rgba(255,255,255,.25);border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:28px;line-height:1;cursor:pointer;z-index:1}
+.checklist-photo-viewer-content{width:min(1100px,100%);height:min(88vh,900px);display:grid;place-items:center}
+.checklist-photo-viewer-content img{display:block;max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;box-shadow:0 25px 90px rgba(0,0,0,.35)}
+.checklist-photo-viewer-loading{color:#fff;font-weight:750}
+
+@media (max-width:920px){
+  .photo-rule-row{grid-template-columns:1fr 130px}.photo-rule-row>label:last-child{grid-column:1/-1}
+  .checklist-photo-rules-body{padding-inline:14px}
+}
+@media (max-width:640px){
+  .checklist-photo-previews{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .photo-rule-row{grid-template-columns:1fr;padding:11px}.photo-rule-row>label:last-child{grid-column:auto}
+  .photo-rule-actions{display:grid;grid-template-columns:1fr}.photo-rule-actions button{width:100%}
+  .control-day-group>summary{padding:12px}
+  .checklist-submission-details>summary{grid-template-columns:1fr;gap:8px}
+  .control-submission-metrics{align-items:flex-start;text-align:left;flex-direction:row;gap:8px;flex-wrap:wrap}
+  .control-submission-metrics small{margin-top:0;align-self:center}
+  .control-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .checklist-photo-viewer{padding:10px}.checklist-photo-viewer-close{right:10px;top:10px}
+}
