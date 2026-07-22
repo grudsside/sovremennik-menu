@@ -16,6 +16,11 @@
     }[character]));
   }
 
+  function appState(){
+    try { return typeof state !== 'undefined' ? state : (global.state || null); }
+    catch(error){ return global.state || null; }
+  }
+
   function localDateKey(date = new Date()){
     return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
   }
@@ -37,7 +42,7 @@
   function scheduleRows(){
     try {
       if(typeof global.getScheduleEvents === 'function') return global.getScheduleEvents() || [];
-      return Array.isArray(global.state?.scheduleEvents) ? global.state.scheduleEvents : [];
+      return Array.isArray(appState()?.scheduleEvents) ? appState().scheduleEvents : [];
     } catch(error){
       return [];
     }
@@ -56,6 +61,7 @@
     if(explicit?.[1]) return explicit[1].trim();
     const cleaned = title
       .replace(/^смена\s*[:—-]?\s*/i,'')
+      .replace(/\s*[:—-]?\s*(?:целая|утренняя|вечерняя)\s+смена\b.*$/i,'')
       .replace(/\s+(?:с|от)?\s*\d{1,2}[.:]\d{2}\s*[—–-]\s*\d{1,2}[.:]\d{2}.*$/i,'')
       .trim();
     if(cleaned && cleaned.toLowerCase() !== 'смена') return cleaned;
@@ -98,7 +104,7 @@
   }
 
   function employeeRoleFromState(name){
-    const rows = Array.isArray(global.state?.employees) ? global.state.employees : [];
+    const rows = Array.isArray(appState()?.employees) ? appState().employees : [];
     const target = String(name || '').trim().toLowerCase();
     const employee = rows.find(row => String(row?.name || '').trim().toLowerCase() === target);
     const role = String(employee?.role || '').trim().toLowerCase();
@@ -146,7 +152,7 @@
   }
 
   function renderRoster(rows = todayShiftRows()){
-    if(global.state?.scheduleLoading && !rows.length){
+    if(appState()?.scheduleLoading && !rows.length){
       return '<div class="v3-empty-inline">Загружаю расписание смены…</div>';
     }
     if(!rows.length){
@@ -163,7 +169,7 @@
 
   function signature(rows){
     return rows.map(item => `${item.name}|${item.role}|${item.shift}`).join('||')
-      + `|loading:${Boolean(global.state?.scheduleLoading)}`;
+      + `|loading:${Boolean(appState()?.scheduleLoading)}`;
   }
 
   function refreshRoster(){
