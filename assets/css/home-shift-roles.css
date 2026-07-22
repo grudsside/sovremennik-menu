@@ -1,0 +1,67 @@
+/* Современник home shift roles — role badges and automatic shift times */
+.v3-shift-list--roles{
+  gap:10px;
+}
+.v3-shift-list--roles .v3-shift-person{
+  grid-template-columns:82px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+}
+.v3-role-badge{
+  width:82px;
+  min-width:82px;
+  min-height:42px;
+  padding:8px 7px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:12px;
+  color:#fff;
+  font-size:11px;
+  line-height:1.1;
+  font-weight:900;
+  letter-spacing:.01em;
+  text-align:center;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
+}
+.v3-role-badge--barista{
+  background:#536b37;
+}
+.v3-role-badge--waiter{
+  background:#8a6548;
+}
+.v3-shift-person--role-barista{
+  border-left:3px solid rgba(83,107,55,.32);
+}
+.v3-shift-person--role-waiter{
+  border-left:3px solid rgba(138,101,72,.32);
+}
+.v3-shift-list--roles .v3-shift-copy{
+  min-width:0;
+}
+.v3-shift-list--roles .v3-shift-copy strong,
+.v3-shift-list--roles .v3-shift-copy small{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.v3-shift-list--roles .v3-shift-copy small{
+  margin-top:4px;
+  font-variant-numeric:tabular-nums;
+}
+
+@media (max-width:640px){
+  .v3-shift-list--roles .v3-shift-person{
+    grid-template-columns:76px minmax(0,1fr);
+    gap:10px;
+    padding:11px 10px;
+  }
+  .v3-role-badge{
+    width:76px;
+    min-width:76px;
+    min-height:40px;
+    padding-inline:5px;
+    font-size:10px;
+  }
+}

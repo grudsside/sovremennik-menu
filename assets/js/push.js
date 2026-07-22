@@ -5,6 +5,7 @@ document.write('<link rel="stylesheet" href="assets/css/interface-followup.css?v
 document.write('<link rel="stylesheet" href="assets/css/tasks-v2.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/schedule-manager.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/schedule-departments.css?v=20260720-2">');
+document.write('<link rel="stylesheet" href="assets/css/home-shift-roles.css?v=20260722-1">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-active-panel.css?v=20260719-2">');
 document.write('<link rel="stylesheet" href="assets/css/section-maintenance.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?v=20260720-1">');
@@ -18,6 +19,7 @@ document.write('<script src="assets/js/schedule-manager.js?v=20260720-1"><\/scri
 document.write('<script src="assets/js/schedule-submit-fix.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/schedule-departments.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/interface-followup.js?v=20260720-1"><\/script>');
+document.write('<script src="assets/js/home-shift-roles.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/mobile-active-panel.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/section-maintenance.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/mobile-photo-expand.js?v=20260720-1"><\/script>');
