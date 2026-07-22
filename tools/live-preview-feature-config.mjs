@@ -23,7 +23,7 @@ assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Pre
 assert.equal(new URL(supabaseUrl).hostname, `${previewProjectRef}.supabase.co`, 'Preview URL must match the dedicated project.');
 
 const functionBase = `${supabaseUrl}/functions/v1`;
-const version = '20260721-5';
+const version = '20260722-1';
 const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   url: supabaseUrl,
   anonKey: publicKey,
@@ -39,15 +39,18 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
 
 (function loadCoffeeRevisionTools(){
   const version = '${version}';
-  const cssId = 'coffee-revision-editor-css';
 
-  if(!document.getElementById(cssId)){
+  function appendStyle(id, path){
+    if(document.getElementById(id)) return;
     const link = document.createElement('link');
-    link.id = cssId;
+    link.id = id;
     link.rel = 'stylesheet';
-    link.href = \`assets/css/coffee-revision-editor.css?v=\${version}\`;
+    link.href = \`\${path}?v=\${version}\`;
     document.head.appendChild(link);
   }
+
+  appendStyle('coffee-revision-editor-css', 'assets/css/coffee-revision-editor.css');
+  appendStyle('coffee-revision-report-summary-css', 'assets/css/coffee-revision-report-summary.css');
 
   function appendScript(id, path){
     return new Promise((resolve, reject) => {
@@ -81,6 +84,8 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
 
 assert.match(configSource, new RegExp(previewProjectRef), 'Generated config must target preview.');
 if (productionProjectRef) assert.doesNotMatch(configSource, new RegExp(productionProjectRef), 'Generated config must not mention production.');
+assert.match(configSource, /coffee-revision-editor\.css/, 'Generated config must load the correction styles.');
+assert.match(configSource, /coffee-revision-report-summary\.css/, 'Generated config must load report summary styles.');
 assert.match(configSource, /coffee-revision-formula-core\.js/, 'Generated config must load the formula core.');
 assert.match(configSource, /coffee-revision-formula-fix\.js/, 'Generated config must load the formula integration.');
 assert.match(configSource, /coffee-revision-editor\.js/, 'Generated config must load the correction editor.');
@@ -102,6 +107,8 @@ const response = await fetch(`${publicUrl}?v=${Date.now()}`, { cache: 'no-store'
 assert.equal(response.status, 200, 'Published preview config must be readable.');
 const published = await response.text();
 assert.match(published, new RegExp(previewProjectRef), 'Published config must target preview.');
+assert.match(published, /coffee-revision-editor\.css/, 'Published config must load the correction styles.');
+assert.match(published, /coffee-revision-report-summary\.css/, 'Published config must load report summary styles.');
 assert.match(published, /coffee-revision-formula-core\.js/, 'Published config must load the formula core.');
 assert.match(published, /coffee-revision-formula-fix\.js/, 'Published config must load the formula integration.');
 assert.match(published, /coffee-revision-editor\.js/, 'Published config must load the revision editor.');
@@ -118,4 +125,4 @@ await fs.writeFile(path.join(outputDir, 'feature-config.json'), JSON.stringify({
   generatedAt: new Date().toISOString(),
 }, null, 2));
 
-console.log('Preview configuration with coffee revision tools published.');
+console.log('Preview configuration with coffee revision and report summary tools published.');
