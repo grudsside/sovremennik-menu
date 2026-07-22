@@ -54,10 +54,11 @@ serve(async (req) => {
     "",
   ).trim();
   const cronSecretHeader = req.headers.get("x-cron-secret") || "";
+  const serviceRoleAuthorized = Boolean(jwt && jwt === serviceRoleKey);
   let profile: Record<string, unknown> | null = null;
   let profileError: unknown = null;
 
-  if (jwt) {
+  if (jwt && !serviceRoleAuthorized) {
     const requester = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
       auth: { autoRefreshToken: false, persistSession: false },
@@ -81,6 +82,7 @@ serve(async (req) => {
     profileError,
     cronSecretHeader,
     configuredCronSecret,
+    serviceRoleAuthorized,
   });
   if (!access.ok) {
     return json(
