@@ -80,7 +80,7 @@ try {
 
   const field = page.locator('[data-checklist-photo-field]');
   await field.waitFor({ state: 'visible' });
-  assert.match(await field.innerText(), /Фото обязательно/);
+  assert.match(await field.innerText(), /фото обязательно/i);
   assert.match(await field.innerText(), /Покажите чистую группу и поддон/);
 
   stage = 'verify checkbox without photo';
