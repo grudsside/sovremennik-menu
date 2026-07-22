@@ -134,10 +134,11 @@ try {
     }];
     document.querySelector('#control-records').innerHTML = window.SovremennikChecklistPhotoReports.renderGroupedControl(records);
   });
-  assert.match(await page.locator('#control-records').innerText(), /22 июля 2026/);
-  assert.match(await page.locator('#control-records').innerText(), /50%/);
-  assert.match(await page.locator('#control-records').innerText(), /Не выполнено/);
-  assert.match(await page.locator('#control-records').innerText(), /Хранение до/);
+  const controlText = await page.locator('#control-records').textContent();
+  assert.match(controlText, /22\s+июля\s+2026/i);
+  assert.match(controlText, /50%/);
+  assert.match(controlText, /Не выполнено/);
+  assert.match(controlText, /Хранение до/);
 
   stage = 'save success screenshot';
   await page.screenshot({ path: path.join(artifactDir, 'checklist-photo-report-mobile.png'), fullPage:true });
