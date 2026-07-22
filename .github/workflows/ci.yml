@@ -51,6 +51,9 @@ jobs:
       - name: Check interface follow-up regressions
         run: node tools/interface-followup-check.mjs
 
+      - name: Check checklist details regression
+        run: node tools/checklist-details-fix-check.mjs
+
       - name: Check schedule manager regressions
         run: node tools/schedule-manager-check.mjs
 
