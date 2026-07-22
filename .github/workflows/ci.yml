@@ -54,6 +54,9 @@ jobs:
       - name: Check checklist details regression
         run: node tools/checklist-details-fix-check.mjs
 
+      - name: Check checklist photo-report core
+        run: node tools/checklist-photo-core-check.mjs
+
       - name: Check schedule manager regressions
         run: node tools/schedule-manager-check.mjs
 
@@ -105,6 +108,12 @@ jobs:
 
       - name: Type-check deadline-checker
         run: deno check --node-modules-dir=auto supabase/functions/deadline-checker/index.ts
+
+      - name: Check checklist photo retention function
+        run: |
+          deno fmt --check supabase/functions/checklist-photo-retention/
+          deno test supabase/functions/checklist-photo-retention/authorization.test.ts
+          deno check --node-modules-dir=auto supabase/functions/checklist-photo-retention/index.ts
 
       - name: Check authenticated Edge Function formatting
         run: deno fmt --check supabase/functions/_shared/ supabase/functions/push-send/ supabase/functions/notify-event/
@@ -189,7 +198,9 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run desktop and mobile preview smoke tests
-        run: node tools/open-test-browser-smoke.mjs
+        run: |
+          node tools/open-test-browser-smoke.mjs
+          node tools/checklist-photo-browser-smoke.mjs
 
       - name: Upload preview screenshots
         if: always()
