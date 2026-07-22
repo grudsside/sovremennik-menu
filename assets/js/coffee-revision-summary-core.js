@@ -66,14 +66,14 @@
     return Math.max(0, writeOffs) + Math.max(0, -difference);
   }
 
-  function calculatePeriodSummary(records, days, todayKey = localDateKey()){
-    const periodRecords = recordsForCalendarDays(records, days, todayKey);
+  function calculateRecordsSummary(records){
+    const revisionRecords = Array.isArray(records) ? records : [];
     let totalSales = 0;
     let totalLossWeight = 0;
     let lossSales = 0;
     let completeLossRows = 0;
 
-    for(const record of periodRecords){
+    for(const record of revisionRecords){
       const sales = numberValue(record?.iikoSales ?? record?.iiko_sales);
       if(sales !== null) totalSales += sales;
 
@@ -85,20 +85,25 @@
     }
 
     return {
-      records: periodRecords,
-      revisionCount: periodRecords.length,
-      totalSales: round(totalSales, 3),
-      totalLossWeight: completeLossRows ? round(totalLossWeight, 3) : null,
-      lossSales: completeLossRows ? round(lossSales, 3) : null,
-      lossPercent: completeLossRows && lossSales > 0
+      records:revisionRecords,
+      revisionCount:revisionRecords.length,
+      totalSales:round(totalSales, 3),
+      totalLossWeight:completeLossRows ? round(totalLossWeight, 3) : null,
+      lossSales:completeLossRows ? round(lossSales, 3) : null,
+      lossPercent:completeLossRows && lossSales > 0
         ? round((totalLossWeight / lossSales) * 100, 2)
         : null,
       completeLossRows,
     };
   }
 
+  function calculatePeriodSummary(records, days, todayKey = localDateKey()){
+    return calculateRecordsSummary(recordsForCalendarDays(records, days, todayKey));
+  }
+
   return {
     calculatePeriodSummary,
+    calculateRecordsSummary,
     dateKey,
     localDateKey,
     lossWeightForRecord,
