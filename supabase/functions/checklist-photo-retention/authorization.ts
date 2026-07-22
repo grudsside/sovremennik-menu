@@ -5,7 +5,7 @@ export type RetentionProfile = {
 } | null;
 
 export type RetentionAccess =
-  | { ok: true; actor: "admin" | "cron"; userId: string | null }
+  | { ok: true; actor: "admin" | "cron" | "service_role"; userId: string | null }
   | { ok: false; status: number; error: string; code: string };
 
 function safeEqual(left: string, right: string): boolean {
@@ -22,7 +22,12 @@ export function evaluateRetentionAccess(input: {
   profileError?: unknown;
   cronSecretHeader?: string | null;
   configuredCronSecret?: string | null;
+  serviceRoleAuthorized?: boolean;
 }): RetentionAccess {
+  if (input.serviceRoleAuthorized === true) {
+    return { ok: true, actor: "service_role", userId: null };
+  }
+
   const cronSecretHeader = String(input.cronSecretHeader || "").trim();
   const configuredCronSecret = String(input.configuredCronSecret || "").trim();
 
