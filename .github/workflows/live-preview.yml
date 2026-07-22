@@ -157,6 +157,10 @@ jobs:
           supabase functions deploy admin-maintenance \
             --project-ref "$PREVIEW_PROJECT_REF" \
             --use-api
+          supabase functions deploy checklist-photo-retention \
+            --project-ref "$PREVIEW_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
           supabase functions deploy preview-site \
             --project-ref "$PREVIEW_PROJECT_REF" \
             --use-api \
@@ -176,6 +180,7 @@ jobs:
           set -o pipefail
           node tools/live-preview-smoke.mjs 2> >(tee artifacts/live-preview/smoke-error.log >&2)
           node tools/live-preview-coffee-revision-smoke.mjs 2> >(tee artifacts/live-preview/coffee-revision-smoke-error.log >&2)
+          node tools/live-preview-checklist-photo-smoke.mjs 2> >(tee artifacts/live-preview/checklist-photo-smoke-error.log >&2)
 
       - name: Publish preview result
         if: always()
@@ -183,6 +188,10 @@ jobs:
         run: |
           if [[ -f artifacts/live-preview/summary.md ]]; then
             cat artifacts/live-preview/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f artifacts/live-preview/checklist-photo-smoke.json ]]; then
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo "- Checklist photo report upload, access, signed viewing and 90-day cleanup passed." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload preview report
