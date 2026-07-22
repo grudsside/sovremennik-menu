@@ -46,15 +46,45 @@
     return localDateKey(date);
   }
 
+  function recordDateKey(record){
+    return dateKey(
+      record?.dateKey
+      || record?.revisionDate
+      || record?.revision_date
+      || record?.date
+      || record?.createdAt
+      || record?.created_at
+    );
+  }
+
   function recordsForCalendarDays(records, days, todayKey = localDateKey()){
     const safeDays = Math.max(1, Math.trunc(Number(days) || 1));
     const end = dateKey(todayKey);
     const start = shiftDateKey(end, -(safeDays - 1));
     if(!start || !end) return [];
     return (records || []).filter(record => {
-      const key = dateKey(record?.dateKey || record?.revisionDate || record?.revision_date || record?.date || record?.createdAt || record?.created_at);
+      const key = recordDateKey(record);
       return key && key >= start && key <= end;
     });
+  }
+
+  function recordsForLatestReportDates(records, days, todayKey = localDateKey()){
+    const safeDays = Math.max(1, Math.trunc(Number(days) || 1));
+    const end = dateKey(todayKey);
+    if(!end) return [];
+
+    const eligible = (records || [])
+      .map((record, index) => ({ record, index, key:recordDateKey(record) }))
+      .filter(item => item.key && item.key <= end);
+    const latestKeys = Array.from(new Set(eligible.map(item => item.key)))
+      .sort((left, right) => right.localeCompare(left))
+      .slice(0, safeDays);
+    const selected = new Set(latestKeys);
+
+    return eligible
+      .filter(item => selected.has(item.key))
+      .sort((left, right) => left.key.localeCompare(right.key) || left.index - right.index)
+      .map(item => item.record);
   }
 
   function lossWeightForRecord(record){
@@ -98,7 +128,7 @@
   }
 
   function calculatePeriodSummary(records, days, todayKey = localDateKey()){
-    return calculateRecordsSummary(recordsForCalendarDays(records, days, todayKey));
+    return calculateRecordsSummary(recordsForLatestReportDates(records, days, todayKey));
   }
 
   return {
@@ -108,7 +138,9 @@
     localDateKey,
     lossWeightForRecord,
     numberValue,
+    recordDateKey,
     recordsForCalendarDays,
+    recordsForLatestReportDates,
     shiftDateKey,
   };
 });
