@@ -16,6 +16,13 @@ const context = await browser.newContext({
   deviceScaleFactor: 2,
 });
 const page = await context.newPage();
+const browserErrors = [];
+let stage = 'create test page';
+
+page.on('pageerror', error => browserErrors.push(`pageerror: ${error.stack || error.message}`));
+page.on('console', message => {
+  if (message.type() === 'error') browserErrors.push(`console: ${message.text()}`);
+});
 
 try {
   await page.setContent(`<!doctype html><html><body>
@@ -59,6 +66,7 @@ try {
   await page.addScriptTag({ path: path.join(root, 'assets/js/checklist-photo-core.js') });
   await page.addScriptTag({ path: path.join(root, 'assets/js/checklist-photo-reports.js') });
 
+  stage = 'apply photo requirement';
   await page.evaluate(() => {
     window.SovremennikChecklistPhotoReports.setRulesForTesting([{
       checklist_id:'opening',
@@ -75,17 +83,28 @@ try {
   assert.match(await field.innerText(), /Фото обязательно/);
   assert.match(await field.innerText(), /Покажите чистую группу и поддон/);
 
+  stage = 'verify checkbox without photo';
   const checkbox = page.locator('.task-checkbox').nth(1);
   await checkbox.check();
   await page.waitForFunction(() => document.querySelector('[data-photo-status]')?.textContent.includes('Ожидает фото'));
   assert.equal(await page.locator('.photo-required-item.photo-awaiting').count(), 1);
 
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFElEQVR42mNk+M9Qz0AEYBxVSFUAAGkIA/2S0mMAAAAASUVORK5CYII=', 'base64');
+  stage = 'attach and process photo';
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
   await page.locator('[data-photo-input]').setInputFiles({ name:'proof.png', mimeType:'image/png', buffer:png });
-  await page.waitForFunction(() => document.querySelector('[data-photo-status]')?.textContent.includes('Пункт готов'));
+  await page.waitForFunction(() => {
+    const status = document.querySelector('[data-photo-status]')?.textContent || '';
+    return status.includes('Пункт готов') || status.includes('Не удалось') || status.includes('не поддерживается');
+  });
+  const processedStatus = await page.locator('[data-photo-status]').innerText();
+  assert.match(processedStatus, /Пункт готов/, `Unexpected photo processing status: ${processedStatus}`);
   assert.equal(await page.locator('.photo-required-item.photo-ready').count(), 1);
   assert.equal(await page.locator('.checklist-photo-preview img').count(), 1);
 
+  stage = 'calculate checklist completion';
   const collection = await page.evaluate(() => {
     const card = document.querySelector('.doc-card');
     const doc = state.menu.checklists[0];
@@ -96,6 +115,7 @@ try {
   assert.equal(collection.summary.percent, 50);
   assert.equal(collection.summary.missingPhotos, 0);
 
+  stage = 'render grouped control history';
   await page.evaluate(() => {
     const records = [{
       id:'submission-preview',
@@ -119,8 +139,21 @@ try {
   assert.match(await page.locator('#control-records').innerText(), /Не выполнено/);
   assert.match(await page.locator('#control-records').innerText(), /Хранение до/);
 
+  stage = 'save success screenshot';
   await page.screenshot({ path: path.join(artifactDir, 'checklist-photo-report-mobile.png'), fullPage:true });
   console.log('Checklist photo report browser smoke test passed.');
+} catch (error) {
+  const diagnostic = [
+    `Stage: ${stage}`,
+    `Error: ${error?.stack || error}`,
+    '',
+    'Browser errors:',
+    ...(browserErrors.length ? browserErrors : ['none']),
+  ].join('\n');
+  await fs.writeFile(path.join(artifactDir, 'checklist-photo-browser-error.txt'), diagnostic, 'utf8');
+  await page.screenshot({ path: path.join(artifactDir, 'checklist-photo-browser-failure.png'), fullPage:true }).catch(() => undefined);
+  console.error(diagnostic);
+  throw error;
 } finally {
   await context.close();
   await browser.close();
