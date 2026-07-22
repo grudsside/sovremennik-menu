@@ -90,6 +90,9 @@ jobs:
       - name: Check production release deployment safety
         run: node tools/production-release-workflow-check.mjs
 
+      - name: Check checklist photo production rollout safety
+        run: node tools/production-checklist-photo-release-workflow-check.mjs
+
       - name: Check notification history
         run: |
           node tools/notification-history-check.mjs
