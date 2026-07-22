@@ -1,0 +1,230 @@
+name: Production checklist photo release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-checklist-photo-release.yml'
+      - '.github/workflows/checklist-photo-retention.yml'
+      - 'tools/production-checklist-photo-release.mjs'
+      - 'supabase/migrations/20260722130000_checklist_photo_reports_preview.sql'
+      - 'supabase/functions/checklist-photo-retention/**'
+      - 'assets/js/checklist-photo-core.js'
+      - 'assets/js/checklist-photo-reports.js'
+      - 'assets/css/checklist-photo-reports.css'
+      - 'assets/js/push.js'
+      - 'assets/js/supabase-config.js'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  statuses: write
+
+concurrency:
+  group: production-checklist-photo-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy and verify checklist photo reports
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+      PRODUCTION_PAGES_URL: https://grudsside.github.io/sovremennik-menu
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+          [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
+
+      - name: Resolve production service key securely
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PRODUCTION_PROJECT_REF/api-keys?reveal=true" \
+            --output /tmp/production-api-keys.json
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/production-api-keys.json', 'utf8'));
+          const rows = Array.isArray(payload) ? payload : (payload?.data || payload?.keys || []);
+          const secret = rows.find(row => ['service_role','secret'].includes(String(row?.name || row?.type || '').toLowerCase()))?.api_key
+            || rows.find(row => String(row?.api_key || '').startsWith('sb_secret_'))?.api_key
+            || rows.find(row => String(row?.api_key || '').includes('service_role'))?.api_key;
+          if (!secret) throw new Error('Production service key was not returned by the Management API.');
+          console.log(`::add-mask::${secret}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `PRODUCTION_SERVICE_KEY=${secret}\n`);
+          NODE
+          rm -f /tmp/production-api-keys.json
+
+      - name: Apply and verify checklist photo database migration
+        run: node tools/production-checklist-photo-release.mjs
+
+      - name: Deploy checklist photo retention function
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || exit 1
+          supabase functions deploy checklist-photo-retention \
+            --project-ref "$PRODUCTION_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
+
+      - name: Verify retention authorization and dry run
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="${PRODUCTION_SUPABASE_URL}/functions/v1/checklist-photo-retention"
+          blocked=false
+          for attempt in {1..10}; do
+            status="$(curl --silent --show-error \
+              --output /tmp/retention-blocked.json \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data '{"action":"cleanup","dry_run":true,"limit":1}' \
+              "$endpoint")"
+            if [[ "$status" == '401' || "$status" == '403' ]]; then blocked=true; break; fi
+            sleep 3
+          done
+          [[ "$blocked" == 'true' ]] || { cat /tmp/retention-blocked.json >&2 || true; exit 1; }
+
+          response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer $PRODUCTION_SERVICE_KEY" \
+            --header "apikey: $PRODUCTION_SERVICE_KEY" \
+            --data '{"action":"cleanup","dry_run":true,"limit":10}' \
+            "$endpoint")"
+          node -e "const r=JSON.parse(process.argv[1]); if(r.ok!==true||r.actor!=='service_role'||r.dryRun!==true) throw new Error('Unexpected retention dry-run response');" "$response"
+
+      - name: Verify published GitHub Pages frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          published=false
+          for attempt in {1..60}; do
+            html="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/?release=${GITHUB_SHA}" || true)"
+            loader="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
+            reports="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-photo-reports.js?release=${GITHUB_SHA}" || true)"
+            core="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-photo-core.js?release=${GITHUB_SHA}" || true)"
+            styles="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/css/checklist-photo-reports.css?release=${GITHUB_SHA}" || true)"
+            config="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/supabase-config.js?release=${GITHUB_SHA}" || true)"
+
+            if grep -q 'assets/js/push.js' <<< "$html" \
+              && grep -q 'checklist-photo-reports.js?v=20260722-1' <<< "$loader" \
+              && grep -q 'checklist-photo-reports.css?v=20260722-1' <<< "$loader" \
+              && grep -q 'checklist-photo-reports' <<< "$reports" \
+              && grep -q 'calculateCompletion' <<< "$core" \
+              && grep -q '.checklist-photo-field' <<< "$styles" \
+              && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
+              && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
+              published=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish checklist photo assets in time.' >&2; exit 1; }
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Checklist photo reports released to production'
+            echo
+            echo '- Private Storage bucket and database policies verified.'
+            echo '- Required-photo rules and authoritative completion RPCs are active.'
+            echo '- Retention function is deployed and rejects anonymous cleanup requests.'
+            echo '- Service-role dry-run cleanup passed without deleting files.'
+            echo '- GitHub Pages serves the checklist photo interface assets.'
+            echo '- Production configuration does not reference the preview project.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Checklist photo production deployment passed'
+          else
+            state='failure'
+            description='Checklist photo production deployment failed'
+          fi
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/checklist-photos' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Publish permanent release receipt
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            heading='✅ Checklist photo production release verified'
+            details='Database migration, private Storage, access policies, retention authorization and GitHub Pages assets passed.'
+          else
+            heading='❌ Checklist photo production release requires attention'
+            details='At least one production deployment or verification step failed. Review the workflow before using photo reports.'
+          fi
+          {
+            printf '%s\n\n' "$heading"
+            printf '%s\n\n' "$details"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Workflow: https://github.com/%s/actions/runs/%s\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf -- '- Production app: https://grudsside.github.io/sovremennik-menu/\n'
+            printf -- '- Production Supabase Ref: `tjibbzfdughhjenumzxo`\n'
+          } > /tmp/checklist-photo-release-comment.md
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/48/comments" \
+            --raw-field body="$(cat /tmp/checklist-photo-release-comment.md)"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-checklist-photo-release
+          path: artifacts/production-checklist-photo-release
+          if-no-files-found: warn
+          retention-days: 30
