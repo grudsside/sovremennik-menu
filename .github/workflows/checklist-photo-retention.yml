@@ -1,0 +1,81 @@
+name: Checklist photo retention
+
+on:
+  schedule:
+    - cron: '25 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list expired photos without deleting them'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checklist-photo-retention-production
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove expired checklist photos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+    steps:
+      - name: Validate production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+
+      - name: Resolve production service key securely
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PRODUCTION_PROJECT_REF/api-keys?reveal=true" \
+            --output /tmp/production-api-keys.json
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/production-api-keys.json', 'utf8'));
+          const rows = Array.isArray(payload) ? payload : (payload?.data || payload?.keys || []);
+          const secret = rows.find(row => ['service_role','secret'].includes(String(row?.name || row?.type || '').toLowerCase()))?.api_key
+            || rows.find(row => String(row?.api_key || '').startsWith('sb_secret_'))?.api_key
+            || rows.find(row => String(row?.api_key || '').includes('service_role'))?.api_key;
+          if (!secret) throw new Error('Production service key was not returned by the Management API.');
+          console.log(`::add-mask::${secret}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `PRODUCTION_SERVICE_KEY=${secret}\n`);
+          NODE
+          rm -f /tmp/production-api-keys.json
+
+      - name: Run 90-day cleanup
+        env:
+          REQUESTED_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dry_run=false
+          if [[ "$REQUESTED_DRY_RUN" == 'true' ]]; then dry_run=true; fi
+          response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer $PRODUCTION_SERVICE_KEY" \
+            --header "apikey: $PRODUCTION_SERVICE_KEY" \
+            --data "{\"action\":\"cleanup\",\"dry_run\":${dry_run},\"limit\":500}" \
+            "${PRODUCTION_SUPABASE_URL}/functions/v1/checklist-photo-retention")"
+          node -e "const r=JSON.parse(process.argv[1]); if(r.ok!==true||r.actor!=='service_role') throw new Error('Retention cleanup failed'); console.log(JSON.stringify(r,null,2));" "$response"
+          {
+            echo '## Checklist photo retention completed'
+            echo
+            echo "- Dry run: $dry_run"
+            node -e "const r=JSON.parse(process.argv[1]); console.log('- Candidates: '+Number(r.candidates||0)); console.log('- Deleted: '+Number(r.deleted||0)); console.log('- Removed objects: '+Number(r.removedObjects||0));" "$response"
+          } >> "$GITHUB_STEP_SUMMARY"
