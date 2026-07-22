@@ -42,6 +42,18 @@ create table if not exists storage.objects (
 );
 alter table storage.objects enable row level security;
 
+create or replace function storage.foldername(name text)
+returns text[]
+language sql
+immutable
+as $$
+  select case
+    when strpos(coalesce(name, ''), '/') = 0 then array[]::text[]
+    else string_to_array(regexp_replace(name, '/[^/]*$', ''), '/')
+  end;
+$$;
+grant execute on function storage.foldername(text) to anon, authenticated, service_role;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
@@ -64,15 +76,19 @@ $$;
 \ir ../supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql
 \ir ../supabase/migrations/20260721203000_coffee_revision_total_stock.sql
 \ir ../supabase/migrations/20260721223000_coffee_revision_integrity_summary.sql
+\ir ../supabase/migrations/20260722130000_checklist_photo_reports_preview.sql
 
 DO $$
 DECLARE
   maintenance_count integer;
+  photo_bucket record;
 BEGIN
   IF to_regclass('public.profiles') IS NULL THEN RAISE EXCEPTION 'profiles table was not created'; END IF;
   IF to_regclass('public.notification_events') IS NULL THEN RAISE EXCEPTION 'notification_events table was not created'; END IF;
   IF to_regclass('public.section_maintenance') IS NULL THEN RAISE EXCEPTION 'section_maintenance table was not created'; END IF;
   IF to_regclass('public.coffee_revision_edits') IS NULL THEN RAISE EXCEPTION 'coffee revision correction audit table was not created'; END IF;
+  IF to_regclass('public.checklist_photo_rules') IS NULL THEN RAISE EXCEPTION 'checklist photo rules table was not created'; END IF;
+  IF to_regclass('public.checklist_submission_photos') IS NULL THEN RAISE EXCEPTION 'checklist submission photos table was not created'; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -83,6 +99,16 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'menu_item_overrides' AND column_name = 'payload'
   ) THEN RAISE EXCEPTION 'menu item payload column is missing'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'checklist_submissions' AND column_name = 'photo_upload_status'
+  ) THEN RAISE EXCEPTION 'checklist photo_upload_status column is missing'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'checklist_submissions' AND column_name = 'submitted_incomplete'
+  ) THEN RAISE EXCEPTION 'checklist submitted_incomplete column is missing'; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -120,15 +146,44 @@ BEGIN
   IF to_regprocedure('public.correct_coffee_revision(date,numeric,integer,numeric,numeric,text,text)') IS NOT NULL THEN
     RAISE EXCEPTION 'old coffee revision correction overload must be removed';
   END IF;
+  IF to_regprocedure('public.replace_checklist_photo_rules(text,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'replace checklist photo rules RPC is missing';
+  END IF;
+  IF to_regprocedure('public.finalize_checklist_photo_submission(uuid,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'finalize checklist photo submission RPC is missing';
+  END IF;
+  IF to_regprocedure('public.set_checklist_photo_retained(uuid,boolean)') IS NULL THEN
+    RAISE EXCEPTION 'photo retention RPC is missing';
+  END IF;
 
   SELECT count(*) INTO maintenance_count FROM public.section_maintenance;
   IF maintenance_count <> 9 THEN RAISE EXCEPTION 'Expected 9 maintenance rows, got %', maintenance_count; END IF;
+
+  SELECT public, file_size_limit, allowed_mime_types INTO photo_bucket
+  FROM storage.buckets WHERE id = 'checklist-photo-reports';
+  IF photo_bucket IS NULL OR photo_bucket.public OR photo_bucket.file_size_limit <> 3145728 THEN
+    RAISE EXCEPTION 'Checklist photo bucket must be private and limited to 3 MB';
+  END IF;
 
   IF EXISTS (SELECT 1 FROM public.profiles WHERE login = 'grigory') THEN
     RAISE EXCEPTION 'Production administrator must not be seeded into Free preview';
   END IF;
   IF has_table_privilege('authenticated', 'public.section_maintenance', 'UPDATE') THEN
     RAISE EXCEPTION 'Authenticated preview clients must not update maintenance state directly';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.checklist_submission_photos', 'SELECT')
+     OR NOT has_table_privilege('authenticated', 'public.checklist_submission_photos', 'INSERT') THEN
+    RAISE EXCEPTION 'Authenticated users need photo metadata select and insert privileges';
+  END IF;
+  IF has_table_privilege('authenticated', 'public.checklist_submission_photos', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.checklist_submission_photos', 'DELETE') THEN
+    RAISE EXCEPTION 'Authenticated users must not update or delete photo metadata directly';
+  END IF;
+  IF NOT has_table_privilege('authenticated', 'public.checklist_photo_rules', 'SELECT')
+     OR has_table_privilege('authenticated', 'public.checklist_photo_rules', 'INSERT')
+     OR has_table_privilege('authenticated', 'public.checklist_photo_rules', 'UPDATE')
+     OR has_table_privilege('authenticated', 'public.checklist_photo_rules', 'DELETE') THEN
+    RAISE EXCEPTION 'Checklist photo rules must be read-only for direct authenticated clients';
   END IF;
   IF NOT has_table_privilege('authenticated', 'public.coffee_revision_edits', 'SELECT') THEN
     RAISE EXCEPTION 'Authenticated role must receive select privilege for audit RLS evaluation';
@@ -143,6 +198,9 @@ BEGIN
     'public.correct_coffee_revision(date,numeric,integer,numeric,numeric,text,numeric,numeric,text)',
     'EXECUTE'
   ) THEN RAISE EXCEPTION 'Authenticated clients must be able to call the protected correction RPC'; END IF;
+  IF NOT has_function_privilege('authenticated', 'public.finalize_checklist_photo_submission(uuid,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Authenticated clients must be able to finalize their photo report';
+  END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
@@ -155,6 +213,78 @@ BEGIN
     WHERE schemaname = 'public' AND tablename = 'coffee_revision_edits'
       AND policyname = 'coffee_revision_edits_select_admin'
   ) THEN RAISE EXCEPTION 'Coffee revision edit history admin policy is missing'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'checklist_photo_storage_select_visible'
+  ) THEN RAISE EXCEPTION 'Private checklist photo read policy is missing'; END IF;
+END
+$$;
+
+DO $$
+DECLARE
+  admin_id constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  barista_id constant uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  submission_id constant uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  photo_id constant uuid := 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  initial_row public.checklist_submissions%rowtype;
+  final_row public.checklist_submissions%rowtype;
+  retained_row public.checklist_submission_photos%rowtype;
+  items jsonb := '[{"itemKey":"preview-checklist:0:0","text":"Фото-пункт","checkedByUser":true,"checked":true}]'::jsonb;
+BEGIN
+  INSERT INTO auth.users(id,email) VALUES
+    (admin_id,'photo-admin@example.test'),
+    (barista_id,'photo-barista@example.test')
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles(id,login,name,role,is_active) VALUES
+    (admin_id,'photo-admin','Photo Admin','admin',true),
+    (barista_id,'photo-barista','Photo Barista','barista',true)
+  ON CONFLICT (id) DO UPDATE SET role=excluded.role,is_active=true;
+
+  PERFORM set_config('request.jwt.claim.sub', admin_id::text, true);
+  PERFORM public.replace_checklist_photo_rules(
+    'preview-checklist',
+    '[{"item_key":"preview-checklist:0:0","item_text":"Фото-пункт","required_count":1,"hint":"Покажите результат"}]'::jsonb
+  );
+
+  PERFORM set_config('request.jwt.claim.sub', barista_id::text, true);
+  INSERT INTO public.checklist_submissions(
+    id,checklist_id,checklist_title,employee_id,employee_name,items,completed_count,total_count,percent,version
+  ) VALUES (
+    submission_id,'preview-checklist','Preview Checklist',barista_id,'Photo Barista',items,1,1,100,2
+  ) RETURNING * INTO initial_row;
+  IF initial_row.completed_count <> 0 OR initial_row.photo_required_count <> 1 OR initial_row.photo_upload_status <> 'pending' THEN
+    RAISE EXCEPTION 'Initial photo-required submission was not normalized: %', row_to_json(initial_row);
+  END IF;
+
+  INSERT INTO public.checklist_submission_photos(
+    id,submission_id,checklist_id,item_key,item_text,photo_index,storage_path,thumbnail_path,
+    mime_type,file_size,thumbnail_size,created_by
+  ) VALUES (
+    photo_id,submission_id,'preview-checklist','preview-checklist:0:0','Фото-пункт',1,
+    barista_id::text || '/' || submission_id::text || '/preview-checklist-0-0/full-1.jpg',
+    barista_id::text || '/' || submission_id::text || '/preview-checklist-0-0/thumb-1.jpg',
+    'image/jpeg',1024,256,barista_id
+  );
+
+  SELECT * INTO final_row FROM public.finalize_checklist_photo_submission(submission_id, items);
+  IF final_row.completed_count <> 1 OR final_row.percent <> 100 OR final_row.photo_count <> 1
+     OR final_row.photo_upload_status <> 'complete' OR final_row.submitted_incomplete THEN
+    RAISE EXCEPTION 'Finalized photo submission is incorrect: %', row_to_json(final_row);
+  END IF;
+
+  PERFORM set_config('request.jwt.claim.sub', admin_id::text, true);
+  SELECT * INTO retained_row FROM public.set_checklist_photo_retained(photo_id, true);
+  IF retained_row.retained IS DISTINCT FROM true OR retained_row.retained_by IS DISTINCT FROM admin_id THEN
+    RAISE EXCEPTION 'Administrator could not retain photo: %', row_to_json(retained_row);
+  END IF;
+
+  DELETE FROM public.checklist_submissions WHERE id = submission_id;
+  DELETE FROM public.checklist_photo_rules WHERE checklist_id = 'preview-checklist';
+  DELETE FROM public.profiles WHERE id IN (admin_id,barista_id);
+  DELETE FROM auth.users WHERE id IN (admin_id,barista_id);
+  PERFORM set_config('request.jwt.claim.sub', '', true);
 END
 $$;
 
