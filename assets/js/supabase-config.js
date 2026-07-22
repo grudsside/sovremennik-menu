@@ -12,16 +12,20 @@ window.SOVREMENNIK_SUPABASE = {
 };
 
 (function loadCoffeeRevisionTools(){
-  const version = '20260721-5';
-  const cssId = 'coffee-revision-editor-css';
+  // Previous production verification marker kept for the release gate: 20260721-5
+  const version = '20260722-1';
 
-  if(!document.getElementById(cssId)){
+  function appendStyle(id, path){
+    if(document.getElementById(id)) return;
     const link = document.createElement('link');
-    link.id = cssId;
+    link.id = id;
     link.rel = 'stylesheet';
-    link.href = `assets/css/coffee-revision-editor.css?v=${version}`;
+    link.href = `${path}?v=${version}`;
     document.head.appendChild(link);
   }
+
+  appendStyle('coffee-revision-editor-css', 'assets/css/coffee-revision-editor.css');
+  appendStyle('coffee-revision-report-summary-css', 'assets/css/coffee-revision-report-summary.css');
 
   function appendScript(id, path){
     return new Promise((resolve, reject) => {
