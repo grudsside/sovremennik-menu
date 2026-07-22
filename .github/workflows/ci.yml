@@ -197,10 +197,11 @@ jobs:
           npm install --no-save playwright@1.54.1
           npx playwright install --with-deps chromium
 
-      - name: Run desktop and mobile preview smoke tests
-        run: |
-          node tools/open-test-browser-smoke.mjs
-          node tools/checklist-photo-browser-smoke.mjs
+      - name: Run existing desktop and mobile preview smoke tests
+        run: node tools/open-test-browser-smoke.mjs
+
+      - name: Run checklist photo report browser smoke test
+        run: node tools/checklist-photo-browser-smoke.mjs
 
       - name: Upload preview screenshots
         if: always()
