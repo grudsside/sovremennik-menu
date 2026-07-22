@@ -22,6 +22,7 @@ const plan = [
   ['supabase/migrations/20260721190000_coffee_revision_formula_corrections.sql', '20260721190000_coffee_revision_formula_corrections.sql'],
   ['supabase/migrations/20260721203000_coffee_revision_total_stock.sql', '20260721203000_coffee_revision_total_stock.sql'],
   ['supabase/migrations/20260721223000_coffee_revision_integrity_summary.sql', '20260721223000_coffee_revision_integrity_summary.sql'],
+  ['supabase/migrations/20260722130000_checklist_photo_reports_preview.sql', '20260722130000_checklist_photo_reports_preview.sql'],
 ];
 
 const forbiddenSources = [
