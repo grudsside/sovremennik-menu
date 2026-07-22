@@ -61,7 +61,7 @@
     if(explicit?.[1]) return explicit[1].trim();
     const cleaned = title
       .replace(/^смена\s*[:—-]?\s*/i,'')
-      .replace(/\s*[:—-]?\s*(?:целая|утренняя|вечерняя)\s+смена\b.*$/i,'')
+      .replace(/\s*[:—-]?\s*(?:целая|утренняя|вечерняя)\s+смена.*$/i,'')
       .replace(/\s+(?:с|от)?\s*\d{1,2}[.:]\d{2}\s*[—–-]\s*\d{1,2}[.:]\d{2}.*$/i,'')
       .trim();
     if(cleaned && cleaned.toLowerCase() !== 'смена') return cleaned;
