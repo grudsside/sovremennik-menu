@@ -67,6 +67,23 @@ assert.equal(period.totalSales, 11.058);
 assert.equal(period.totalLossWeight, 1.461);
 assert.equal(period.lossPercent, 13.21, 'Period loss must be weighted by total sales, not averaged by day.');
 
+const latestReportRows = summary.recordsForLatestReportDates([
+  { dateKey:'2026-06-01', iikoSales:1 },
+  { dateKey:'2026-07-02', iikoSales:2 },
+  { dateKey:'2026-07-10', iikoSales:3 },
+  { dateKey:'2026-07-16', iikoSales:4 },
+  { dateKey:'2026-07-19', iikoSales:5 },
+  { dateKey:'2026-07-25', iikoSales:100 },
+], 3, '2026-07-20');
+assert.deepEqual(
+  latestReportRows.map(row => row.dateKey),
+  ['2026-07-10', '2026-07-16', '2026-07-19'],
+  'Calendar gaps must be skipped while the latest three report dates are selected.',
+);
+const latestReportSummary = summary.calculatePeriodSummary(latestReportRows, 3, '2026-07-20');
+assert.equal(latestReportSummary.revisionCount, 3);
+assert.equal(latestReportSummary.totalSales, 12);
+
 const selectedReport = summary.calculateRecordsSummary(records.slice(0, 2));
 assert.equal(selectedReport.revisionCount, 2);
 assert.equal(selectedReport.totalSales, 7.53);
@@ -88,6 +105,7 @@ const calendar = summary.recordsForCalendarDays([
 assert.deepEqual(calendar.map(row => row.dateKey), ['2026-07-10', '2026-07-16']);
 
 const integration = fs.readFileSync('assets/js/coffee-revision-integrity-fix.js', 'utf8');
+const labels = fs.readFileSync('assets/js/coffee-revision-summary-labels.js', 'utf8');
 const reportStyles = fs.readFileSync('assets/css/coffee-revision-report-summary.css', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260721223000_coffee_revision_integrity_summary.sql', 'utf8');
 const config = fs.readFileSync('assets/js/supabase-config.js', 'utf8');
@@ -96,17 +114,19 @@ assert.match(integration, /addEventListener\('submit', interceptRevisionSubmit, 
 assert.match(integration, /\.from\('coffee_revisions'\)[\s\S]*?\.insert\(row\)/);
 assert.doesNotMatch(integration, /\.upsert\(row/);
 assert.match(integration, /23505/);
-assert.match(integration, /Последние \$\{days\} календарных дней/);
-assert.match(integration, /Это скользящие периоды, а не календарная неделя или месяц/);
 assert.match(integration, /manual-report-total/);
 assert.match(integration, /Итог отчёта/);
 assert.match(integration, /calculateRecordsSummary\(revisions\)/);
 assert.match(integration, /exportManualReportWithTotals/);
 assert.match(integration, /сумма всех потерь делится на сумму продаж/);
+assert.match(labels, /Последние \$\{limit\} дней, по которым есть отчёт/);
+assert.match(labels, /Календарные дни без отчёта пропускаются/);
+assert.doesNotMatch(labels, /включая сегодня/);
+assert.match(reportStyles, /grid-template-columns: minmax\(220px, 0\.9fr\) minmax\(0, 2\.2fr\) minmax\(220px, 0\.9fr\)/);
+assert.match(reportStyles, /@media \(min-width: 621px\) and \(max-width: 1079px\)/);
 assert.match(reportStyles, /\.revision-summary-periods[\s\S]*?grid-template-columns: repeat\(2/);
 assert.match(reportStyles, /\.revision-summary-period-metrics[\s\S]*?grid-template-columns: repeat\(2/);
 assert.match(reportStyles, /\.manual-report-total-metrics[\s\S]*?grid-template-columns: repeat\(4/);
-assert.match(reportStyles, /@media \(max-width: 980px\)/);
 assert.match(reportStyles, /@media \(max-width: 620px\)/);
 assert.match(migration, /opening_clean_hopper_weight/);
 assert.match(migration, /opening_total_grain_balance/);
@@ -114,9 +134,10 @@ assert.match(migration, /app\.coffee_revision_admin_correction/);
 assert.match(migration, /2026-07-13/);
 assert.match(migration, /1\.194/);
 assert.match(migration, /60\.235/);
-assert.match(config, /20260722-1/);
+assert.match(config, /20260722-2/);
 assert.match(config, /coffee-revision-report-summary\.css/);
 assert.match(config, /coffee-revision-summary-core\.js/);
 assert.match(config, /coffee-revision-integrity-fix\.js/);
+assert.match(config, /coffee-revision-summary-labels\.js/);
 
-console.log('Coffee revision duplicate protection, grouped periods and manual report totals checks passed.');
+console.log('Coffee revision latest report dates, compact summary grid and manual report totals checks passed.');

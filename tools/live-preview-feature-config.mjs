@@ -23,7 +23,7 @@ assert(!productionProjectRef || previewProjectRef !== productionProjectRef, 'Pre
 assert.equal(new URL(supabaseUrl).hostname, `${previewProjectRef}.supabase.co`, 'Preview URL must match the dedicated project.');
 
 const functionBase = `${supabaseUrl}/functions/v1`;
-const version = '20260722-1';
+const version = '20260722-2';
 const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
   url: supabaseUrl,
   anonKey: publicKey,
@@ -72,6 +72,7 @@ const configSource = `window.SOVREMENNIK_SUPABASE = ${JSON.stringify({
       await appendScript('coffee-revision-editor-js', 'assets/js/coffee-revision-editor.js');
       await appendScript('coffee-revision-summary-core-js', 'assets/js/coffee-revision-summary-core.js');
       await appendScript('coffee-revision-integrity-fix-js', 'assets/js/coffee-revision-integrity-fix.js');
+      await appendScript('coffee-revision-summary-labels-js', 'assets/js/coffee-revision-summary-labels.js');
     } catch(error){
       console.error('Coffee revision tools failed to load', error);
     }
@@ -91,6 +92,7 @@ assert.match(configSource, /coffee-revision-formula-fix\.js/, 'Generated config 
 assert.match(configSource, /coffee-revision-editor\.js/, 'Generated config must load the correction editor.');
 assert.match(configSource, /coffee-revision-summary-core\.js/, 'Generated config must load the revision summary core.');
 assert.match(configSource, /coffee-revision-integrity-fix\.js/, 'Generated config must load duplicate protection.');
+assert.match(configSource, /coffee-revision-summary-labels\.js/, 'Generated config must load report-date labels.');
 
 const service = createClient(supabaseUrl, secretKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -114,6 +116,7 @@ assert.match(published, /coffee-revision-formula-fix\.js/, 'Published config mus
 assert.match(published, /coffee-revision-editor\.js/, 'Published config must load the revision editor.');
 assert.match(published, /coffee-revision-summary-core\.js/, 'Published config must load the summary core.');
 assert.match(published, /coffee-revision-integrity-fix\.js/, 'Published config must load duplicate protection.');
+assert.match(published, /coffee-revision-summary-labels\.js/, 'Published config must load report-date labels.');
 if (productionProjectRef) assert.doesNotMatch(published, new RegExp(productionProjectRef), 'Published config must not target production.');
 
 await fs.mkdir(outputDir, { recursive: true });
@@ -125,4 +128,4 @@ await fs.writeFile(path.join(outputDir, 'feature-config.json'), JSON.stringify({
   generatedAt: new Date().toISOString(),
 }, null, 2));
 
-console.log('Preview configuration with coffee revision and report summary tools published.');
+console.log('Preview configuration with coffee revision and latest-report summary tools published.');
