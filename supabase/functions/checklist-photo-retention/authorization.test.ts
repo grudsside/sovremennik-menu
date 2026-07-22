@@ -10,6 +10,16 @@ Deno.test("retention accepts an active administrator", () => {
   );
 });
 
+Deno.test("retention accepts a verified service-role scheduler", () => {
+  assertEquals(
+    evaluateRetentionAccess({
+      profile: null,
+      serviceRoleAuthorized: true,
+    }),
+    { ok: true, actor: "service_role", userId: null },
+  );
+});
+
 Deno.test("retention rejects manager and inactive administrator", () => {
   assertEquals(
     evaluateRetentionAccess({
