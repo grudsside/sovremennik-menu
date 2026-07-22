@@ -18,7 +18,7 @@ document.write('<script src="assets/js/schedule-manager.js?v=20260720-1"><\/scri
 document.write('<script src="assets/js/schedule-submit-fix.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/schedule-departments.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/interface-followup.js?v=20260720-1"><\/script>');
-document.write('<script src="assets/js/mobile-active-panel.js?v=20260719-2"><\/script>');
+document.write('<script src="assets/js/mobile-active-panel.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/section-maintenance.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/mobile-photo-expand.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/checklist-details-fix.js?v=20260722-1"><\/script>');
