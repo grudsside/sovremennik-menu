@@ -4,6 +4,7 @@ import vm from 'node:vm';
 
 const source = readFileSync('assets/js/checklist-photo-core.js', 'utf8');
 const loader = readFileSync('assets/js/push.js', 'utf8');
+const viewerFit = readFileSync('assets/css/checklist-photo-viewer-fit.css', 'utf8');
 const migration = readFileSync('supabase/migrations/20260722130000_checklist_photo_reports_preview.sql', 'utf8');
 const retention = readFileSync('supabase/functions/checklist-photo-retention/index.ts', 'utf8');
 
@@ -90,11 +91,17 @@ assert.match(paths.thumbnailPath, /^employee-id\/submission-id\/opening-0-1\/thu
 
 for (const marker of [
   'assets/css/checklist-photo-reports.css?v=20260722-1',
+  'assets/css/checklist-photo-viewer-fit.css?v=20260722-1',
   'assets/js/checklist-photo-core.js?v=20260722-1',
   'assets/js/checklist-photo-reports.js?v=20260722-1',
 ]) {
   assert.ok(loader.includes(marker), `Missing checklist photo loader marker: ${marker}`);
 }
+
+assert.match(viewerFit, /@media \(min-width:641px\)/, 'Desktop viewer fix must not change the working mobile layout');
+assert.match(viewerFit, /max-height:calc\(100dvh - 56px\)/, 'Viewer image must be bounded by the visible desktop height');
+assert.match(viewerFit, /width:auto;[\s\S]*height:auto;/, 'Portrait photos must keep their aspect ratio');
+assert.match(viewerFit, /object-fit:contain/, 'Desktop photos must fit without cropping');
 
 for (const marker of [
   'checklist_photo_rules',

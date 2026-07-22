@@ -44,6 +44,7 @@ try {
     *{box-sizing:border-box}body{margin:0;padding:12px;background:#f4f1e8;color:var(--ink);font-family:system-ui,sans-serif}.doc-card{padding:14px;border:1px solid var(--line);border-radius:18px;background:var(--surface)}.check-row{display:grid;grid-template-columns:24px 1fr;gap:8px;padding:12px 2px;border-bottom:1px solid var(--line)}.custom-check{width:22px;height:22px;border:2px solid var(--olive-dark);border-radius:7px}.submit-panel{display:grid;gap:10px;margin-top:14px}.small-action,.submit-checklist{min-height:40px;padding:8px 13px;border:1px solid var(--line);border-radius:12px;background:var(--olive-dark);color:#fff}.secondary{background:#fff;color:var(--olive-dark)}
   ` });
   await page.addStyleTag({ path: path.join(root, 'assets/css/checklist-photo-reports.css') });
+  await page.addStyleTag({ path: path.join(root, 'assets/css/checklist-photo-viewer-fit.css') });
   await page.addScriptTag({ content: `
     window.state={activeTop:'checklists',activeControl:'checklists',menu:{checklists:[{id:'opening',title:'Чек-лист открытия',sections:[{title:'Бар',rows:[{task:'Проверить витрину'},{task:'Протереть кофемашину'}]}]}]}};
     window.esc=value=>String(value??'').replace(/[&<>\"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));
@@ -140,8 +141,43 @@ try {
   assert.match(controlText, /Не выполнено/);
   assert.match(controlText, /Хранение до/);
 
-  stage = 'save success screenshot';
+  stage = 'save mobile success screenshot';
   await page.screenshot({ path: path.join(artifactDir, 'checklist-photo-report-mobile.png'), fullPage:true });
+
+  stage = 'verify desktop portrait photo stays inside viewport';
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktopFit = await page.evaluate(async () => {
+    document.body.insertAdjacentHTML('beforeend', `<div class="checklist-photo-viewer" data-checklist-photo-viewer>
+      <button type="button" class="checklist-photo-viewer-close" aria-label="Закрыть">×</button>
+      <div class="checklist-photo-viewer-content">
+        <img alt="Portrait proof" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='1600' viewBox='0 0 900 1600'%3E%3Crect width='900' height='1600' fill='%23d8d1bd'/%3E%3C/svg%3E">
+      </div>
+    </div>`);
+    const viewer = document.querySelector('[data-checklist-photo-viewer]');
+    const content = viewer.querySelector('.checklist-photo-viewer-content');
+    const image = viewer.querySelector('img');
+    await image.decode();
+    const rect = element => {
+      const value = element.getBoundingClientRect();
+      return { left:value.left, top:value.top, right:value.right, bottom:value.bottom, width:value.width, height:value.height };
+    };
+    return {
+      viewport:{ width:window.innerWidth, height:window.innerHeight },
+      viewer:rect(viewer),
+      content:rect(content),
+      image:rect(image),
+    };
+  });
+  assert.ok(desktopFit.viewer.left >= -0.5 && desktopFit.viewer.top >= -0.5, 'Viewer must start inside the desktop viewport');
+  assert.ok(desktopFit.viewer.right <= desktopFit.viewport.width + 0.5, 'Viewer must not overflow desktop width');
+  assert.ok(desktopFit.viewer.bottom <= desktopFit.viewport.height + 0.5, 'Viewer must not overflow desktop height');
+  assert.ok(desktopFit.image.left >= -0.5 && desktopFit.image.top >= -0.5, 'Portrait photo must remain visible from its top-left edge');
+  assert.ok(desktopFit.image.right <= desktopFit.viewport.width + 0.5, 'Portrait photo must fit desktop width');
+  assert.ok(desktopFit.image.bottom <= desktopFit.viewport.height + 0.5, 'Portrait photo must fit desktop height without browser zoom');
+  assert.ok(desktopFit.image.height <= desktopFit.content.height + 0.5, 'Portrait photo must stay inside the viewer content box');
+
+  stage = 'save desktop viewer screenshot';
+  await page.screenshot({ path: path.join(artifactDir, 'checklist-photo-viewer-desktop.png'), fullPage:false });
   console.log('Checklist photo report browser smoke test passed.');
 } catch (error) {
   const diagnostic = [
