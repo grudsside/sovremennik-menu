@@ -1,5 +1,63 @@
+.control-summary-grid {
+  align-items: start;
+}
+
+.control-summary-grid > .summary-card {
+  min-width: 0;
+  height: fit-content;
+}
+
 .revision-summary-card {
-  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@media (min-width: 1080px) {
+  .control-summary-grid {
+    grid-template-columns: minmax(220px, 0.9fr) minmax(0, 2.2fr) minmax(220px, 0.9fr);
+  }
+
+  .checklist-summary-card,
+  .revision-summary-card,
+  .error-summary-card {
+    grid-column: auto;
+    grid-row: 1;
+  }
+
+  .checklist-summary-card .summary-metrics,
+  .error-summary-card .summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 621px) and (max-width: 1079px) {
+  .control-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .checklist-summary-card,
+  .control-summary-grid > .summary-card:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .error-summary-card,
+  .control-summary-grid > .summary-card:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .revision-summary-card,
+  .control-summary-grid > .summary-card:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .checklist-summary-card .summary-metrics,
+  .error-summary-card .summary-metrics,
+  .control-summary-grid > .summary-card:nth-child(1) .summary-metrics,
+  .control-summary-grid > .summary-card:nth-child(3) .summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .revision-summary-periods {
@@ -109,6 +167,15 @@
 }
 
 @media (max-width: 620px) {
+  .control-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .control-summary-grid > .summary-card {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
   .revision-summary-period,
   .manual-report-total {
     padding: 14px;
