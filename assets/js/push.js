@@ -10,6 +10,7 @@ document.write('<link rel="stylesheet" href="assets/css/mobile-active-panel.css?
 document.write('<link rel="stylesheet" href="assets/css/section-maintenance.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-reports.css?v=20260722-1">');
+document.write('<link rel="stylesheet" href="assets/css/checklist-photo-viewer-fit.css?v=20260722-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
