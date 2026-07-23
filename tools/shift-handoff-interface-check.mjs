@@ -7,12 +7,17 @@ const css = fs.readFileSync('assets/css/shift-handoff.css', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const serviceWorker = fs.readFileSync('service-worker.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260723150000_shift_handoff_preview.sql', 'utf8');
+const roleMigration = fs.readFileSync('supabase/migrations/20260723190000_shift_handoff_barista_only.sql', 'utf8');
 const previewPlan = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
 
 for (const token of ['splitLines', 'pendingForUser', 'buildStoragePath']) {
   assert(core.includes(token), `Core helper is missing: ${token}`);
 }
 for (const token of [
+  "const CLOSING_CHECKLIST_ID = 'closing-checklist'",
+  "String(doc?.id || '') === CLOSING_CHECKLIST_ID",
+  "currentRole() === 'barista'",
+  'Новых сообщений нет',
   'От предыдущей смены',
   'Финальный шаг чек-листа закрытия',
   'Замечаний нет',
@@ -26,7 +31,8 @@ for (const token of [
 ]) {
   assert(integration.includes(token), `Shift handoff integration is missing: ${token}`);
 }
-assert(!integration.includes('data-shift-handoff-open'), 'Standalone handoff button must not remain on the home dashboard');
+assert(!integration.includes('doc?.file'), 'Checklist matching must not use the shared open/close file name');
+assert(!integration.includes('data-shift-handoff-open'), 'Standalone handoff creation button must not remain on the home dashboard');
 assert(css.includes('.shift-handoff-checklist-step'), 'Compact closing-checklist step styles are missing');
 assert(css.includes('@media(max-width:760px)'), 'Mobile shift handoff layout is missing');
 assert(loader.indexOf('shift-handoff-core.js') < loader.indexOf('shift-handoff.js'), 'Core must load before integration');
@@ -44,6 +50,15 @@ for (const token of [
 ]) {
   assert(migration.includes(token), `Shift handoff migration is missing: ${token}`);
 }
-assert(previewPlan.includes('20260723150000_shift_handoff_preview.sql'), 'Live preview migration plan is missing shift handoff');
+for (const token of [
+  'create or replace function public.is_shift_handoff_barista',
+  "profile.role = 'barista'",
+  'public.is_shift_handoff_barista()',
+  'Active barista profile required',
+]) {
+  assert(roleMigration.includes(token), `Barista-only migration is missing: ${token}`);
+}
+assert(previewPlan.includes('20260723150000_shift_handoff_preview.sql'), 'Live preview migration plan is missing shift handoff schema');
+assert(previewPlan.includes('20260723190000_shift_handoff_barista_only.sql'), 'Live preview migration plan is missing barista-only restrictions');
 
-console.log('Shift handoff closing-checklist integration checks passed.');
+console.log('Shift handoff exact closing-checklist and barista-only integration checks passed.');
