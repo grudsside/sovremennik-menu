@@ -1,0 +1,70 @@
+name: Shift handoff preview checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'assets/js/shift-handoff*.js'
+      - 'assets/css/shift-handoff.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/migrations/20260723150000_shift_handoff_preview.sql'
+      - 'tools/shift-handoff-*'
+      - 'tools/live-preview-prepare-migrations.mjs'
+      - '.github/workflows/shift-handoff-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check assets/js/shift-handoff-core.js
+          node --check assets/js/shift-handoff.js
+          node --check tools/shift-handoff-interface-check.mjs
+      - name: Test shift handoff core
+        run: node tests/shift-handoff-core.test.js
+      - name: Check frontend integration
+        run: node tools/shift-handoff-interface-check.mjs
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: preview
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Bootstrap existing preview schema
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+      - name: Apply shift handoff migration
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723150000_shift_handoff_preview.sql
+      - name: Test shift handoff schema and permissions
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/shift-handoff-db-smoke.sql
