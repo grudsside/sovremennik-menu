@@ -210,7 +210,11 @@ jobs:
         run: node tools/checklist-photo-browser-smoke.mjs
 
       - name: Run offline reliability browser smoke test
-        run: node tools/offline-reliability-browser-smoke.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/open-test-preview
+          node tools/offline-reliability-browser-smoke.mjs 2>&1 | tee artifacts/open-test-preview/offline-reliability.log
 
       - name: Upload preview screenshots
         if: always()
