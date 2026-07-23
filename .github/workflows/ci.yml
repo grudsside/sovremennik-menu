@@ -214,7 +214,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p artifacts/open-test-preview
-          node tools/offline-reliability-browser-smoke.mjs 2>&1 | tee artifacts/open-test-preview/offline-reliability.log
+          node tools/offline-reliability-browser-smoke-runner.mjs 2>&1 | tee artifacts/open-test-preview/offline-reliability.log
 
       - name: Upload preview screenshots
         if: always()
