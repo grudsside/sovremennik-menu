@@ -1,0 +1,88 @@
+/* Современник offline reliability */
+.connection-indicator{
+  position:fixed;
+  z-index:12000;
+  right:max(14px, env(safe-area-inset-right));
+  bottom:max(14px, env(safe-area-inset-bottom));
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  max-width:min(360px, calc(100vw - 28px));
+  min-height:38px;
+  padding:9px 13px;
+  border:1px solid rgba(36,69,54,.18);
+  border-radius:999px;
+  background:#fff;
+  color:#244536;
+  box-shadow:0 8px 28px rgba(25,45,36,.18);
+  font:700 13px/1.25 inherit;
+  cursor:pointer;
+}
+.connection-indicator::before{
+  content:"";
+  width:9px;
+  height:9px;
+  flex:0 0 9px;
+  border-radius:50%;
+  background:#2f8f5b;
+  box-shadow:0 0 0 4px rgba(47,143,91,.12);
+}
+.connection-indicator.is-offline{
+  border-color:rgba(170,52,52,.25);
+  color:#8d2929;
+  background:#fff8f8;
+}
+.connection-indicator.is-offline::before{
+  background:#c24747;
+  box-shadow:0 0 0 4px rgba(194,71,71,.12);
+}
+.connection-indicator.is-pending{
+  border-color:rgba(173,113,20,.28);
+  color:#7b4b00;
+  background:#fffaf0;
+}
+.connection-indicator.is-pending::before{
+  background:#d18b21;
+  box-shadow:0 0 0 4px rgba(209,139,33,.14);
+}
+.offline-draft-status,
+.offline-pending-status{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:5px 9px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.2;
+}
+.offline-draft-status{
+  color:#466155;
+  background:#edf3ef;
+}
+.offline-pending-status{
+  color:#7b4b00;
+  background:#fff2d6;
+  border:1px solid rgba(173,113,20,.22);
+}
+.submit-panel:has(.offline-pending-status:not([hidden])) .submit-checklist{
+  box-shadow:0 0 0 3px rgba(209,139,33,.13);
+}
+@media (max-width:720px){
+  .connection-indicator{
+    right:10px;
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    max-width:calc(100vw - 20px);
+    min-height:36px;
+    padding:8px 11px;
+    font-size:12px;
+  }
+  .submit-panel{
+    align-items:flex-start;
+  }
+  .offline-draft-status,
+  .offline-pending-status{
+    width:max-content;
+    max-width:100%;
+  }
+}

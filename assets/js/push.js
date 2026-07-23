@@ -11,6 +11,7 @@ document.write('<link rel="stylesheet" href="assets/css/section-maintenance.css?
 document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-reports.css?v=20260722-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-viewer-fit.css?v=20260722-1">');
+document.write('<link rel="stylesheet" href="assets/css/offline-reliability.css?v=20260723-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
@@ -27,3 +28,5 @@ document.write('<script src="assets/js/mobile-photo-expand.js?v=20260720-1"><\/s
 document.write('<script src="assets/js/checklist-details-fix.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-photo-core.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-photo-reports.js?v=20260722-1"><\/script>');
+document.write('<script src="assets/js/offline-core.js?v=20260723-1"><\/script>');
+document.write('<script src="assets/js/offline-sync.js?v=20260723-1"><\/script>');
