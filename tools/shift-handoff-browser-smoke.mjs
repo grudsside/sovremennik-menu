@@ -140,17 +140,22 @@ await page.locator('[data-shift-handoff-accept]').click();
 await incoming.waitFor({ state:'detached' });
 assert.equal(await page.evaluate(() => window.__acks.length), 1, 'Incoming handoff must be acknowledged exactly once');
 
+await page.getByRole('button', { name:'Замечаний нет' }).click();
+await page.locator('.submit-checklist').click();
+await page.waitForFunction(() => window.__submittedChecklists.length === 1);
+assert.equal(await page.evaluate(() => window.__handoffs.length), 1, 'No handoff row should be created when there are no remarks');
+
 await page.getByRole('button', { name:'Есть информация' }).click();
 await page.locator('textarea[name="outOfStock"]').fill('Миндальное молоко\nСироп ваниль');
 await page.locator('textarea[name="nextShiftControl"]').fill('Проверить утреннюю поставку');
 await page.locator('.submit-checklist').click();
 
-await page.waitForFunction(() => window.__submittedChecklists.length === 1);
+await page.waitForFunction(() => window.__submittedChecklists.length === 2);
 const result = await page.evaluate(() => ({
   latest:window.__handoffs[0],
   submitted:window.__submittedChecklists.slice(),
 }));
-assert.deepEqual(result.submitted, ['closing-shift']);
+assert.deepEqual(result.submitted, ['closing-shift', 'closing-shift']);
 assert.deepEqual(result.latest.out_of_stock, ['Миндальное молоко', 'Сироп ваниль']);
 assert.deepEqual(result.latest.next_shift_control, ['Проверить утреннюю поставку']);
 await page.screenshot({ path:path.join(artifactDir, 'shift-handoff-closing-checklist-mobile.png'), fullPage:true });
