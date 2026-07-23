@@ -14,8 +14,11 @@ for (const token of ['splitLines', 'pendingForUser', 'buildStoragePath']) {
 }
 for (const token of [
   'От предыдущей смены',
-  'Передать смену',
-  'data-shift-handoff-accept',
+  'Финальный шаг чек-листа закрытия',
+  'Замечаний нет',
+  'Есть информация',
+  'data-shift-handoff-checklist',
+  "event.target.closest('.submit-checklist')",
   "supa.rpc('create_shift_handoff'",
   "supa.rpc('acknowledge_shift_handoff'",
   'localStorage.setItem(DRAFT_KEY',
@@ -23,6 +26,8 @@ for (const token of [
 ]) {
   assert(integration.includes(token), `Shift handoff integration is missing: ${token}`);
 }
+assert(!integration.includes('data-shift-handoff-open'), 'Standalone handoff button must not remain on the home dashboard');
+assert(css.includes('.shift-handoff-checklist-step'), 'Compact closing-checklist step styles are missing');
 assert(css.includes('@media(max-width:760px)'), 'Mobile shift handoff layout is missing');
 assert(loader.indexOf('shift-handoff-core.js') < loader.indexOf('shift-handoff.js'), 'Core must load before integration');
 for (const asset of ['assets/css/shift-handoff.css', 'assets/js/shift-handoff-core.js', 'assets/js/shift-handoff.js']) {
@@ -41,4 +46,4 @@ for (const token of [
 }
 assert(previewPlan.includes('20260723150000_shift_handoff_preview.sql'), 'Live preview migration plan is missing shift handoff');
 
-console.log('Shift handoff integration checks passed.');
+console.log('Shift handoff closing-checklist integration checks passed.');
