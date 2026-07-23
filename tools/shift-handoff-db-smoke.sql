@@ -42,7 +42,7 @@ DO $$
 DECLARE
   author_id constant uuid := '11111111-1111-4111-8111-111111111111';
   receiver_id constant uuid := '22222222-2222-4222-8222-222222222222';
-  handoff_id constant uuid := '33333333-3333-4333-8333-333333333333';
+  target_handoff_id constant uuid := '33333333-3333-4333-8333-333333333333';
   photo_id constant uuid := '44444444-4444-4444-8444-444444444444';
   created public.shift_handoffs%rowtype;
   accepted public.shift_handoff_acknowledgements%rowtype;
@@ -59,7 +59,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claim.sub', author_id::text, true);
   SELECT * INTO created FROM public.create_shift_handoff(
-    handoff_id,
+    target_handoff_id,
     ARRAY['Не разобрана поставка'],
     ARRAY['Овсяное молоко'],
     ARRAY['Правый гриндер выдаёт ошибку'],
@@ -72,36 +72,36 @@ BEGIN
 
   INSERT INTO public.shift_handoff_photos(id,handoff_id,storage_path,mime_type,file_size,created_by)
   VALUES (
-    photo_id,handoff_id,
-    author_id::text || '/' || handoff_id::text || '/' || photo_id::text || '.jpg',
+    photo_id,target_handoff_id,
+    author_id::text || '/' || target_handoff_id::text || '/' || photo_id::text || '.jpg',
     'image/jpeg',1024,author_id
   );
 
   BEGIN
-    PERFORM public.acknowledge_shift_handoff(handoff_id);
+    PERFORM public.acknowledge_shift_handoff(target_handoff_id);
   EXCEPTION WHEN insufficient_privilege THEN
     author_rejected := true;
   END;
   IF NOT author_rejected THEN RAISE EXCEPTION 'handoff author must not acknowledge own handoff'; END IF;
 
   PERFORM set_config('request.jwt.claim.sub', receiver_id::text, true);
-  SELECT * INTO accepted FROM public.acknowledge_shift_handoff(handoff_id);
+  SELECT * INTO accepted FROM public.acknowledge_shift_handoff(target_handoff_id);
   IF accepted.employee_id <> receiver_id OR accepted.employee_name <> 'Иван' THEN
     RAISE EXCEPTION 'handoff acknowledgement metadata is incorrect: %', row_to_json(accepted);
   END IF;
-  PERFORM public.acknowledge_shift_handoff(handoff_id);
+  PERFORM public.acknowledge_shift_handoff(target_handoff_id);
   IF (
     SELECT count(*)
     FROM public.shift_handoff_acknowledgements acknowledgement
-    WHERE acknowledgement.handoff_id = handoff_id
+    WHERE acknowledgement.handoff_id = target_handoff_id
       AND acknowledgement.employee_id = receiver_id
   ) <> 1 THEN
     RAISE EXCEPTION 'handoff acknowledgement must be idempotent';
   END IF;
 
-  DELETE FROM public.shift_handoffs WHERE id=handoff_id;
-  DELETE FROM public.profiles WHERE id IN (author_id,receiver_id);
-  DELETE FROM auth.users WHERE id IN (author_id,receiver_id);
+  DELETE FROM public.shift_handoffs handoff WHERE handoff.id = target_handoff_id;
+  DELETE FROM public.profiles profile WHERE profile.id IN (author_id,receiver_id);
+  DELETE FROM auth.users auth_user WHERE auth_user.id IN (author_id,receiver_id);
   PERFORM set_config('request.jwt.claim.sub', '', true);
 END
 $$;
