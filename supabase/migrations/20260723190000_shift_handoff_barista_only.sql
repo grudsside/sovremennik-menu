@@ -1,7 +1,7 @@
--- Restrict shift handoff creation, reading and acknowledgement to active baristas.
+-- Allow administrators and baristas to use shift handoff and keep the latest handoff visible until the next closing checklist.
 begin;
 
-create or replace function public.is_shift_handoff_barista()
+create or replace function public.is_shift_handoff_user()
 returns boolean
 language sql
 stable
@@ -13,8 +13,21 @@ as $$
     from public.profiles profile
     where profile.id = auth.uid()
       and profile.is_active = true
-      and profile.role = 'barista'
+      and profile.role in ('admin','barista')
   );
+$$;
+
+revoke all on function public.is_shift_handoff_user() from public, anon;
+grant execute on function public.is_shift_handoff_user() to authenticated;
+
+create or replace function public.is_shift_handoff_barista()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_shift_handoff_user();
 $$;
 
 revoke all on function public.is_shift_handoff_barista() from public, anon;
@@ -33,9 +46,10 @@ begin
   from public.profiles profile
   where profile.id = auth.uid()
     and profile.is_active = true
-    and profile.role = 'barista';
+    and profile.role in ('admin','barista');
+
   if actor.id is null then
-    raise exception 'Active barista profile required' using errcode = '42501';
+    raise exception 'Active administrator or barista profile required' using errcode = '42501';
   end if;
 
   new.created_by := actor.id;
@@ -47,7 +61,7 @@ begin
   new.next_shift_control := coalesce(new.next_shift_control, '{}');
   new.notes := left(btrim(coalesce(new.notes, '')), 2000);
   new.created_at := coalesce(new.created_at, now());
-  new.visible_until := new.created_at + interval '72 hours';
+  new.visible_until := '9999-12-31 23:59:59+00'::timestamptz;
   return new;
 end;
 $$;
@@ -72,9 +86,10 @@ begin
   from public.profiles profile
   where profile.id = auth.uid()
     and profile.is_active = true
-    and profile.role = 'barista';
+    and profile.role in ('admin','barista');
+
   if actor.id is null then
-    raise exception 'Active barista profile required' using errcode = '42501';
+    raise exception 'Active administrator or barista profile required' using errcode = '42501';
   end if;
 
   update public.shift_handoffs as previous_handoff
@@ -109,17 +124,20 @@ begin
   from public.profiles profile
   where profile.id = auth.uid()
     and profile.is_active = true
-    and profile.role = 'barista';
+    and profile.role in ('admin','barista');
+
   if actor.id is null then
-    raise exception 'Active barista profile required' using errcode = '42501';
+    raise exception 'Active administrator or barista profile required' using errcode = '42501';
   end if;
 
   select handoff.* into source
   from public.shift_handoffs handoff
   where handoff.id = p_handoff_id;
+
   if source.id is null or source.created_at < now() - interval '30 days' then
     raise exception 'Shift handoff is unavailable' using errcode = 'P0002';
   end if;
+
   if source.created_by = actor.id then
     raise exception 'The author cannot acknowledge their own handoff' using errcode = '42501';
   end if;
@@ -150,18 +168,21 @@ declare
   source public.shift_handoffs%rowtype;
   expected_prefix text;
 begin
-  if actor_id is null or not public.is_shift_handoff_barista() then
-    raise exception 'Active barista profile required' using errcode = '42501';
+  if actor_id is null or not public.is_shift_handoff_user() then
+    raise exception 'Active administrator or barista profile required' using errcode = '42501';
   end if;
 
   select handoff.* into source
   from public.shift_handoffs handoff
   where handoff.id = new.handoff_id;
+
   if source.id is null or source.created_by <> actor_id then
     raise exception 'Only the handoff author may attach photos' using errcode = '42501';
   end if;
+
   if (
-    select count(*) from public.shift_handoff_photos photo
+    select count(*)
+    from public.shift_handoff_photos photo
     where photo.handoff_id = source.id
   ) >= 3 then
     raise exception 'A shift handoff may contain up to three photos' using errcode = '23514';
@@ -178,6 +199,10 @@ begin
 end;
 $$;
 
+update public.shift_handoffs
+set visible_until = '9999-12-31 23:59:59+00'::timestamptz
+where visible_until > now();
+
 alter table public.shift_handoffs enable row level security;
 alter table public.shift_handoff_acknowledgements enable row level security;
 alter table public.shift_handoff_photos enable row level security;
@@ -185,23 +210,26 @@ alter table public.shift_handoff_photos enable row level security;
 drop policy if exists shift_handoffs_select_active on public.shift_handoffs;
 create policy shift_handoffs_select_active on public.shift_handoffs
 for select to authenticated
-using (public.is_shift_handoff_barista() and shift_handoffs.created_at >= now() - interval '30 days');
+using (
+  public.is_shift_handoff_user()
+  and shift_handoffs.created_at >= now() - interval '30 days'
+);
 
 drop policy if exists shift_handoff_ack_select_active on public.shift_handoff_acknowledgements;
 create policy shift_handoff_ack_select_active on public.shift_handoff_acknowledgements
 for select to authenticated
-using (public.is_shift_handoff_barista());
+using (public.is_shift_handoff_user());
 
 drop policy if exists shift_handoff_photos_select_active on public.shift_handoff_photos;
 create policy shift_handoff_photos_select_active on public.shift_handoff_photos
 for select to authenticated
-using (public.is_shift_handoff_barista());
+using (public.is_shift_handoff_user());
 
 drop policy if exists shift_handoff_photos_insert_owner on public.shift_handoff_photos;
 create policy shift_handoff_photos_insert_owner on public.shift_handoff_photos
 for insert to authenticated
 with check (
-  public.is_shift_handoff_barista()
+  public.is_shift_handoff_user()
   and shift_handoff_photos.created_by = auth.uid()
   and exists (
     select 1 from public.shift_handoffs handoff
@@ -213,14 +241,17 @@ with check (
 drop policy if exists shift_handoff_storage_select_active on storage.objects;
 create policy shift_handoff_storage_select_active on storage.objects
 for select to authenticated
-using (bucket_id = 'shift-handoff-photos' and public.is_shift_handoff_barista());
+using (
+  bucket_id = 'shift-handoff-photos'
+  and public.is_shift_handoff_user()
+);
 
 drop policy if exists shift_handoff_storage_insert_owner on storage.objects;
 create policy shift_handoff_storage_insert_owner on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'shift-handoff-photos'
-  and public.is_shift_handoff_barista()
+  and public.is_shift_handoff_user()
   and (storage.foldername(name))[1] = auth.uid()::text
   and exists (
     select 1 from public.shift_handoffs handoff
@@ -234,7 +265,7 @@ create policy shift_handoff_storage_delete_owner on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'shift-handoff-photos'
-  and public.is_shift_handoff_barista()
+  and public.is_shift_handoff_user()
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 
