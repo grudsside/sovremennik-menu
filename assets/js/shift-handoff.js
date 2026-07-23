@@ -1,25 +1,32 @@
-/* Современник — shift handoff workflow on the home dashboard. */
+/* Современник — shift handoff integrated with the closing checklist. */
 (function(){
   'use strict';
 
   const core = window.SovremennikShiftHandoffCore;
   if(!core || typeof state === 'undefined') return;
 
-  const VERSION = '2026-07-23-shift-handoff-preview-2';
+  const VERSION = '2026-07-23-shift-handoff-preview-3';
   const PHOTO_BUCKET = 'shift-handoff-photos';
-  const DRAFT_KEY = 'sovremennikShiftHandoffDraftV1';
+  const DRAFT_KEY = 'sovremennikShiftHandoffDraftV2';
+  const LEGACY_DRAFT_KEY = 'sovremennikShiftHandoffDraftV1';
   const MAX_PHOTOS = 3;
   const MAX_RAW_BYTES = 25 * 1024 * 1024;
   const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+  const originalSubmitChecklist = typeof submitChecklist === 'function'
+    ? submitChecklist
+    : (typeof window.submitChecklist === 'function' ? window.submitChecklist : null);
+  const persisted = readPersistedDraft();
+
   const model = {
     rows:[],
     loading:false,
     loaded:false,
     error:'',
-    formOpen:false,
+    checklistOpen:false,
     submitting:false,
     selectedPhotos:[],
-    draft:loadDraft()
+    mode:persisted.mode,
+    draft:persisted.draft
   };
 
   let loadPromise = null;
@@ -38,26 +45,44 @@
     if(window.crypto?.randomUUID) return window.crypto.randomUUID();
     return `handoff-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
-  function loadDraft(){
+  function emptyDraft(){
+    return { unfinished:'', outOfStock:'', equipmentIssues:'', nextShiftControl:'', notes:'' };
+  }
+  function readPersistedDraft(){
     try{
-      const parsed = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}');
+      const parsed = JSON.parse(localStorage.getItem(DRAFT_KEY) || localStorage.getItem(LEGACY_DRAFT_KEY) || '{}');
       return {
-        unfinished:String(parsed.unfinished || ''),
-        outOfStock:String(parsed.outOfStock || ''),
-        equipmentIssues:String(parsed.equipmentIssues || ''),
-        nextShiftControl:String(parsed.nextShiftControl || ''),
-        notes:String(parsed.notes || '')
+        mode:String(parsed.mode || ''),
+        draft:{
+          unfinished:String(parsed.unfinished || ''),
+          outOfStock:String(parsed.outOfStock || ''),
+          equipmentIssues:String(parsed.equipmentIssues || ''),
+          nextShiftControl:String(parsed.nextShiftControl || ''),
+          notes:String(parsed.notes || '')
+        }
       };
     } catch(error){
-      return { unfinished:'', outOfStock:'', equipmentIssues:'', nextShiftControl:'', notes:'' };
+      return { mode:'', draft:emptyDraft() };
     }
   }
+  function persistedPayload(){
+    return { mode:model.mode, ...model.draft };
+  }
   function saveDraft(){
-    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(model.draft)); } catch(error){ console.warn('Shift handoff draft was not saved', error); }
+    try{
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(persistedPayload()));
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+    } catch(error){
+      console.warn('Shift handoff draft was not saved', error);
+    }
   }
   function clearDraft(){
-    model.draft = { unfinished:'', outOfStock:'', equipmentIssues:'', nextShiftControl:'', notes:'' };
-    try{ localStorage.removeItem(DRAFT_KEY); } catch(error){}
+    model.mode = '';
+    model.draft = emptyDraft();
+    try{
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+    } catch(error){}
     clearSelectedPhotos();
   }
   function clearSelectedPhotos(){
@@ -104,15 +129,56 @@
     return { id:uuid(), blob, previewUrl:URL.createObjectURL(blob), name:file.name || 'photo.jpg' };
   }
 
+  function normalizedDraft(){ return core.normalizeDraft(model.draft); }
+  function draftHasContent(){ return core.hasContent(normalizedDraft()); }
+  function draftItemCount(){
+    return core.sectionRows(normalizedDraft()).reduce((total, section) => total + section.items.length, 0);
+  }
+  function decisionReady(){
+    return model.mode === 'empty' || (model.mode === 'details' && draftHasContent());
+  }
+  function decisionLabel(){
+    if(model.mode === 'empty') return 'Замечаний нет';
+    if(model.mode === 'details' && draftHasContent()){
+      const count = draftItemCount();
+      return `Заполнено · ${count} ${count === 1 ? 'пункт' : count < 5 ? 'пункта' : 'пунктов'}`;
+    }
+    if(model.mode === 'details') return 'Нужно заполнить';
+    return 'Не заполнено';
+  }
+  function decisionClass(){
+    if(decisionReady()) return 'ready';
+    if(model.mode === 'details') return 'attention';
+    return 'empty';
+  }
+  function closingChecklistDoc(){
+    const docs = state.menu?.checklists || [];
+    return docs.find(doc => /закрыт|закрытие|closing|close/i.test([
+      doc?.id, doc?.title, doc?.description, doc?.file
+    ].filter(Boolean).join(' '))) || null;
+  }
+  function closingChecklistCard(){
+    const doc = closingChecklistDoc();
+    if(!doc) return null;
+    const card = Array.from(document.querySelectorAll('.doc-card'))
+      .find(element => String(element.dataset.checklistId || '') === String(doc.id || ''));
+    return card ? { doc, card } : null;
+  }
+  function isClosingChecklistId(docId){
+    const doc = closingChecklistDoc();
+    return Boolean(doc && String(doc.id || '') === String(docId || ''));
+  }
+
   function rowUserAcknowledgement(row){
     const userId = current()?.id;
     return (row.acknowledgements || []).find(item => String(item.employee_id || '') === String(userId || '')) || null;
   }
-  function currentHandoff(){
+  function pendingIncomingHandoff(){
     const userId = String(current()?.id || '');
     const now = new Date();
     return model.rows
       .filter(row => String(row.created_by || row.createdBy || '') !== userId)
+      .filter(row => !rowUserAcknowledgement(row))
       .filter(row => {
         const visibleUntil = row.visible_until || row.visibleUntil;
         return !visibleUntil || new Date(visibleUntil) >= now;
@@ -120,12 +186,13 @@
       .sort((a,b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0))[0] || null;
   }
   function authorLabel(row){
-    return [row.created_by_name || 'Сотрудник', row.created_by_role ? (typeof roleLabel === 'function' ? roleLabel(row.created_by_role) : row.created_by_role) : ''].filter(Boolean).join(' · ');
+    return [
+      row.created_by_name || 'Сотрудник',
+      row.created_by_role ? (typeof roleLabel === 'function' ? roleLabel(row.created_by_role) : row.created_by_role) : ''
+    ].filter(Boolean).join(' · ');
   }
-
   function renderSections(row){
-    const sections = core.sectionRows(row);
-    return sections.map(section => `<section class="shift-handoff-section">
+    return core.sectionRows(row).map(section => `<section class="shift-handoff-section">
       <h4>${html(section.label)}</h4>
       <ul>${section.items.map(item => `<li>${html(item)}</li>`).join('')}</ul>
     </section>`).join('');
@@ -137,99 +204,110 @@
       return url ? `<a href="${attr(url)}" target="_blank" rel="noopener" class="shift-handoff-photo"><img src="${attr(url)}" alt="Фото к передаче смены ${index + 1}"></a>` : '';
     }).join('')}</div>`;
   }
-  function renderAcknowledgements(row){
-    const rows = row.acknowledgements || [];
-    if(!rows.length) return '<span class="shift-handoff-awaiting">Ожидает подтверждения</span>';
-    return `<div class="shift-handoff-acks">${rows.map(item => `<span><strong>${html(item.employee_name || 'Сотрудник')}</strong> · ${html(core.formatDateTime(item.acknowledged_at))}</span>`).join('')}</div>`;
-  }
-  function renderPending(row){
-    if(!row){
-      return `<div class="shift-handoff-empty"><strong>Новых сообщений нет</strong><span>После следующей передачи здесь появится информация от предыдущей смены.</span></div>`;
-    }
-    const ownAck = rowUserAcknowledgement(row);
-    return `<article class="shift-handoff-message" data-handoff-id="${attr(row.id)}">
-      <div class="shift-handoff-message-head">
-        <div><span class="shift-handoff-badge">От предыдущей смены</span><h3>${html(authorLabel(row))}</h3><p>${html(core.formatDateTime(row.created_at))}</p></div>
+  function incomingHtml(row){
+    return `<section class="v3-dashboard-card shift-handoff-incoming" data-shift-handoff-incoming data-version="${VERSION}">
+      <div class="shift-handoff-incoming-head">
+        <div><span class="shift-handoff-badge">От предыдущей смены</span><h2>${html(authorLabel(row))}</h2><p>${html(core.formatDateTime(row.created_at))}</p></div>
+        <button type="button" class="small-action" data-shift-handoff-accept="${attr(row.id)}">Принято</button>
       </div>
       <div class="shift-handoff-sections">${renderSections(row)}</div>
-      ${row.notes ? `<section class="shift-handoff-section"><h4>Дополнительно</h4><p>${html(row.notes)}</p></section>` : ''}
+      ${row.notes ? `<section class="shift-handoff-section shift-handoff-note"><h4>Дополнительно</h4><p>${html(row.notes)}</p></section>` : ''}
       ${renderPhotos(row)}
-      <div class="shift-handoff-accept-row">
-        ${ownAck ? `<span class="shift-handoff-accepted">Принято · ${html(core.formatDateTime(ownAck.acknowledged_at))}</span>` : `<button type="button" class="small-action" data-shift-handoff-accept="${attr(row.id)}">Принято</button>`}
-      </div>
-    </article>`;
+    </section>`;
   }
-  function renderHistory(){
-    const rows = model.rows.slice(0, 8);
-    if(!rows.length) return '';
-    return `<details class="shift-handoff-history"><summary>История передач</summary><div class="shift-handoff-history-list">${rows.map(row => `<article>
-      <div><strong>${html(authorLabel(row))}</strong><span>${html(core.formatDateTime(row.created_at))}</span></div>
-      <p>${html(core.sectionRows(row).flatMap(section => section.items).slice(0, 3).join(' · ') || row.notes || 'Передача без текстового описания')}</p>
-      ${renderAcknowledgements(row)}
-    </article>`).join('')}</div></details>`;
-  }
+
   function renderPhotoDrafts(){
     if(!model.selectedPhotos.length) return '';
-    return `<div class="shift-handoff-photo-drafts">${model.selectedPhotos.map((photo, index) => `<article><img src="${attr(photo.previewUrl)}" alt="Выбранное фото ${index + 1}"><button type="button" data-shift-photo-remove="${attr(photo.id)}" aria-label="Удалить фото">×</button></article>`).join('')}</div>`;
+    return `<div class="shift-handoff-photo-drafts">${model.selectedPhotos.map((photo, index) => `<article>
+      <img src="${attr(photo.previewUrl)}" alt="Выбранное фото ${index + 1}">
+      <button type="button" data-shift-photo-remove="${attr(photo.id)}" aria-label="Удалить фото">×</button>
+    </article>`).join('')}</div>`;
   }
   function textarea(name, label, placeholder){
-    return `<label class="shift-handoff-field"><span>${html(label)}</span><textarea name="${attr(name)}" rows="3" placeholder="${attr(placeholder)}">${html(model.draft[name] || '')}</textarea></label>`;
+    return `<label class="shift-handoff-field"><span>${html(label)}</span><textarea name="${attr(name)}" rows="2" placeholder="${attr(placeholder)}">${html(model.draft[name] || '')}</textarea></label>`;
   }
-  function renderForm(){
-    if(!model.formOpen) return '';
-    return `<div class="shift-handoff-modal" data-shift-handoff-modal role="dialog" aria-modal="true" aria-labelledby="shift-handoff-form-title">
-      <button type="button" class="shift-handoff-backdrop" data-shift-handoff-close aria-label="Закрыть форму"></button>
-      <section class="shift-handoff-dialog">
-        <div class="shift-handoff-dialog-head"><div><p class="section-kicker">Завершение работы</p><h2 id="shift-handoff-form-title">Передать смену</h2><span>Заполните только актуальные пункты. Каждый новый пункт пишите с новой строки.</span></div><button type="button" class="shift-handoff-close" data-shift-handoff-close aria-label="Закрыть">×</button></div>
-        <form data-shift-handoff-form>
+  function checklistStepHtml(){
+    const ready = decisionReady();
+    const taskText = model.mode === 'empty'
+      ? 'Передача смены: замечаний нет'
+      : ready
+        ? `Передача смены: заполнено (${draftItemCount()} пунктов)`
+        : 'Передача смены: не заполнено';
+    return `<details class="shift-handoff-checklist-step" data-shift-handoff-checklist ${model.checklistOpen ? 'open' : ''}>
+      <summary>
+        <span class="shift-handoff-step-icon" aria-hidden="true">↗</span>
+        <span class="shift-handoff-step-copy"><strong>Передача смены</strong><small>Финальный шаг чек-листа закрытия</small></span>
+        <span class="shift-handoff-step-status ${decisionClass()}">${html(decisionLabel())}</span>
+      </summary>
+      <div class="shift-handoff-checklist-body">
+        <p class="shift-handoff-checklist-help">Выберите «Замечаний нет» или добавьте только важную информацию для следующей смены. Передача отправится вместе с чек-листом.</p>
+        <div class="shift-handoff-mode-row" role="group" aria-label="Статус передачи смены">
+          <button type="button" class="${model.mode === 'empty' ? 'active' : ''}" data-shift-handoff-mode="empty">Замечаний нет</button>
+          <button type="button" class="${model.mode === 'details' ? 'active' : ''}" data-shift-handoff-mode="details">Есть информация</button>
+        </div>
+        ${model.mode === 'details' ? `<div class="shift-handoff-inline-form" data-shift-handoff-form>
           <div class="shift-handoff-form-grid">
-            ${textarea('unfinished','Что осталось незавершённым','Например: не разобрана поставка')}
-            ${textarea('outOfStock','Какие позиции закончились','Например: овсяное молоко')}
+            ${textarea('unfinished','Осталось незавершённым','Например: не разобрана поставка')}
+            ${textarea('outOfStock','Закончились позиции','Например: овсяное молоко')}
             ${textarea('equipmentIssues','Проблемы с оборудованием','Например: правый гриндер выдаёт ошибку')}
-            ${textarea('nextShiftControl','Что проконтролировать следующей смене','Например: проверить поставку сиропов')}
+            ${textarea('nextShiftControl','Проконтролировать следующей смене','Например: проверить поставку сиропов')}
           </div>
           ${textarea('notes','Дополнительный комментарий','Короткое пояснение при необходимости')}
           <div class="shift-handoff-photo-picker">
-            <div><strong>Фотографии</strong><span>До ${MAX_PHOTOS} фото, прикладывайте только когда они помогают понять проблему.</span></div>
+            <div><strong>Фотографии</strong><span>До ${MAX_PHOTOS} фото, только если они помогают понять проблему.</span></div>
             <button type="button" class="small-action secondary" data-shift-photo-pick ${model.selectedPhotos.length >= MAX_PHOTOS ? 'disabled' : ''}>Добавить фото</button>
             <input type="file" accept="image/*" capture="environment" multiple hidden data-shift-photo-input>
           </div>
           ${renderPhotoDrafts()}
-          <p class="shift-handoff-draft-note">Текст автоматически сохраняется на этом устройстве до успешной отправки.</p>
-          <p class="submit-status" data-shift-handoff-status aria-live="polite"></p>
-          <div class="shift-handoff-form-actions"><button type="button" class="small-action secondary" data-shift-handoff-close>Отмена</button><button type="submit" class="small-action" ${model.submitting ? 'disabled' : ''}>${model.submitting ? 'Отправляю…' : 'Передать смену'}</button></div>
-        </form>
-      </section>
-    </div>`;
-  }
-  function cardHtml(){
-    const handoff = currentHandoff();
-    return `<section class="v3-dashboard-card shift-handoff-card" data-shift-handoff-root data-version="${VERSION}">
-      <div class="v3-card-head"><div><p class="section-kicker">Коммуникация смен</p><h2>Передача смены</h2></div><button type="button" class="v3-text-button" data-shift-handoff-open>Передать смену</button></div>
-      ${model.loading && !model.loaded ? '<div class="shift-handoff-loading">Загружаю передачу смены…</div>' : ''}
-      ${model.error ? `<div class="shift-handoff-error">${html(model.error)}</div>` : ''}
-      ${!model.loading || model.loaded ? renderPending(handoff) : ''}
-      ${renderHistory()}
-      ${renderForm()}
-    </section>`;
+        </div>` : ''}
+        <input class="task-checkbox shift-handoff-checklist-task" type="checkbox" hidden data-task="${attr(taskText)}" ${ready ? 'checked' : ''}>
+        <p class="shift-handoff-draft-note">${model.mode === 'details' ? 'Текст автоматически сохраняется на этом устройстве.' : 'Этот выбор обязателен перед отправкой чек-листа.'}</p>
+        <p class="submit-status" data-shift-handoff-status aria-live="polite"></p>
+      </div>
+    </details>`;
   }
 
+  function removeLegacyHomeBlock(){
+    document.querySelectorAll('[data-shift-handoff-root]').forEach(element => element.remove());
+  }
+  function mountIncoming(){
+    const home = document.querySelector('#top-home');
+    if(!home) return;
+    const row = pendingIncomingHandoff();
+    let root = home.querySelector('[data-shift-handoff-incoming]');
+    if(!row){
+      root?.remove();
+      return;
+    }
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = incomingHtml(row);
+    const next = wrapper.firstElementChild;
+    if(root) root.replaceWith(next);
+    else {
+      const summary = home.querySelector('.v3-summary-card');
+      if(summary) summary.insertAdjacentElement('beforebegin', next);
+      else home.prepend(next);
+    }
+  }
+  function mountChecklistStep(){
+    const pair = closingChecklistCard();
+    if(!pair) return;
+    const details = pair.card.querySelector('.doc-details');
+    const submitPanel = pair.card.querySelector('.submit-panel');
+    if(!details || !submitPanel) return;
+    const existing = details.querySelector('[data-shift-handoff-checklist]');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = checklistStepHtml();
+    const next = wrapper.firstElementChild;
+    if(existing) existing.replaceWith(next);
+    else submitPanel.insertAdjacentElement('beforebegin', next);
+  }
   function mount(){
     mountQueued = false;
     if(!authenticated()) return;
-    const home = document.querySelector('#top-home');
-    if(!home) return;
-    let root = home.querySelector('[data-shift-handoff-root]');
-    if(!root){
-      const summary = home.querySelector('.v3-summary-card');
-      const wrapper = document.createElement('div');
-      wrapper.innerHTML = cardHtml();
-      root = wrapper.firstElementChild;
-      if(summary) summary.insertAdjacentElement('beforebegin', root);
-      else home.appendChild(root);
-    } else {
-      root.outerHTML = cardHtml();
-    }
+    removeLegacyHomeBlock();
+    mountIncoming();
+    mountChecklistStep();
     bindEvents();
     if(!model.loaded && !model.loading) loadRows();
   }
@@ -243,6 +321,18 @@
     if(!status) return;
     status.textContent = message || '';
     status.className = `submit-status${kind ? ` ${kind}` : ''}`;
+  }
+  function revealChecklistStep(message){
+    model.checklistOpen = true;
+    queueMount();
+    queueMicrotask(() => {
+      const root = document.querySelector('[data-shift-handoff-checklist]');
+      if(root){
+        root.open = true;
+        root.scrollIntoView({ behavior:'smooth', block:'center' });
+      }
+      setStatus(message, 'error');
+    });
   }
 
   async function signedUrl(path){
@@ -283,7 +373,7 @@
       model.loaded = true;
     })().catch(error => {
       console.error('Shift handoff loading failed', error);
-      model.error = 'Передача смены временно недоступна. Обновите данные после восстановления соединения.';
+      model.error = 'Передача смены временно недоступна.';
     }).finally(() => {
       model.loading = false;
       loadPromise = null;
@@ -298,7 +388,11 @@
       const photo = model.selectedPhotos[index];
       setStatus(`Загружаю фото ${index + 1} из ${model.selectedPhotos.length}…`);
       const path = core.buildStoragePath(user.id, handoffId, photo.id);
-      const upload = await supa.storage.from(PHOTO_BUCKET).upload(path, photo.blob, { contentType:'image/jpeg', cacheControl:'3600', upsert:false });
+      const upload = await supa.storage.from(PHOTO_BUCKET).upload(path, photo.blob, {
+        contentType:'image/jpeg',
+        cacheControl:'3600',
+        upsert:false
+      });
       if(upload.error) throw upload.error;
       const metadata = await supa.from('shift_handoff_photos').insert({
         handoff_id:handoffId,
@@ -310,46 +404,59 @@
       if(metadata.error) throw metadata.error;
     }
   }
-  async function submitForm(event){
-    event.preventDefault();
-    if(model.submitting) return;
-    const normalized = core.normalizeDraft(model.draft);
-    if(!core.hasContent(normalized)){
-      setStatus('Добавьте хотя бы один пункт для следующей смены.', 'error');
+  async function createHandoffFromDraft(){
+    const normalized = normalizedDraft();
+    const row = core.toDatabaseRow(normalized);
+    const handoffId = uuid();
+    const result = await supa.rpc('create_shift_handoff', {
+      p_id:handoffId,
+      p_unfinished:row.unfinished,
+      p_out_of_stock:row.out_of_stock,
+      p_equipment_issues:row.equipment_issues,
+      p_next_shift_control:row.next_shift_control,
+      p_notes:row.notes
+    });
+    if(result.error) throw result.error;
+    if(model.selectedPhotos.length) await uploadPhotos(handoffId);
+    window.dispatchEvent(new CustomEvent('sovremennik:shift-handoff-created', { detail:{ handoffId } }));
+    return handoffId;
+  }
+  async function submitClosingChecklist(docId, button){
+    if(model.submitting || typeof originalSubmitChecklist !== 'function') return;
+    if(!decisionReady()){
+      revealChecklistStep(model.mode === 'details'
+        ? 'Добавьте хотя бы один пункт или выберите «Замечаний нет».'
+        : 'Перед отправкой выберите статус передачи смены.');
       return;
     }
-    if(!navigator.onLine){
+    if(model.mode === 'details' && !navigator.onLine){
       saveDraft();
-      setStatus('Нет подключения. Черновик сохранён на устройстве — отправьте его после восстановления связи.', 'error');
+      revealChecklistStep('Нет подключения. Черновик сохранён — отправьте чек-лист после восстановления связи.');
       return;
     }
+
     model.submitting = true;
-    queueMount();
+    if(button) button.disabled = true;
+    let handoffCreated = false;
     try{
-      setStatus('Сохраняю передачу смены…');
-      const row = core.toDatabaseRow(normalized);
-      const handoffId = uuid();
-      const result = await supa.rpc('create_shift_handoff', {
-        p_id:handoffId,
-        p_unfinished:row.unfinished,
-        p_out_of_stock:row.out_of_stock,
-        p_equipment_issues:row.equipment_issues,
-        p_next_shift_control:row.next_shift_control,
-        p_notes:row.notes
-      });
-      if(result.error) throw result.error;
-      if(model.selectedPhotos.length) await uploadPhotos(handoffId);
+      if(model.mode === 'details'){
+        setStatus('Сохраняю передачу смены…');
+        await createHandoffFromDraft();
+        handoffCreated = true;
+      }
+      setStatus('Отправляю чек-лист закрытия…');
+      await originalSubmitChecklist(docId);
       clearDraft();
-      model.formOpen = false;
-      await loadRows(true);
-      window.dispatchEvent(new CustomEvent('sovremennik:shift-handoff-created', { detail:{ handoffId } }));
-      alert('Передача смены сохранена. Следующая смена увидит её на главной странице.');
+      model.checklistOpen = false;
+      if(handoffCreated) await loadRows(true);
+      queueMount();
     } catch(error){
-      console.error('Shift handoff submit failed', error);
+      console.error('Closing checklist with shift handoff failed', error);
       saveDraft();
-      setStatus(`Не удалось отправить: ${error.message || 'проверьте подключение и повторите попытку.'}`, 'error');
+      revealChecklistStep(`Не удалось отправить: ${error.message || 'проверьте подключение и повторите попытку.'}`);
     } finally {
       model.submitting = false;
+      if(button) button.disabled = false;
       queueMount();
     }
   }
@@ -383,17 +490,39 @@
   function bindEvents(){
     if(eventsBound) return;
     eventsBound = true;
+
     document.addEventListener('click', event => {
-      const open = event.target.closest('[data-shift-handoff-open]');
-      if(open){ model.formOpen = true; queueMount(); return; }
-      const close = event.target.closest('[data-shift-handoff-close]');
-      if(close && !model.submitting){ model.formOpen = false; queueMount(); return; }
+      const submit = event.target.closest('.submit-checklist');
+      if(submit && isClosingChecklistId(submit.dataset.checklistId)){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        submitClosingChecklist(submit.dataset.checklistId, submit);
+        return;
+      }
       const accept = event.target.closest('[data-shift-handoff-accept]');
-      if(accept){ acknowledge(accept.dataset.shiftHandoffAccept, accept); return; }
+      if(accept){
+        event.preventDefault();
+        acknowledge(accept.dataset.shiftHandoffAccept, accept);
+        return;
+      }
+      const mode = event.target.closest('[data-shift-handoff-mode]');
+      if(mode){
+        event.preventDefault();
+        model.mode = mode.dataset.shiftHandoffMode;
+        model.checklistOpen = true;
+        saveDraft();
+        queueMount();
+        return;
+      }
       const pick = event.target.closest('[data-shift-photo-pick]');
-      if(pick){ document.querySelector('[data-shift-photo-input]')?.click(); return; }
+      if(pick){
+        event.preventDefault();
+        document.querySelector('[data-shift-photo-input]')?.click();
+        return;
+      }
       const remove = event.target.closest('[data-shift-photo-remove]');
       if(remove){
+        event.preventDefault();
         const index = model.selectedPhotos.findIndex(photo => photo.id === remove.dataset.shiftPhotoRemove);
         if(index >= 0){
           const [photo] = model.selectedPhotos.splice(index, 1);
@@ -401,23 +530,32 @@
           queueMount();
         }
       }
-    });
+    }, true);
+
+    document.addEventListener('toggle', event => {
+      if(event.target.matches?.('[data-shift-handoff-checklist]')){
+        model.checklistOpen = event.target.open;
+      }
+    }, true);
+
     document.addEventListener('input', event => {
       const form = event.target.closest('[data-shift-handoff-form]');
       if(!form || !event.target.name) return;
       if(Object.prototype.hasOwnProperty.call(model.draft, event.target.name)){
+        model.mode = 'details';
         model.draft[event.target.name] = event.target.value;
         saveDraft();
       }
     });
+
     document.addEventListener('change', event => {
       if(event.target.matches('[data-shift-photo-input]')) pickPhotos(event.target);
     });
-    document.addEventListener('submit', event => {
-      if(event.target.matches('[data-shift-handoff-form]')) submitForm(event);
-    });
+
     window.addEventListener('online', () => { if(authenticated()) loadRows(true); });
-    window.addEventListener('sovremennik:connection-changed', () => { if(navigator.onLine && authenticated()) loadRows(true); });
+    window.addEventListener('sovremennik:connection-changed', () => {
+      if(navigator.onLine && authenticated()) loadRows(true);
+    });
   }
 
   const previousRenderApp = typeof window.renderApp === 'function' ? window.renderApp : null;
@@ -432,7 +570,7 @@
   if(previousSetTop){
     window.setTop = function(target){
       const result = previousSetTop.apply(this, arguments);
-      if(target === 'home') queueMount();
+      if(target === 'home' || target === 'checklists') queueMount();
       return result;
     };
   }
@@ -440,8 +578,14 @@
   window.SovremennikShiftHandoff = {
     version:VERSION,
     refresh:() => loadRows(true),
-    open:() => { model.formOpen = true; queueMount(); },
-    getRows:() => model.rows.slice()
+    open:() => {
+      model.mode = model.mode || 'details';
+      model.checklistOpen = true;
+      if(typeof window.setTop === 'function') window.setTop('checklists');
+      queueMount();
+    },
+    getRows:() => model.rows.slice(),
+    isClosingChecklist:docId => isClosingChecklistId(docId)
   };
 
   bindEvents();
