@@ -8,6 +8,7 @@ const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const serviceWorker = fs.readFileSync('service-worker.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260723150000_shift_handoff_preview.sql', 'utf8');
 const roleMigration = fs.readFileSync('supabase/migrations/20260723190000_shift_handoff_barista_only.sql', 'utf8');
+const lifecycleMigration = fs.readFileSync('supabase/migrations/20260723203000_shift_handoff_admin_lifecycle.sql', 'utf8');
 const previewPlan = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
 
 for (const token of ['splitLines', 'pendingForUser', 'buildStoragePath']) {
@@ -15,17 +16,17 @@ for (const token of ['splitLines', 'pendingForUser', 'buildStoragePath']) {
 }
 for (const token of [
   "const CLOSING_CHECKLIST_ID = 'closing-checklist'",
-  "String(doc?.id || '') === CLOSING_CHECKLIST_ID",
-  "currentRole() === 'barista'",
-  'Новых сообщений нет',
-  'От предыдущей смены',
-  'Финальный шаг чек-листа закрытия',
+  "new Set(['admin', 'barista'])",
+  'Текущая передача смены',
+  'Передача ещё не отправлена',
   'Замечаний нет',
-  'Есть информация',
+  'Финальный шаг чек-листа закрытия',
   'data-shift-handoff-checklist',
   "event.target.closest('.submit-checklist')",
   "supa.rpc('create_shift_handoff'",
   "supa.rpc('acknowledge_shift_handoff'",
+  'await createHandoffFromDraft()',
+  'currentHandoff()',
   'localStorage.setItem(DRAFT_KEY',
   'MAX_PHOTOS = 3',
 ]) {
@@ -33,6 +34,7 @@ for (const token of [
 }
 assert(!integration.includes('doc?.file'), 'Checklist matching must not use the shared open/close file name');
 assert(!integration.includes('data-shift-handoff-open'), 'Standalone handoff creation button must not remain on the home dashboard');
+assert(css.includes('.shift-handoff-read-state'), 'Persistent acknowledgement status styles are missing');
 assert(css.includes('.shift-handoff-checklist-step'), 'Compact closing-checklist step styles are missing');
 assert(css.includes('@media(max-width:760px)'), 'Mobile shift handoff layout is missing');
 assert(loader.indexOf('shift-handoff-core.js') < loader.indexOf('shift-handoff.js'), 'Core must load before integration');
@@ -46,19 +48,22 @@ for (const token of [
   'create or replace function public.create_shift_handoff',
   'create or replace function public.acknowledge_shift_handoff',
   "'shift-handoff-photos'",
-  'shift_handoff_storage_insert_owner',
 ]) {
   assert(migration.includes(token), `Shift handoff migration is missing: ${token}`);
 }
-for (const token of [
-  'create or replace function public.is_shift_handoff_barista',
-  "profile.role = 'barista'",
-  'public.is_shift_handoff_barista()',
-  'Active barista profile required',
-]) {
-  assert(roleMigration.includes(token), `Barista-only migration is missing: ${token}`);
+for (const source of [roleMigration, lifecycleMigration]) {
+  for (const token of [
+    'create or replace function public.is_shift_handoff_user',
+    "profile.role in ('admin','barista')",
+    'public.is_shift_handoff_user()',
+    "'9999-12-31 23:59:59+00'",
+    'Active administrator or barista profile required',
+  ]) {
+    assert(source.includes(token), `Admin lifecycle migration is missing: ${token}`);
+  }
 }
 assert(previewPlan.includes('20260723150000_shift_handoff_preview.sql'), 'Live preview migration plan is missing shift handoff schema');
-assert(previewPlan.includes('20260723190000_shift_handoff_barista_only.sql'), 'Live preview migration plan is missing barista-only restrictions');
+assert(previewPlan.includes('20260723190000_shift_handoff_barista_only.sql'), 'Live preview migration plan is missing role migration');
+assert(previewPlan.includes('20260723203000_shift_handoff_admin_lifecycle.sql'), 'Live preview migration plan is missing admin lifecycle migration');
 
-console.log('Shift handoff exact closing-checklist and barista-only integration checks passed.');
+console.log('Shift handoff admin access and latest-until-next-closing integration checks passed.');
