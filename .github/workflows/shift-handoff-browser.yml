@@ -1,0 +1,44 @@
+name: Shift handoff browser smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'assets/js/shift-handoff-core.js'
+      - 'assets/js/shift-handoff.js'
+      - 'assets/css/shift-handoff.css'
+      - 'tools/shift-handoff-browser-smoke.mjs'
+      - '.github/workflows/shift-handoff-browser.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shift-handoff-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.54.1
+          npx playwright install --with-deps chromium
+      - name: Run shift handoff mobile browser smoke
+        run: node tools/shift-handoff-browser-smoke.mjs
+      - name: Upload mobile screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shift-handoff-mobile-${{ github.event.pull_request.number }}
+          path: artifacts/open-test-preview/shift-handoff-mobile.png
+          if-no-files-found: warn
+          retention-days: 14
