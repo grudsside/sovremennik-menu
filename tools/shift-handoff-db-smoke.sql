@@ -90,7 +90,12 @@ BEGIN
     RAISE EXCEPTION 'handoff acknowledgement metadata is incorrect: %', row_to_json(accepted);
   END IF;
   PERFORM public.acknowledge_shift_handoff(handoff_id);
-  IF (SELECT count(*) FROM public.shift_handoff_acknowledgements WHERE handoff_id=handoff_id AND employee_id=receiver_id) <> 1 THEN
+  IF (
+    SELECT count(*)
+    FROM public.shift_handoff_acknowledgements acknowledgement
+    WHERE acknowledgement.handoff_id = handoff_id
+      AND acknowledgement.employee_id = receiver_id
+  ) <> 1 THEN
     RAISE EXCEPTION 'handoff acknowledgement must be idempotent';
   END IF;
 
