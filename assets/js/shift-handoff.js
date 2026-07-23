@@ -1,11 +1,12 @@
-/* Современник — shift handoff integrated with the closing checklist. */
+/* Современник — barista shift handoff integrated with the closing checklist. */
 (function(){
   'use strict';
 
   const core = window.SovremennikShiftHandoffCore;
   if(!core || typeof state === 'undefined') return;
 
-  const VERSION = '2026-07-23-shift-handoff-preview-3';
+  const VERSION = '2026-07-23-shift-handoff-preview-4';
+  const CLOSING_CHECKLIST_ID = 'closing-checklist';
   const PHOTO_BUCKET = 'shift-handoff-photos';
   const DRAFT_KEY = 'sovremennikShiftHandoffDraftV2';
   const LEGACY_DRAFT_KEY = 'sovremennikShiftHandoffDraftV1';
@@ -15,36 +16,7 @@
   const originalSubmitChecklist = typeof submitChecklist === 'function'
     ? submitChecklist
     : (typeof window.submitChecklist === 'function' ? window.submitChecklist : null);
-  const persisted = readPersistedDraft();
 
-  const model = {
-    rows:[],
-    loading:false,
-    loaded:false,
-    error:'',
-    checklistOpen:false,
-    submitting:false,
-    selectedPhotos:[],
-    mode:persisted.mode,
-    draft:persisted.draft
-  };
-
-  let loadPromise = null;
-  let mountQueued = false;
-  let eventsBound = false;
-
-  function html(value){
-    if(typeof esc === 'function') return esc(value);
-    return String(value ?? '').replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));
-  }
-  function attr(value){ return html(value).replace(/'/g, '&#39;'); }
-  function current(){ return typeof currentUser === 'function' ? currentUser() : null; }
-  function authenticated(){ return typeof isAuthenticated === 'function' ? isAuthenticated() : Boolean(current()?.id); }
-  function uuid(){
-    if(typeof makeUuidV26 === 'function') return makeUuidV26();
-    if(window.crypto?.randomUUID) return window.crypto.randomUUID();
-    return `handoff-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
   function emptyDraft(){
     return { unfinished:'', outOfStock:'', equipmentIssues:'', nextShiftControl:'', notes:'' };
   }
@@ -65,29 +37,51 @@
       return { mode:'', draft:emptyDraft() };
     }
   }
-  function persistedPayload(){
-    return { mode:model.mode, ...model.draft };
+
+  const persisted = readPersistedDraft();
+  const model = {
+    rows:[], loading:false, loaded:false, error:'', checklistOpen:false,
+    submitting:false, selectedPhotos:[], mode:persisted.mode, draft:persisted.draft
+  };
+  let loadPromise = null;
+  let mountQueued = false;
+  let eventsBound = false;
+
+  function html(value){
+    if(typeof esc === 'function') return esc(value);
+    return String(value ?? '').replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));
+  }
+  function attr(value){ return html(value).replace(/'/g, '&#39;'); }
+  function current(){ return typeof currentUser === 'function' ? currentUser() : null; }
+  function authenticated(){ return typeof isAuthenticated === 'function' ? isAuthenticated() : Boolean(current()?.id); }
+  function currentRole(){
+    const role = String(current()?.role || '').trim().toLowerCase();
+    return typeof normalizeRole === 'function' ? normalizeRole(role) : ({'бариста':'barista'}[role] || role);
+  }
+  function isBaristaUser(){ return authenticated() && currentRole() === 'barista'; }
+  function uuid(){
+    if(typeof makeUuidV26 === 'function') return makeUuidV26();
+    if(window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `handoff-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
   function saveDraft(){
     try{
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(persistedPayload()));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ mode:model.mode, ...model.draft }));
       localStorage.removeItem(LEGACY_DRAFT_KEY);
-    } catch(error){
-      console.warn('Shift handoff draft was not saved', error);
-    }
-  }
-  function clearDraft(){
-    model.mode = '';
-    model.draft = emptyDraft();
-    try{
-      localStorage.removeItem(DRAFT_KEY);
-      localStorage.removeItem(LEGACY_DRAFT_KEY);
-    } catch(error){}
-    clearSelectedPhotos();
+    } catch(error){ console.warn('Shift handoff draft was not saved', error); }
   }
   function clearSelectedPhotos(){
     model.selectedPhotos.forEach(photo => { if(photo.previewUrl) URL.revokeObjectURL(photo.previewUrl); });
     model.selectedPhotos = [];
+  }
+  function clearDraft(){
+    model.mode = '';
+    model.draft = emptyDraft();
+    clearSelectedPhotos();
+    try{
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(LEGACY_DRAFT_KEY);
+    } catch(error){}
   }
 
   function imageElementFromFile(file){
@@ -100,23 +94,20 @@
     });
   }
   function canvasBlob(image, maxSide, quality){
-    const widthSource = image.naturalWidth || image.width;
-    const heightSource = image.naturalHeight || image.height;
-    const ratio = Math.min(1, maxSide / Math.max(widthSource, heightSource));
-    const width = Math.max(1, Math.round(widthSource * ratio));
-    const height = Math.max(1, Math.round(heightSource * ratio));
+    const sourceWidth = image.naturalWidth || image.width;
+    const sourceHeight = image.naturalHeight || image.height;
+    const ratio = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
+    canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
     const context = canvas.getContext('2d', { alpha:false });
     if(!context) throw new Error('Браузер не поддерживает обработку фотографии.');
     context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
     return new Promise((resolve, reject) => canvas.toBlob(
       blob => blob ? resolve(blob) : reject(new Error('Не удалось подготовить фотографию.')),
-      'image/jpeg',
-      quality
+      'image/jpeg', quality
     ));
   }
   async function preparePhoto(file){
@@ -134,9 +125,7 @@
   function draftItemCount(){
     return core.sectionRows(normalizedDraft()).reduce((total, section) => total + section.items.length, 0);
   }
-  function decisionReady(){
-    return model.mode === 'empty' || (model.mode === 'details' && draftHasContent());
-  }
+  function decisionReady(){ return model.mode === 'empty' || (model.mode === 'details' && draftHasContent()); }
   function decisionLabel(){
     if(model.mode === 'empty') return 'Замечаний нет';
     if(model.mode === 'details' && draftHasContent()){
@@ -151,11 +140,12 @@
     if(model.mode === 'details') return 'attention';
     return 'empty';
   }
+
   function closingChecklistDoc(){
     const docs = state.menu?.checklists || [];
-    return docs.find(doc => /закрыт|закрытие|closing|close/i.test([
-      doc?.id, doc?.title, doc?.description, doc?.file
-    ].filter(Boolean).join(' '))) || null;
+    return docs.find(doc => String(doc?.id || '') === CLOSING_CHECKLIST_ID)
+      || docs.find(doc => String(doc?.title || '').trim().toLowerCase() === 'чек-лист закрытия')
+      || null;
   }
   function closingChecklistCard(){
     const doc = closingChecklistDoc();
@@ -174,6 +164,7 @@
     return (row.acknowledgements || []).find(item => String(item.employee_id || '') === String(userId || '')) || null;
   }
   function pendingIncomingHandoff(){
+    if(!isBaristaUser()) return null;
     const userId = String(current()?.id || '');
     const now = new Date();
     return model.rows
@@ -204,7 +195,18 @@
       return url ? `<a href="${attr(url)}" target="_blank" rel="noopener" class="shift-handoff-photo"><img src="${attr(url)}" alt="Фото к передаче смены ${index + 1}"></a>` : '';
     }).join('')}</div>`;
   }
-  function incomingHtml(row){
+  function homeCardHtml(row){
+    if(model.loading && !model.loaded){
+      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-shift-handoff-incoming data-version="${VERSION}">
+        <div><p class="section-kicker">Передача смены</p><h2>Загружаю сообщение…</h2></div>
+      </section>`;
+    }
+    if(!row){
+      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-shift-handoff-incoming data-version="${VERSION}">
+        <div><p class="section-kicker">Передача смены</p><h2>Новых сообщений нет</h2><p class="description">Информация от предыдущей смены появится здесь.</p></div>
+        ${model.error ? `<p class="shift-handoff-error">${html(model.error)}</p>` : ''}
+      </section>`;
+    }
     return `<section class="v3-dashboard-card shift-handoff-incoming" data-shift-handoff-incoming data-version="${VERSION}">
       <div class="shift-handoff-incoming-head">
         <div><span class="shift-handoff-badge">От предыдущей смены</span><h2>${html(authorLabel(row))}</h2><p>${html(core.formatDateTime(row.created_at))}</p></div>
@@ -230,9 +232,7 @@
     const ready = decisionReady();
     const taskText = model.mode === 'empty'
       ? 'Передача смены: замечаний нет'
-      : ready
-        ? `Передача смены: заполнено (${draftItemCount()} пунктов)`
-        : 'Передача смены: не заполнено';
+      : ready ? `Передача смены: заполнено (${draftItemCount()} пунктов)` : 'Передача смены: не заполнено';
     return `<details class="shift-handoff-checklist-step" data-shift-handoff-checklist ${model.checklistOpen ? 'open' : ''}>
       <summary>
         <span class="shift-handoff-step-icon" aria-hidden="true">↗</span>
@@ -240,7 +240,7 @@
         <span class="shift-handoff-step-status ${decisionClass()}">${html(decisionLabel())}</span>
       </summary>
       <div class="shift-handoff-checklist-body">
-        <p class="shift-handoff-checklist-help">Выберите «Замечаний нет» или добавьте только важную информацию для следующей смены. Передача отправится вместе с чек-листом.</p>
+        <p class="shift-handoff-checklist-help">Выберите «Замечаний нет» или добавьте важную информацию для следующей смены. Передача отправится вместе с чек-листом закрытия.</p>
         <div class="shift-handoff-mode-row" role="group" aria-label="Статус передачи смены">
           <button type="button" class="${model.mode === 'empty' ? 'active' : ''}" data-shift-handoff-mode="empty">Замечаний нет</button>
           <button type="button" class="${model.mode === 'details' ? 'active' : ''}" data-shift-handoff-mode="details">Есть информация</button>
@@ -267,20 +267,24 @@
     </details>`;
   }
 
-  function removeLegacyHomeBlock(){
+  function cleanupUi(){
     document.querySelectorAll('[data-shift-handoff-root]').forEach(element => element.remove());
+    document.querySelectorAll('[data-shift-handoff-incoming]').forEach(element => element.remove());
+    document.querySelectorAll('[data-shift-handoff-checklist]').forEach(element => element.remove());
   }
-  function mountIncoming(){
+  function removeMisplacedChecklistSteps(){
+    document.querySelectorAll('[data-shift-handoff-checklist]').forEach(element => {
+      const card = element.closest('.doc-card');
+      if(String(card?.dataset.checklistId || '') !== CLOSING_CHECKLIST_ID) element.remove();
+    });
+  }
+  function mountHome(){
     const home = document.querySelector('#top-home');
     if(!home) return;
     const row = pendingIncomingHandoff();
     let root = home.querySelector('[data-shift-handoff-incoming]');
-    if(!row){
-      root?.remove();
-      return;
-    }
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = incomingHtml(row);
+    wrapper.innerHTML = homeCardHtml(row);
     const next = wrapper.firstElementChild;
     if(root) root.replaceWith(next);
     else {
@@ -290,6 +294,7 @@
     }
   }
   function mountChecklistStep(){
+    removeMisplacedChecklistSteps();
     const pair = closingChecklistCard();
     if(!pair) return;
     const details = pair.card.querySelector('.doc-details');
@@ -304,9 +309,12 @@
   }
   function mount(){
     mountQueued = false;
-    if(!authenticated()) return;
-    removeLegacyHomeBlock();
-    mountIncoming();
+    document.querySelectorAll('[data-shift-handoff-root]').forEach(element => element.remove());
+    if(!isBaristaUser()){
+      cleanupUi();
+      return;
+    }
+    mountHome();
     mountChecklistStep();
     bindEvents();
     if(!model.loaded && !model.loading) loadRows();
@@ -337,11 +345,10 @@
 
   async function signedUrl(path){
     const result = await supa.storage.from(PHOTO_BUCKET).createSignedUrl(path, 3600);
-    if(result.error) return '';
-    return result.data?.signedUrl || '';
+    return result.error ? '' : (result.data?.signedUrl || '');
   }
   async function loadRows(force = false){
-    if(!authenticated() || typeof supa === 'undefined') return;
+    if(!isBaristaUser() || typeof supa === 'undefined') return;
     if(loadPromise && !force) return loadPromise;
     model.loading = true;
     model.error = '';
@@ -388,25 +395,17 @@
       const photo = model.selectedPhotos[index];
       setStatus(`Загружаю фото ${index + 1} из ${model.selectedPhotos.length}…`);
       const path = core.buildStoragePath(user.id, handoffId, photo.id);
-      const upload = await supa.storage.from(PHOTO_BUCKET).upload(path, photo.blob, {
-        contentType:'image/jpeg',
-        cacheControl:'3600',
-        upsert:false
-      });
+      const upload = await supa.storage.from(PHOTO_BUCKET).upload(path, photo.blob, { contentType:'image/jpeg', cacheControl:'3600', upsert:false });
       if(upload.error) throw upload.error;
       const metadata = await supa.from('shift_handoff_photos').insert({
-        handoff_id:handoffId,
-        storage_path:upload.data.path,
-        mime_type:'image/jpeg',
-        file_size:photo.blob.size,
-        created_by:user.id
+        handoff_id:handoffId, storage_path:upload.data.path, mime_type:'image/jpeg', file_size:photo.blob.size, created_by:user.id
       });
       if(metadata.error) throw metadata.error;
     }
   }
   async function createHandoffFromDraft(){
-    const normalized = normalizedDraft();
-    const row = core.toDatabaseRow(normalized);
+    if(!isBaristaUser()) throw new Error('Передача смены доступна только бариста.');
+    const row = core.toDatabaseRow(normalizedDraft());
     const handoffId = uuid();
     const result = await supa.rpc('create_shift_handoff', {
       p_id:handoffId,
@@ -422,7 +421,7 @@
     return handoffId;
   }
   async function submitClosingChecklist(docId, button){
-    if(model.submitting || typeof originalSubmitChecklist !== 'function') return;
+    if(!isBaristaUser() || model.submitting || typeof originalSubmitChecklist !== 'function') return;
     if(!decisionReady()){
       revealChecklistStep(model.mode === 'details'
         ? 'Добавьте хотя бы один пункт или выберите «Замечаний нет».'
@@ -434,7 +433,6 @@
       revealChecklistStep('Нет подключения. Черновик сохранён — отправьте чек-лист после восстановления связи.');
       return;
     }
-
     model.submitting = true;
     if(button) button.disabled = true;
     let handoffCreated = false;
@@ -461,7 +459,7 @@
     }
   }
   async function acknowledge(id, button){
-    if(!id || button?.disabled) return;
+    if(!isBaristaUser() || !id || button?.disabled) return;
     if(button) button.disabled = true;
     try{
       const result = await supa.rpc('acknowledge_shift_handoff', { p_handoff_id:id });
@@ -482,16 +480,14 @@
     try{
       for(const file of files) model.selectedPhotos.push(await preparePhoto(file));
       queueMount();
-    } catch(error){
-      setStatus(error.message || 'Не удалось подготовить фотографию.', 'error');
-    }
+    } catch(error){ setStatus(error.message || 'Не удалось подготовить фотографию.', 'error'); }
   }
 
   function bindEvents(){
     if(eventsBound) return;
     eventsBound = true;
-
     document.addEventListener('click', event => {
+      if(!isBaristaUser()) return;
       const submit = event.target.closest('.submit-checklist');
       if(submit && isClosingChecklistId(submit.dataset.checklistId)){
         event.preventDefault();
@@ -531,14 +527,11 @@
         }
       }
     }, true);
-
     document.addEventListener('toggle', event => {
-      if(event.target.matches?.('[data-shift-handoff-checklist]')){
-        model.checklistOpen = event.target.open;
-      }
+      if(event.target.matches?.('[data-shift-handoff-checklist]')) model.checklistOpen = event.target.open;
     }, true);
-
     document.addEventListener('input', event => {
+      if(!isBaristaUser()) return;
       const form = event.target.closest('[data-shift-handoff-form]');
       if(!form || !event.target.name) return;
       if(Object.prototype.hasOwnProperty.call(model.draft, event.target.name)){
@@ -547,14 +540,12 @@
         saveDraft();
       }
     });
-
     document.addEventListener('change', event => {
-      if(event.target.matches('[data-shift-photo-input]')) pickPhotos(event.target);
+      if(isBaristaUser() && event.target.matches('[data-shift-photo-input]')) pickPhotos(event.target);
     });
-
-    window.addEventListener('online', () => { if(authenticated()) loadRows(true); });
+    window.addEventListener('online', () => { if(isBaristaUser()) loadRows(true); });
     window.addEventListener('sovremennik:connection-changed', () => {
-      if(navigator.onLine && authenticated()) loadRows(true);
+      if(navigator.onLine && isBaristaUser()) loadRows(true);
     });
   }
 
@@ -577,15 +568,17 @@
 
   window.SovremennikShiftHandoff = {
     version:VERSION,
-    refresh:() => loadRows(true),
+    refresh:() => isBaristaUser() ? loadRows(true) : Promise.resolve(),
     open:() => {
+      if(!isBaristaUser()) return;
       model.mode = model.mode || 'details';
       model.checklistOpen = true;
       if(typeof window.setTop === 'function') window.setTop('checklists');
       queueMount();
     },
-    getRows:() => model.rows.slice(),
-    isClosingChecklist:docId => isClosingChecklistId(docId)
+    getRows:() => isBaristaUser() ? model.rows.slice() : [],
+    isClosingChecklist:docId => isClosingChecklistId(docId),
+    isAvailable:() => isBaristaUser()
   };
 
   bindEvents();
