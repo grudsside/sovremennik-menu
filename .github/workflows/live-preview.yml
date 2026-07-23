@@ -181,6 +181,7 @@ jobs:
           node tools/live-preview-smoke.mjs 2> >(tee artifacts/live-preview/smoke-error.log >&2)
           node tools/live-preview-coffee-revision-smoke.mjs 2> >(tee artifacts/live-preview/coffee-revision-smoke-error.log >&2)
           node tools/live-preview-checklist-photo-smoke.mjs 2> >(tee artifacts/live-preview/checklist-photo-smoke-error.log >&2)
+          node tools/live-preview-shift-handoff-smoke.mjs 2> >(tee artifacts/live-preview/shift-handoff-smoke-error.log >&2)
 
       - name: Publish preview result
         if: always()
@@ -192,6 +193,10 @@ jobs:
           if [[ -f artifacts/live-preview/checklist-photo-smoke.json ]]; then
             echo >> "$GITHUB_STEP_SUMMARY"
             echo "- Checklist photo report upload, access, signed viewing and 90-day cleanup passed." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f artifacts/live-preview/shift-handoff-smoke.json ]]; then
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo "- Shift handoff creation, private photo, personal acknowledgement and superseding passed." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload preview report
