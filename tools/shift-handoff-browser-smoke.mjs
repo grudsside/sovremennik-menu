@@ -124,10 +124,12 @@ await page.evaluate(() => window.renderApp());
 
 const openingCard = page.locator('.doc-card[data-checklist-id="opening-checklist"]');
 const closingCard = page.locator('.doc-card[data-checklist-id="closing-checklist"]');
+const homeCard = page.locator('[data-shift-handoff-incoming]');
+await homeCard.waitFor();
 await page.getByText('Овсяное молоко').waitFor();
 assert.equal(await openingCard.locator('[data-shift-handoff-checklist]').count(), 0);
 await closingCard.locator('[data-shift-handoff-checklist]').waitFor();
-await page.getByText('Администратор', { exact:false }).first().waitFor();
+assert.equal(await page.evaluate(() => window.SovremennikShiftHandoff.isAvailable()), true, 'Administrator must have shift handoff access');
 
 await page.locator('[data-shift-handoff-accept]').click();
 await page.getByText(/Принято ·/).waitFor();
@@ -145,7 +147,7 @@ await page.getByRole('button', { name:'Замечаний нет' }).click();
 await closingCard.locator('.submit-checklist').click();
 await page.waitForFunction(() => window.__submittedChecklists.length === 2 && window.__handoffs.length === 2);
 await page.getByText('Текущая передача смены').waitFor();
-await page.getByText('Замечаний нет', { exact:true }).last().waitFor();
+await homeCard.getByText('Замечаний нет', { exact:true }).waitFor();
 assert.equal(await page.evaluate(() => new Date(window.__handoffs[1].visible_until).getTime() < Date.now()), true, 'Previous handoff must expire when new closing checklist is submitted');
 
 await closingCard.locator('[data-shift-handoff-checklist] summary').click();
@@ -153,7 +155,7 @@ await page.getByRole('button', { name:'Есть информация' }).click()
 await page.locator('textarea[name="outOfStock"]').fill('Сироп ваниль');
 await closingCard.locator('.submit-checklist').click();
 await page.waitForFunction(() => window.__submittedChecklists.length === 3 && window.__handoffs.length === 3);
-await page.getByText('Сироп ваниль').waitFor();
+await homeCard.getByText('Сироп ваниль').waitFor();
 assert.equal(await page.evaluate(() => new Date(window.__handoffs[1].visible_until).getTime() < Date.now()), true, 'Next closing checklist must replace yesterday handoff');
 
 await page.evaluate(() => {
@@ -168,6 +170,7 @@ await page.evaluate(() => {
 });
 await page.locator('[data-shift-handoff-incoming]').waitFor();
 await page.locator('.doc-card[data-checklist-id="closing-checklist"] [data-shift-handoff-checklist]').waitFor();
+assert.equal(await page.evaluate(() => window.SovremennikShiftHandoff.isAvailable()), true);
 
 await page.screenshot({ path:path.join(artifactDir, 'shift-handoff-admin-lifecycle-mobile.png'), fullPage:true });
 await browser.close();
