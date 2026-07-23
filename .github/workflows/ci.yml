@@ -60,6 +60,11 @@ jobs:
       - name: Check offline reliability core
         run: node tests/offline-core.test.js
 
+      - name: Check shift handoff
+        run: |
+          node tests/shift-handoff-core.test.js
+          node tools/shift-handoff-interface-check.mjs
+
       - name: Check schedule manager regressions
         run: node tools/schedule-manager-check.mjs
 
@@ -183,7 +188,11 @@ jobs:
       - name: Apply and test full Free preview schema
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+        run: |
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723150000_shift_handoff_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723190000_shift_handoff_barista_only.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/shift-handoff-db-smoke.sql
 
   preview-smoke:
     name: Isolated browser preview
@@ -215,6 +224,9 @@ jobs:
           set -o pipefail
           mkdir -p artifacts/open-test-preview
           node tools/offline-reliability-browser-smoke-runner.mjs 2>&1 | tee artifacts/open-test-preview/offline-reliability.log
+
+      - name: Run shift handoff mobile browser smoke test
+        run: node tools/shift-handoff-browser-smoke.mjs
 
       - name: Upload preview screenshots
         if: always()
