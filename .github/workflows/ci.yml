@@ -57,6 +57,9 @@ jobs:
       - name: Check checklist photo-report core
         run: node tools/checklist-photo-core-check.mjs
 
+      - name: Check offline reliability core
+        run: node tests/offline-core.test.js
+
       - name: Check schedule manager regressions
         run: node tools/schedule-manager-check.mjs
 
@@ -205,6 +208,9 @@ jobs:
 
       - name: Run checklist photo report browser smoke test
         run: node tools/checklist-photo-browser-smoke.mjs
+
+      - name: Run offline reliability browser smoke test
+        run: node tools/offline-reliability-browser-smoke.mjs
 
       - name: Upload preview screenshots
         if: always()
