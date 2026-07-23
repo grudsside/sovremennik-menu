@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
+// The application uses a lexical global `state`, custom checkbox visuals and
+// collapsed checklist details. Adapt the generic Playwright scenario to those
+// production interface conventions without changing the scenario assertions.
 const sourcePath = resolve(process.cwd(), 'tools/offline-reliability-browser-smoke.mjs');
 const runtimePath = resolve(process.cwd(), 'tools/.offline-reliability-browser-smoke.runtime.mjs');
 const source = readFileSync(sourcePath, 'utf8');
