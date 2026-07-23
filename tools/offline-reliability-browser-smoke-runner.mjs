@@ -13,6 +13,10 @@ patched = patched.replaceAll(
   'await page.waitForSelector(`${cardSelector} [data-checklist-photo-field]`, { timeout:10000 });',
   "await page.evaluate(selector => { const details = document.querySelector(selector)?.querySelector('.doc-details'); if(details) details.open = true; }, cardSelector);\n  await page.waitForSelector(`${cardSelector} [data-checklist-photo-field]`, { timeout:10000 });"
 );
+patched = patched.replace(
+  'await page.check(`${cardSelector} .task-checkbox`);',
+  "await page.evaluate(selector => { const input = document.querySelector(`${selector} .task-checkbox`); if(!input) throw new Error('Checklist checkbox not found'); input.checked = true; input.dispatchEvent(new Event('change', { bubbles:true })); }, cardSelector);"
+);
 
 if(patched === source) throw new Error('Offline browser smoke runtime patches were not applied.');
 writeFileSync(runtimePath, patched, 'utf8');
