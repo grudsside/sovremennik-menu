@@ -145,6 +145,7 @@ await page.locator('.submit-checklist').click();
 await page.waitForFunction(() => window.__submittedChecklists.length === 1);
 assert.equal(await page.evaluate(() => window.__handoffs.length), 1, 'No handoff row should be created when there are no remarks');
 
+await page.locator('[data-shift-handoff-checklist] summary').click();
 await page.getByRole('button', { name:'Есть информация' }).click();
 await page.locator('textarea[name="outOfStock"]').fill('Миндальное молоко\nСироп ваниль');
 await page.locator('textarea[name="nextShiftControl"]').fill('Проверить утреннюю поставку');
