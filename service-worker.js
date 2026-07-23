@@ -1,6 +1,6 @@
 /* Современник PWA: push notifications + offline app shell. */
-const CACHE_VERSION = 'sovremennik-offline-20260723-v5';
-const RUNTIME_CACHE = 'sovremennik-runtime-20260723-v5';
+const CACHE_VERSION = 'sovremennik-offline-20260723-v6';
+const RUNTIME_CACHE = 'sovremennik-runtime-20260723-v6';
 const APP_SHELL = [
   './',
   './index.html',
