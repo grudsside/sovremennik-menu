@@ -125,7 +125,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('sync', event => {
   if(event.tag !== 'sovremennik-checklist-sync') return;
   event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
+    const windows = await clients.matchAll({ type:'window', includeUncontrolled:true });
     windows.forEach(client => client.postMessage({ type:'SOVREMENNIK_SYNC_PENDING' }));
   })());
 });
@@ -155,13 +155,13 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   const targetUrl = new URL(event.notification.data?.url || './', self.registration.scope).href;
   event.waitUntil((async () => {
-    const allClients = await self.clients.matchAll({ type:'window', includeUncontrolled:true });
+    const allClients = await clients.matchAll({ type:'window', includeUncontrolled:true });
     for(const client of allClients){
       if('focus' in client){
         try { await client.navigate(targetUrl); } catch(error){}
         return client.focus();
       }
     }
-    if(self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    if(clients.openWindow) return clients.openWindow(targetUrl);
   })());
 });
