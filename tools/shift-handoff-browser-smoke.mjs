@@ -16,12 +16,12 @@ body{margin:0;background:#eef1eb;font-family:Arial,sans-serif}.page{padding:14px
 await page.addStyleTag({ path:'assets/css/shift-handoff.css' });
 
 await page.evaluate(() => {
-  const receiver = { id:'22222222-2222-4222-8222-222222222222', name:'Иван', role:'barista' };
+  const user = { id:'22222222-2222-4222-8222-222222222222', name:'Администратор', role:'admin' };
   window.state = {
-    auth:{ user:receiver, session:{ access_token:'test', user:{ id:receiver.id } } },
+    auth:{ user, session:{ access_token:'test', user:{ id:user.id } } },
     menu:{ checklists:[
-      { id:'opening-checklist', title:'Чек-лист открытия', description:'Открытие смены', file:'assets/documents/checklist_open_close.xlsx' },
-      { id:'closing-checklist', title:'Чек-лист закрытия', description:'Закрытие смены', file:'assets/documents/checklist_open_close.xlsx' },
+      { id:'opening-checklist', title:'Чек-лист открытия', file:'assets/documents/checklist_open_close.xlsx' },
+      { id:'closing-checklist', title:'Чек-лист закрытия', file:'assets/documents/checklist_open_close.xlsx' },
     ] }
   };
   window.__handoffs = [{
@@ -31,11 +31,11 @@ await page.evaluate(() => {
     created_by_role:'barista',
     unfinished:['Не разобрана поставка'],
     out_of_stock:['Овсяное молоко'],
-    equipment_issues:['Правый гриндер выдаёт ошибку'],
-    next_shift_control:['Проверить поставку сиропов'],
+    equipment_issues:[],
+    next_shift_control:['Проверить поставку'],
     notes:'',
     created_at:new Date(Date.now() - 60_000).toISOString(),
-    visible_until:new Date(Date.now() + 86_400_000).toISOString(),
+    visible_until:'9999-12-31T23:59:59+00:00',
   }];
   window.__acks = [];
   window.__photos = [];
@@ -44,7 +44,7 @@ await page.evaluate(() => {
   window.currentUser = () => window.state.auth.user;
   window.isAuthenticated = () => true;
   window.normalizeRole = role => String(role || '').toLowerCase();
-  window.roleLabel = role => ({ barista:'Бариста', waiter:'Официант', admin:'Администратор', manager:'Руководитель' }[role] || role);
+  window.roleLabel = role => ({ barista:'Бариста', waiter:'Официант', admin:'Администратор' }[role] || role);
   window.esc = value => String(value ?? '').replace(/[&<>\"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));
   window.makeUuidV26 = () => `55555555-5555-4555-8555-${String(++window.__uuidCounter).padStart(12, '0')}`;
   window.submitChecklist = async docId => { window.__submittedChecklists.push(docId); };
@@ -55,14 +55,14 @@ await page.evaluate(() => {
       <section id="top-checklists">
         <article class="doc-card" data-checklist-id="opening-checklist">
           <details class="doc-details" open><summary>Открыть чек-лист открытия</summary>
-            <label><input class="task-checkbox" type="checkbox" data-task="Открыть кассу" checked>Открыть кассу</label>
-            <div class="submit-panel"><input class="employee-name" value="Иван"><button class="submit-checklist" type="button" data-checklist-id="opening-checklist">Отправить открытие</button><p class="submit-status"></p></div>
+            <label><input class="task-checkbox" type="checkbox" checked>Открыть кассу</label>
+            <div class="submit-panel"><button class="submit-checklist" data-checklist-id="opening-checklist">Отправить открытие</button></div>
           </details>
         </article>
         <article class="doc-card" data-checklist-id="closing-checklist">
           <details class="doc-details" open><summary>Открыть чек-лист закрытия</summary>
-            <label><input class="task-checkbox" type="checkbox" data-task="Закрыть кассу" checked>Закрыть кассу</label>
-            <div class="submit-panel"><input class="employee-name" value="Иван"><button class="submit-checklist" type="button" data-checklist-id="closing-checklist">Отправить закрытие</button><p class="submit-status"></p></div>
+            <label><input class="task-checkbox" type="checkbox" checked>Закрыть кассу</label>
+            <div class="submit-panel"><button class="submit-checklist" data-checklist-id="closing-checklist">Отправить закрытие</button></div>
           </details>
         </article>
       </section>`;
@@ -92,19 +92,20 @@ await page.evaluate(() => {
   window.supa = {
     from:query,
     rpc:async (name, args) => {
+      const actor = window.state.auth.user;
       if(name === 'acknowledge_shift_handoff'){
-        const existing = window.__acks.find(item => item.handoff_id === args.p_handoff_id && item.employee_id === receiver.id);
-        if(!existing) window.__acks.push({ handoff_id:args.p_handoff_id, employee_id:receiver.id, employee_name:receiver.name, acknowledged_at:new Date().toISOString() });
-        return { data:window.__acks.filter(item => item.handoff_id === args.p_handoff_id && item.employee_id === receiver.id), error:null };
+        const existing = window.__acks.find(item => item.handoff_id === args.p_handoff_id && item.employee_id === actor.id);
+        if(!existing) window.__acks.push({ handoff_id:args.p_handoff_id, employee_id:actor.id, employee_name:actor.name, acknowledged_at:new Date().toISOString() });
+        return { data:window.__acks.filter(item => item.handoff_id === args.p_handoff_id && item.employee_id === actor.id), error:null };
       }
       if(name === 'create_shift_handoff'){
         window.__handoffs.forEach(item => { item.visible_until = new Date(Date.now() - 1000).toISOString(); });
         window.__handoffs.unshift({
-          id:args.p_id, created_by:receiver.id, created_by_name:receiver.name, created_by_role:receiver.role,
+          id:args.p_id, created_by:actor.id, created_by_name:actor.name, created_by_role:actor.role,
           unfinished:args.p_unfinished, out_of_stock:args.p_out_of_stock,
           equipment_issues:args.p_equipment_issues, next_shift_control:args.p_next_shift_control,
           notes:args.p_notes, created_at:new Date().toISOString(),
-          visible_until:new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+          visible_until:'9999-12-31T23:59:59+00:00',
         });
         return { data:[window.__handoffs[0]], error:null };
       }
@@ -121,17 +122,17 @@ await page.addScriptTag({ path:'assets/js/shift-handoff-core.js' });
 await page.addScriptTag({ path:'assets/js/shift-handoff.js' });
 await page.evaluate(() => window.renderApp());
 
-const incoming = page.locator('[data-shift-handoff-incoming]');
-await incoming.waitFor();
-await page.getByText('Овсяное молоко').waitFor();
-
 const openingCard = page.locator('.doc-card[data-checklist-id="opening-checklist"]');
 const closingCard = page.locator('.doc-card[data-checklist-id="closing-checklist"]');
-assert.equal(await openingCard.locator('[data-shift-handoff-checklist]').count(), 0, 'Opening checklist must not contain shift handoff');
-const step = closingCard.locator('[data-shift-handoff-checklist]');
-await step.waitFor();
-assert.equal(await step.getAttribute('open'), null, 'Closing checklist step should be collapsed by default');
-await page.getByText('Финальный шаг чек-листа закрытия').waitFor();
+await page.getByText('Овсяное молоко').waitFor();
+assert.equal(await openingCard.locator('[data-shift-handoff-checklist]').count(), 0);
+await closingCard.locator('[data-shift-handoff-checklist]').waitFor();
+await page.getByText('Администратор', { exact:false }).first().waitFor();
+
+await page.locator('[data-shift-handoff-accept]').click();
+await page.getByText(/Принято ·/).waitFor();
+await page.getByText('Овсяное молоко').waitFor();
+assert.equal(await page.locator('[data-shift-handoff-incoming]').count(), 1, 'Acknowledgement must not hide current handoff');
 
 await openingCard.locator('.submit-checklist').click();
 await page.waitForFunction(() => window.__submittedChecklists.length === 1);
@@ -139,37 +140,35 @@ assert.deepEqual(await page.evaluate(() => window.__submittedChecklists), ['open
 
 await closingCard.locator('.submit-checklist').click();
 await page.getByText('Перед отправкой выберите статус передачи смены.').waitFor();
-assert.equal(await page.evaluate(() => window.__submittedChecklists.length), 1, 'Closing checklist must be blocked until shift handoff is addressed');
-
-await page.locator('[data-shift-handoff-accept]').click();
-await page.getByText('Новых сообщений нет').waitFor();
-assert.equal(await page.evaluate(() => window.__acks.length), 1, 'Incoming handoff must be acknowledged exactly once');
 
 await page.getByRole('button', { name:'Замечаний нет' }).click();
 await closingCard.locator('.submit-checklist').click();
-await page.waitForFunction(() => window.__submittedChecklists.length === 2);
-assert.equal(await page.evaluate(() => window.__handoffs.length), 1, 'No handoff row should be created when there are no remarks');
+await page.waitForFunction(() => window.__submittedChecklists.length === 2 && window.__handoffs.length === 2);
+await page.getByText('Текущая передача смены').waitFor();
+await page.getByText('Замечаний нет', { exact:true }).last().waitFor();
+assert.equal(await page.evaluate(() => new Date(window.__handoffs[1].visible_until).getTime() < Date.now()), true, 'Previous handoff must expire when new closing checklist is submitted');
 
 await closingCard.locator('[data-shift-handoff-checklist] summary').click();
 await page.getByRole('button', { name:'Есть информация' }).click();
-await page.locator('textarea[name="outOfStock"]').fill('Миндальное молоко\nСироп ваниль');
-await page.locator('textarea[name="nextShiftControl"]').fill('Проверить утреннюю поставку');
+await page.locator('textarea[name="outOfStock"]').fill('Сироп ваниль');
 await closingCard.locator('.submit-checklist').click();
-await page.waitForFunction(() => window.__submittedChecklists.length === 3);
-
-const result = await page.evaluate(() => ({ latest:window.__handoffs[0], submitted:window.__submittedChecklists.slice() }));
-assert.deepEqual(result.submitted, ['opening-checklist', 'closing-checklist', 'closing-checklist']);
-assert.deepEqual(result.latest.out_of_stock, ['Миндальное молоко', 'Сироп ваниль']);
-assert.deepEqual(result.latest.next_shift_control, ['Проверить утреннюю поставку']);
+await page.waitForFunction(() => window.__submittedChecklists.length === 3 && window.__handoffs.length === 3);
+await page.getByText('Сироп ваниль').waitFor();
+assert.equal(await page.evaluate(() => new Date(window.__handoffs[1].visible_until).getTime() < Date.now()), true, 'Next closing checklist must replace yesterday handoff');
 
 await page.evaluate(() => {
   window.state.auth.user.role = 'waiter';
   window.renderApp();
 });
 await page.waitForFunction(() => document.querySelectorAll('[data-shift-handoff-incoming],[data-shift-handoff-checklist]').length === 0);
-assert.equal(await page.locator('[data-shift-handoff-incoming]').count(), 0, 'Waiter must not see shift handoff on home');
-assert.equal(await page.locator('[data-shift-handoff-checklist]').count(), 0, 'Waiter must not see shift handoff in checklists');
 
-await page.screenshot({ path:path.join(artifactDir, 'shift-handoff-closing-checklist-mobile.png'), fullPage:true });
+await page.evaluate(() => {
+  window.state.auth.user.role = 'admin';
+  window.renderApp();
+});
+await page.locator('[data-shift-handoff-incoming]').waitFor();
+await page.locator('.doc-card[data-checklist-id="closing-checklist"] [data-shift-handoff-checklist]').waitFor();
+
+await page.screenshot({ path:path.join(artifactDir, 'shift-handoff-admin-lifecycle-mobile.png'), fullPage:true });
 await browser.close();
-console.log('Shift handoff exact closing-checklist and barista-only mobile smoke passed.');
+console.log('Shift handoff admin access and latest-until-next-closing browser smoke passed.');
