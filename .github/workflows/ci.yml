@@ -1,19 +1,22 @@
 name: Repository checks
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-  pull_request:
+  push:
     branches:
       - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: repository-checks-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   checks:
-    name: checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,61 +28,37 @@ jobs:
           node-version: '22'
 
       - name: Check JavaScript syntax
+        shell: bash
         run: |
-          node --check assets/js/app.js
-          node --check assets/js/push.js
-          node --check assets/js/push-legacy.js
-          node --check assets/js/employee-status.js
-          node --check assets/js/interface-redesign.js
-          node --check assets/js/tasks-v2.js
-          node --check assets/js/interface-v3.js
-          node --check assets/js/greeting-name.js
-          node --check assets/js/schedule-manager.js
-          node --check assets/js/schedule-submit-fix.js
-          node --check assets/js/schedule-departments.js
-          node --check assets/js/interface-followup.js
-          node --check assets/js/home-shift-roles.js
-          node --check assets/js/mobile-active-panel.js
-          node --check assets/js/section-maintenance.js
-          node --check assets/js/mobile-photo-expand.js
-          node --check assets/js/checklist-details-fix.js
-          node --check assets/js/checklist-photo-core.js
-          node --check assets/js/checklist-photo-reports.js
-          node --check assets/js/offline-core.js
-          node --check assets/js/offline-sync.js
-          node --check assets/js/shift-handoff-core.js
-          node --check assets/js/shift-handoff.js
-          node --check assets/js/notification-history-core.js
-          node --check assets/js/notifications.js
-          node --check service-worker.js
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(git ls-files -z '*.js' '*.mjs')
 
       - name: Check repository structure, JSON and secrets
-        run: node tools/repo-check.mjs
+        run: node tools/ci-check.mjs
 
       - name: Check task workflow regressions
-        run: node tools/task-regression-check.mjs
+        run: node tools/task-workflow-check.mjs
 
       - name: Check isolated tasks v2 module
-        run: node tools/tasks-v2-module-check.mjs
+        run: |
+          node tools/tasks-v2-check.mjs
+          node tools/tasks-v2-integration-check.mjs
 
       - name: Check interface observer loop
-        run: node tools/interface-observer-check.mjs
+        run: node tools/interface-observer-loop-check.mjs
 
       - name: Check interface follow-up regressions
         run: node tools/interface-followup-check.mjs
 
       - name: Check checklist details regression
-        run: node tools/checklist-details-check.mjs
+        run: node tools/checklist-details-fix-check.mjs
 
       - name: Check checklist photo-report core
-        run: |
-          node tests/checklist-photo-core.test.js
-          node tools/checklist-photo-interface-check.mjs
+        run: node tools/checklist-photo-core-check.mjs
 
       - name: Check offline reliability core
-        run: |
-          node tests/offline-core.test.js
-          node tools/offline-interface-check.mjs
+        run: node tests/offline-core.test.js
 
       - name: Check shift handoff
         run: |
@@ -93,39 +72,39 @@ jobs:
         run: node tools/schedule-departments-check.mjs
 
       - name: Check iPhone task form regressions
-        run: node tools/iphone-task-form-check.mjs
+        run: node tools/iphone-task-freeze-check.mjs
 
       - name: Check tasks release mode
-        run: node tools/tasks-release-mode-check.mjs
+        run: node tools/tasks-maintenance-check.mjs
 
       - name: Check RLS migration structure
-        run: node tools/rls-migration-check.mjs
+        run: node tools/rls-sql-check.mjs
 
       - name: Check coffee revision correction
-        run: node tools/coffee-revision-correction-check.mjs
+        run: node tools/coffee-revision-editor-check.mjs
 
       - name: Check coffee revision duplicate protection and summary
         run: node tools/coffee-revision-integrity-check.mjs
 
       - name: Check employee activation and role controls
-        run: node tools/employee-role-controls-check.mjs
+        run: node tools/employee-status-check.mjs
 
       - name: Check open-test admin controls
         run: node tools/open-test-admin-controls-check.mjs
 
       - name: Check live preview deployment safety
-        run: node tools/live-preview-check.mjs
+        run: node tools/live-preview-workflow-check.mjs
 
       - name: Check production release deployment safety
-        run: node tools/production-release-check.mjs
+        run: node tools/production-release-workflow-check.mjs
 
       - name: Check checklist photo production rollout safety
-        run: node tools/checklist-photo-production-rollout-check.mjs
+        run: node tools/production-checklist-photo-release-workflow-check.mjs
 
       - name: Check notification history
         run: |
-          node tests/notification-history-core.test.js
-          node tools/notification-history-interface-check.mjs
+          node tools/notification-history-check.mjs
+          node tools/notification-history-race-check.mjs
 
       - name: Set up Deno
         uses: denoland/setup-deno@v2
@@ -133,53 +112,54 @@ jobs:
           deno-version: v2.x
 
       - name: Check deadline-checker formatting
-        run: deno fmt --check supabase/functions/deadline-checker/index.ts
+        run: deno fmt --check supabase/functions/deadline-checker/
 
       - name: Test deadline cron authentication
-        run: deno test supabase/functions/deadline-checker/index.test.ts
+        run: deno test supabase/functions/deadline-checker/cron-auth.test.ts
 
       - name: Type-check deadline-checker
-        run: deno check supabase/functions/deadline-checker/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/deadline-checker/index.ts
 
       - name: Test checklist photo retention authorization
-        run: deno test supabase/functions/checklist-photo-retention/index.test.ts
+        run: deno test supabase/functions/checklist-photo-retention/authorization.test.ts
 
       - name: Type-check checklist photo retention
-        run: deno check supabase/functions/checklist-photo-retention/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/checklist-photo-retention/index.ts
 
       - name: Check authenticated Edge Function formatting
-        run: deno fmt --check supabase/functions/_shared/require-active-profile.ts
+        run: deno fmt --check supabase/functions/_shared/ supabase/functions/push-send/ supabase/functions/notify-event/
 
       - name: Check admin Edge Function formatting
-        run: deno fmt --check supabase/functions/_shared/require-admin.ts
+        run: deno fmt --check supabase/functions/admin-employees/index.ts supabase/functions/admin-maintenance/
 
       - name: Check preview site Edge Function
         run: |
-          deno fmt --check supabase/functions/preview-site/index.ts
+          deno fmt --check supabase/functions/preview-site/
+          deno test supabase/functions/preview-site/routing.test.ts
           deno check supabase/functions/preview-site/index.ts
 
       - name: Test active profile validation
-        run: deno test supabase/functions/_shared/require-active-profile.test.ts
+        run: deno test supabase/functions/_shared/auth.test.ts
 
       - name: Test notify-event authorization
-        run: deno test supabase/functions/notify-event/index.test.ts
+        run: deno test supabase/functions/notify-event/authorization.test.ts
 
       - name: Type-check push-send
-        run: deno check supabase/functions/push-send/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/push-send/index.ts
 
       - name: Type-check notify-event
-        run: deno check supabase/functions/notify-event/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/notify-event/index.ts
 
       - name: Test admin employee authorization
-        run: deno test supabase/functions/admin-employees/index.test.ts
+        run: deno test supabase/functions/admin-employees/authorization.test.ts
 
       - name: Type-check admin-employees
-        run: deno check supabase/functions/admin-employees/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/admin-employees/index.ts
 
       - name: Type-check admin-maintenance
-        run: deno check supabase/functions/admin-maintenance/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/admin-maintenance/index.ts
 
-  db-preview:
+  database-preview:
     name: Isolated database preview
     needs: checks
     runs-on: ubuntu-latest
