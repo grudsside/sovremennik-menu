@@ -1,5 +1,8 @@
 /* Современник — shift handoff integrated with the closing checklist. */
 .shift-handoff-incoming{margin:0 0 16px;position:relative;overflow:visible;border-left:4px solid #78905d}
+.shift-handoff-home-empty{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px;padding-bottom:14px}
+.shift-handoff-home-empty h2{margin:3px 0 2px;font-size:18px;color:#263a31}
+.shift-handoff-home-empty .description{margin:0;color:#707a73;font-size:13px}
 .shift-handoff-incoming-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
 .shift-handoff-incoming-head h2{margin:7px 0 3px;font-size:19px;color:#263a31}
 .shift-handoff-incoming-head p{margin:0;color:#707a73;font-size:13px}
@@ -52,6 +55,7 @@
 
 @media(max-width:760px){
   .shift-handoff-incoming{margin-bottom:12px}
+  .shift-handoff-home-empty{align-items:flex-start;flex-direction:column}
   .shift-handoff-incoming-head{align-items:stretch;flex-direction:column}
   .shift-handoff-incoming-head .small-action{width:100%}
   .shift-handoff-sections,.shift-handoff-form-grid{grid-template-columns:1fr}
