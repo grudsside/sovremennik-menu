@@ -17,6 +17,10 @@ patched = patched.replace(
   'await page.check(`${cardSelector} .task-checkbox`);',
   "await page.evaluate(selector => { const input = document.querySelector(`${selector} .task-checkbox`); if(!input) throw new Error('Checklist checkbox not found'); input.checked = true; input.dispatchEvent(new Event('change', { bubbles:true })); }, cardSelector);"
 );
+patched = patched.replace(
+  "assert.equal(await page.inputValue(`${cardSelector} .employee-name`), '', 'Queued submission must clear the visible form');",
+  "await page.waitForFunction(selector => document.querySelector(`${selector} .employee-name`)?.value === '', cardSelector, { timeout:10000 });\n  assert.equal(await page.inputValue(`${cardSelector} .employee-name`), '', 'Queued submission must clear the visible form');"
+);
 
 if(patched === source) throw new Error('Offline browser smoke runtime patches were not applied.');
 writeFileSync(runtimePath, patched, 'utf8');
