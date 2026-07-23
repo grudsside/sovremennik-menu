@@ -5,7 +5,7 @@
   const core = window.SovremennikShiftHandoffCore;
   if(!core || typeof state === 'undefined') return;
 
-  const VERSION = '2026-07-23-shift-handoff-preview-1';
+  const VERSION = '2026-07-23-shift-handoff-preview-2';
   const PHOTO_BUCKET = 'shift-handoff-photos';
   const DRAFT_KEY = 'sovremennikShiftHandoffDraftV1';
   const MAX_PHOTOS = 3;
@@ -108,7 +108,17 @@
     const userId = current()?.id;
     return (row.acknowledgements || []).find(item => String(item.employee_id || '') === String(userId || '')) || null;
   }
-  function newestPending(){ return core.pendingForUser(model.rows, current()?.id, new Date()); }
+  function currentHandoff(){
+    const userId = String(current()?.id || '');
+    const now = new Date();
+    return model.rows
+      .filter(row => String(row.created_by || row.createdBy || '') !== userId)
+      .filter(row => {
+        const visibleUntil = row.visible_until || row.visibleUntil;
+        return !visibleUntil || new Date(visibleUntil) >= now;
+      })
+      .sort((a,b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0))[0] || null;
+  }
   function authorLabel(row){
     return [row.created_by_name || 'Сотрудник', row.created_by_role ? (typeof roleLabel === 'function' ? roleLabel(row.created_by_role) : row.created_by_role) : ''].filter(Boolean).join(' · ');
   }
@@ -193,12 +203,12 @@
     </div>`;
   }
   function cardHtml(){
-    const pending = newestPending();
+    const handoff = currentHandoff();
     return `<section class="v3-dashboard-card shift-handoff-card" data-shift-handoff-root data-version="${VERSION}">
       <div class="v3-card-head"><div><p class="section-kicker">Коммуникация смен</p><h2>Передача смены</h2></div><button type="button" class="v3-text-button" data-shift-handoff-open>Передать смену</button></div>
       ${model.loading && !model.loaded ? '<div class="shift-handoff-loading">Загружаю передачу смены…</div>' : ''}
       ${model.error ? `<div class="shift-handoff-error">${html(model.error)}</div>` : ''}
-      ${!model.loading || model.loaded ? renderPending(pending) : ''}
+      ${!model.loading || model.loaded ? renderPending(handoff) : ''}
       ${renderHistory()}
       ${renderForm()}
     </section>`;
