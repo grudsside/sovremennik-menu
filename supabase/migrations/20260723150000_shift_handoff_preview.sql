@@ -65,7 +65,9 @@ as $$
 declare
   actor public.profiles%rowtype;
 begin
-  select * into actor from public.profiles where id = auth.uid() and is_active = true;
+  select profile.* into actor
+  from public.profiles profile
+  where profile.id = auth.uid() and profile.is_active = true;
   if actor.id is null then
     raise exception 'Active profile required' using errcode = '42501';
   end if;
@@ -110,12 +112,12 @@ begin
     raise exception 'Active profile required' using errcode = '42501';
   end if;
 
-  update public.shift_handoffs
-  set visible_until = least(visible_until, now())
-  where visible_until > now();
+  update public.shift_handoffs as previous_handoff
+  set visible_until = least(previous_handoff.visible_until, now())
+  where previous_handoff.visible_until > now();
 
   return query
-  insert into public.shift_handoffs (
+  insert into public.shift_handoffs as inserted_handoff (
     id, created_by, created_by_name, created_by_role,
     unfinished, out_of_stock, equipment_issues, next_shift_control, notes
   ) values (
@@ -124,7 +126,7 @@ begin
     coalesce(p_equipment_issues, '{}'), coalesce(p_next_shift_control, '{}'),
     coalesce(p_notes, '')
   )
-  returning *;
+  returning inserted_handoff.*;
 end;
 $$;
 
@@ -138,12 +140,16 @@ declare
   actor public.profiles%rowtype;
   source public.shift_handoffs%rowtype;
 begin
-  select * into actor from public.profiles where id = auth.uid() and is_active = true;
+  select profile.* into actor
+  from public.profiles profile
+  where profile.id = auth.uid() and profile.is_active = true;
   if actor.id is null then
     raise exception 'Active profile required' using errcode = '42501';
   end if;
 
-  select * into source from public.shift_handoffs where id = p_handoff_id;
+  select handoff.* into source
+  from public.shift_handoffs handoff
+  where handoff.id = p_handoff_id;
   if source.id is null or source.created_at < now() - interval '30 days' then
     raise exception 'Shift handoff is unavailable' using errcode = 'P0002';
   end if;
@@ -156,11 +162,13 @@ begin
   ) values (
     source.id, actor.id, actor.name, now()
   )
-  on conflict (handoff_id, employee_id) do nothing;
+  on conflict on constraint shift_handoff_acknowledgements_pkey do nothing;
 
   return query
-  select * from public.shift_handoff_acknowledgements
-  where handoff_id = source.id and employee_id = actor.id;
+  select acknowledgement.*
+  from public.shift_handoff_acknowledgements acknowledgement
+  where acknowledgement.handoff_id = source.id
+    and acknowledgement.employee_id = actor.id;
 end;
 $$;
 
@@ -179,11 +187,17 @@ begin
     raise exception 'Active profile required' using errcode = '42501';
   end if;
 
-  select * into source from public.shift_handoffs where id = new.handoff_id;
+  select handoff.* into source
+  from public.shift_handoffs handoff
+  where handoff.id = new.handoff_id;
   if source.id is null or source.created_by <> actor_id then
     raise exception 'Only the handoff author may attach photos' using errcode = '42501';
   end if;
-  if (select count(*) from public.shift_handoff_photos where handoff_id = source.id) >= 3 then
+  if (
+    select count(*)
+    from public.shift_handoff_photos photo
+    where photo.handoff_id = source.id
+  ) >= 3 then
     raise exception 'A shift handoff may contain up to three photos' using errcode = '23514';
   end if;
 
@@ -207,7 +221,7 @@ for each row execute function public.enforce_shift_handoff_photo();
 drop policy if exists shift_handoffs_select_active on public.shift_handoffs;
 create policy shift_handoffs_select_active on public.shift_handoffs
 for select to authenticated
-using (public.is_active_user() and created_at >= now() - interval '30 days');
+using (public.is_active_user() and shift_handoffs.created_at >= now() - interval '30 days');
 
 drop policy if exists shift_handoff_ack_select_active on public.shift_handoff_acknowledgements;
 create policy shift_handoff_ack_select_active on public.shift_handoff_acknowledgements
@@ -224,10 +238,11 @@ create policy shift_handoff_photos_insert_owner on public.shift_handoff_photos
 for insert to authenticated
 with check (
   public.is_active_user()
-  and created_by = auth.uid()
+  and shift_handoff_photos.created_by = auth.uid()
   and exists (
     select 1 from public.shift_handoffs handoff
-    where handoff.id = handoff_id and handoff.created_by = auth.uid()
+    where handoff.id = shift_handoff_photos.handoff_id
+      and handoff.created_by = auth.uid()
   )
 );
 
