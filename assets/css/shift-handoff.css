@@ -8,7 +8,6 @@
 .shift-handoff-incoming-head p{margin:0;color:#707a73;font-size:13px}
 .shift-handoff-badge{display:inline-flex;align-items:center;min-height:27px;padding:4px 9px;border-radius:999px;background:#e8efdb;color:#3d5b3e;font-size:12px;font-weight:800;letter-spacing:.02em}
 .shift-handoff-read-state{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:6px 10px;border-radius:10px;background:#edf2ec;color:#53645a;font-size:12px;font-weight:800;white-space:nowrap}
-/* Wider spacing keeps the report categories visually separate on desktop and mobile. */
 .shift-handoff-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .shift-handoff-section{border-radius:14px;padding:12px 13px;background:#fff;border:1px solid rgba(45,74,57,.11)}
 .shift-handoff-section h4{margin:0 0 7px;color:#536b50;font-size:11px;line-height:1.3;text-transform:uppercase;letter-spacing:.04em}
