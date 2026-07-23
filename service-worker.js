@@ -80,16 +80,16 @@ async function networkFirst(request, fallbackUrl){
     if(response.ok || response.type === 'opaque') cache.put(request, response.clone());
     return response;
   } catch(error){
-    return (await cache.match(request))
-      || (await caches.match(request))
-      || (fallbackUrl ? await caches.match(fallbackUrl) : null)
+    return (await cache.match(request, { ignoreSearch:true }))
+      || (await caches.match(request, { ignoreSearch:true }))
+      || (fallbackUrl ? await caches.match(fallbackUrl, { ignoreSearch:true }) : null)
       || Response.error();
   }
 }
 
 async function staleWhileRevalidate(request){
   const cache = await caches.open(RUNTIME_CACHE);
-  const cached = await caches.match(request);
+  const cached = await caches.match(request, { ignoreSearch:true });
   const update = fetch(request).then(response => {
     if(response.ok || response.type === 'opaque') cache.put(request, response.clone());
     return response;
