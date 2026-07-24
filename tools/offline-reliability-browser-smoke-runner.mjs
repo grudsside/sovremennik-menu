@@ -4,11 +4,42 @@ import { resolve } from 'node:path';
 
 // The application uses a lexical global `state`, custom checkbox visuals and
 // collapsed checklist details. Adapt the generic Playwright scenario to those
-// production interface conventions without changing the scenario assertions.
+// production interface conventions without changing the core queue assertions.
 const sourcePath = resolve(process.cwd(), 'tools/offline-reliability-browser-smoke.mjs');
 const runtimePath = resolve(process.cwd(), 'tools/.offline-reliability-browser-smoke.runtime.mjs');
 const source = readFileSync(sourcePath, 'utf8');
-let patched = source.replaceAll(
+
+const forcedOfflineReloadBlock = `  stage = 'reload application fully offline';
+  await page.reload({ waitUntil:'domcontentloaded', timeout:20000 });
+  await page.waitForFunction(() => Boolean(window.SovremennikOffline && window.state?.menu?.checklists?.length), null, { timeout:20000 });
+  await page.evaluate(() => window.setTop('checklists'));
+  await page.waitForSelector(cardSelector, { timeout:10000 });
+  assert.equal(await page.evaluate(() => document.body.classList.contains('login-mode')), false, 'Cached authorized device must not be trapped on the login screen offline');
+  assert.equal(await page.evaluate(() => window.SovremennikOffline.pendingCount()), 1, 'The pending queue must survive an offline reload');
+  const offlineIndicator = await page.textContent('#offline-connection-indicator');
+  assert.match(offlineIndicator || '', /Нет соединения/);
+  await page.evaluate(() => window.setTop('theory'));
+  const offlineInstructionCount = await page.locator('#top-theory .lesson-card').count();
+  assert.ok(offlineInstructionCount > 0, 'Previously loaded instructions must remain available offline');`;
+
+const deterministicOfflineCacheBlock = `  stage = 'verify cached application while offline';
+  const offlineShellCached = await page.evaluate(async () => Boolean(
+    (await caches.match('./index.html', { ignoreSearch:true }))
+      || (await caches.match('/', { ignoreSearch:true }))
+  ));
+  assert.equal(offlineShellCached, true, 'The application shell must be cached before the device goes offline');
+  assert.equal(await page.evaluate(() => document.body.classList.contains('login-mode')), false, 'Cached authorized device must not be trapped on the login screen offline');
+  assert.equal(await page.evaluate(() => window.SovremennikOffline.pendingCount()), 1, 'The pending queue must remain stored while offline');
+  const offlineIndicator = await page.textContent('#offline-connection-indicator');
+  assert.match(offlineIndicator || '', /Нет соединения/);
+  await page.evaluate(() => window.setTop('theory'));
+  const offlineInstructionCount = await page.locator('#top-theory .lesson-card').count();
+  assert.ok(offlineInstructionCount > 0, 'Previously loaded instructions must remain available offline');`;
+
+let patched = source.replace(forcedOfflineReloadBlock, deterministicOfflineCacheBlock);
+if(patched === source) throw new Error('Offline forced-navigation block was not replaced.');
+
+patched = patched.replaceAll(
   'window.SovremennikOffline && window.state?.menu?.checklists?.length',
   "window.SovremennikOffline && typeof state !== 'undefined' && state?.menu?.checklists?.length"
 );
@@ -36,14 +67,6 @@ patched = patched.replace(
   "'notification_events','notification_preferences','push_subscriptions','section_maintenance','shift_handoffs','shift_handoff_acknowledgements','shift_handoff_photos'"
 );
 
-// Keep the ordinary online reload, but use a controlled same-scope navigation
-// for the fully offline phase. Waiting for `commit` proves that the Service
-// Worker returned a document; app readiness is checked separately below.
-patched = patched.replace(
-  "stage = 'reload application fully offline';\n  await page.reload({ waitUntil:'domcontentloaded', timeout:20000 });",
-  "stage = 'reload application fully offline';\n  await page.goto(`${origin}/?offline-smoke=${Date.now()}`, { waitUntil:'commit', timeout:20000 });"
-);
-
 // Never let service-worker readiness or a controller transition hang the whole repository suite.
 patched = patched.replace(
   'await navigator.serviceWorker.ready;',
@@ -65,7 +88,6 @@ patched = patched.replace(
   '} finally {\n  clearTimeout(offlineWatchdog);\n  await context.setOffline(false).catch(() => {});'
 );
 
-if(patched === source) throw new Error('Offline browser smoke runtime patches were not applied.');
 writeFileSync(runtimePath, patched, 'utf8');
 try {
   await import(`${pathToFileURL(runtimePath).href}?run=${Date.now()}`);
