@@ -236,17 +236,21 @@
     const home=document.querySelector('#top-home');
     if(!home) return;
     const role=displayRole();
-    let current=home.querySelector('[data-role-home-intro]');
-    if(!['barista','waiter'].includes(role)){
-      if(current?.matches?.('[data-role-today-work]')) current.remove();
+    const intros=Array.from(home.querySelectorAll('[data-role-home-intro]'));
+    if(role==='manager'){
+      intros.forEach(node=>node.remove());
       return;
     }
+    if(!['barista','waiter'].includes(role)) return;
+    let current=intros.find(node=>node.matches?.('[data-role-today-work]')&&node.dataset.role===role)||null;
     let shouldHydrate=false;
-    if(!current?.matches?.('[data-role-today-work]')||current.dataset.role!==role){
-      current?.remove();
+    if(!current){
+      intros.forEach(node=>node.remove());
       home.insertAdjacentHTML('afterbegin',todayWorkMarkup(role));
       current=home.querySelector('[data-role-today-work]');
       shouldHydrate=true;
+    } else {
+      intros.filter(node=>node!==current).forEach(node=>node.remove());
     }
     if(current?.querySelector('.role-today-loading')) shouldHydrate=true;
     home.querySelectorAll('.v3-dashboard-card,.home-card').forEach((card,index)=>card.classList.toggle('role-secondary-home',index>4));
