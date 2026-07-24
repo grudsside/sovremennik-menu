@@ -8,9 +8,11 @@ on:
       - 'assets/css/role-interface.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
+      - 'supabase/functions/admin-employees/**'
       - 'supabase/migrations/20260724150000_role_security_preview.sql'
       - 'tests/role-interface-core.test.js'
       - 'tests/role-interface-ui.test.js'
+      - 'tools/live-preview-smoke.mjs'
       - '.github/workflows/role-interface-checks.yml'
   workflow_dispatch:
 
@@ -29,6 +31,8 @@ jobs:
         run: |
           node --check assets/js/role-interface-core.js
           node --check assets/js/role-interface.js
+          node --check tests/role-interface-ui.test.js
+          node --check tools/live-preview-smoke.mjs
       - name: Role and permission matrix
         run: node tests/role-interface-core.test.js
       - name: Profile and dashboard interactions
@@ -48,5 +52,15 @@ jobs:
           grep -q "role in ('admin','manager','barista','waiter')" supabase/migrations/20260724150000_role_security_preview.sql
           grep -q 'role_change_audit' supabase/migrations/20260724150000_role_security_preview.sql
           grep -q 'public.is_admin()' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'public.is_admin_or_manager()' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'role_changed' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'supabase_realtime add table public.profiles' supabase/migrations/20260724150000_role_security_preview.sql
           grep -q 'последнего действующего администратора' supabase/migrations/20260724150000_role_security_preview.sql
           grep -q 'migration stopped without changing users' supabase/migrations/20260724150000_role_security_preview.sql
+      - name: Edge role-change contract
+        shell: bash
+        run: |
+          grep -q 'requester.rpc("change_employee_role"' supabase/functions/admin-employees/index.ts
+          grep -q 'editableRoles = new Set(\["admin", "manager", "barista", "waiter"\])' supabase/functions/admin-employees/index.ts
+          grep -q 'role change audit persisted' tools/live-preview-smoke.mjs
+          grep -q 'non-admin direct role RPC rejected' tools/live-preview-smoke.mjs
