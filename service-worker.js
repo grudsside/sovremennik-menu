@@ -1,7 +1,7 @@
 /* Современник PWA: push notifications + offline app shell. */
-// Regression trace: sovremennik-offline-20260724-v3, sovremennik-offline-20260724-v4
-const CACHE_VERSION = 'sovremennik-offline-20260724-v5';
-const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v5';
+// Regression trace: sovremennik-offline-20260724-v3, sovremennik-offline-20260724-v4, sovremennik-offline-20260724-v5
+const CACHE_VERSION = 'sovremennik-offline-20260724-v6';
+const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v6';
 const APP_SHELL = [
   './','./index.html','./manifest.webmanifest','./data/menu.json',
   './assets/css/styles.css','./assets/css/interface-v3-hotfix.css','./assets/css/interface-followup.css','./assets/css/tasks-v2.css','./assets/css/schedule-manager.css','./assets/css/schedule-departments.css','./assets/css/home-shift-roles.css','./assets/css/schedule-shift-status-fix.css','./assets/css/mobile-active-panel.css','./assets/css/section-maintenance.css','./assets/css/mobile-photo-expand.css','./assets/css/checklist-photo-reports.css','./assets/css/checklist-photo-viewer-fit.css','./assets/css/offline-reliability.css','./assets/css/shift-handoff.css','./assets/css/shift-handoff-hotfix.css','./assets/css/checklist-editor.css','./assets/css/role-interface.css','./assets/css/checklist-role-workflow.css','./assets/css/home-layout-v4.css',
