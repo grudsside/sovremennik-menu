@@ -1,4 +1,5 @@
--- Central role lifecycle: exclusive roles, immutable audit and last-admin protection.
+-- Central role lifecycle: exclusive roles, immutable audit, notifications,
+-- manager operational access and last-admin protection.
 begin;
 
 do $$
@@ -48,6 +49,7 @@ declare
   result public.profiles%rowtype;
   normalized text:=lower(btrim(coalesce(p_new_role,'')));
   admin_count integer;
+  role_title text;
 begin
   if actor_id is null or not public.is_admin() then
     raise exception 'Administrator profile required' using errcode='42501';
@@ -67,14 +69,38 @@ begin
       raise exception 'Нельзя понизить последнего действующего администратора' using errcode='23514';
     end if;
   end if;
+
   update public.profiles set role=normalized where id=target.id returning * into result;
   insert into public.role_change_audit(employee_id,old_role,new_role,changed_by)
   values(target.id,target.role,normalized,actor_id);
+
+  role_title:=case normalized
+    when 'admin' then 'Администратор'
+    when 'manager' then 'Руководитель'
+    when 'barista' then 'Бариста'
+    when 'waiter' then 'Официант'
+  end;
+
+  if to_regclass('public.notification_events') is not null then
+    insert into public.notification_events(
+      user_id,event_type,event_key,source_table,source_id,title,body,url,status
+    ) values (
+      target.id,
+      'role_changed',
+      'role_changed:'||target.id::text||':'||extract(epoch from clock_timestamp())::text,
+      'profiles',
+      target.id,
+      'Ваша роль изменена',
+      'Новая роль: '||role_title||'. Интерфейс обновится автоматически.',
+      '#home',
+      'created'
+    );
+  end if;
   return result;
 end;
 $$;
 revoke all on function public.change_employee_role(uuid,text) from public,anon;
-grant execute on function public.change_employee_role(uuid,text) to authenticated,service_role;
+grant execute on function public.change_employee_role(uuid,text) to authenticated;
 
 create or replace function public.protect_last_active_admin()
 returns trigger
@@ -100,5 +126,61 @@ drop trigger if exists protect_last_active_admin on public.profiles;
 create trigger protect_last_active_admin
 before update of role,is_active or delete on public.profiles
 for each row execute function public.protect_last_active_admin();
+
+-- A manager needs operational visibility across tasks, but still cannot delete
+-- tasks or use administrator-only employee/system functions.
+drop policy if exists "tasks_select_participant" on public.tasks;
+create policy "tasks_select_control_or_participant"
+on public.tasks for select to authenticated
+using (
+  public.is_active_user()
+  and (
+    public.is_admin_or_manager()
+    or creator_id=auth.uid()
+    or assignee_id=auth.uid()
+  )
+);
+
+drop policy if exists "tasks_update_status_participant" on public.tasks;
+create policy "tasks_update_status_control_or_participant"
+on public.tasks for update to authenticated
+using (
+  public.is_active_user()
+  and (
+    public.is_admin_or_manager()
+    or creator_id=auth.uid()
+    or assignee_id=auth.uid()
+  )
+)
+with check (
+  public.is_active_user()
+  and (
+    public.is_admin_or_manager()
+    or (
+      (creator_id=auth.uid() or assignee_id=auth.uid())
+      and status in ('open','done')
+      and (
+        (status='open' and completed_at is null)
+        or (status='done' and completed_at is not null)
+      )
+    )
+  )
+);
+
+-- Role changes update an open PWA without reinstalling it. RLS continues to
+-- decide which profile rows each authenticated client can receive.
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname='supabase_realtime')
+     and not exists (
+       select 1 from pg_publication_tables
+       where pubname='supabase_realtime'
+         and schemaname='public'
+         and tablename='profiles'
+     ) then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+end
+$$;
 
 commit;
