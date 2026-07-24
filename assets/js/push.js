@@ -15,6 +15,7 @@ document.write('<link rel="stylesheet" href="assets/css/offline-reliability.css?
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff.css?v=20260723-5">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=20260724-1">');
+document.write('<link rel="stylesheet" href="assets/css/role-interface.css?v=20260724-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
@@ -27,6 +28,8 @@ document.write('<script src="assets/js/interface-followup.js?v=20260720-1"><\/sc
 document.write('<script src="assets/js/home-shift-roles.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/mobile-active-panel.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/section-maintenance.js?v=20260720-1"><\/script>');
+document.write('<script src="assets/js/role-interface-core.js?v=20260724-1"><\/script>');
+document.write('<script src="assets/js/role-interface.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/mobile-photo-expand.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/checklist-details-fix.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-photo-core.js?v=20260722-1"><\/script>');
