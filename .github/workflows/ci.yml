@@ -192,7 +192,10 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
           psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723150000_shift_handoff_preview.sql
           psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723190000_shift_handoff_barista_only.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260723203000_shift_handoff_admin_lifecycle.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260724110000_checklist_template_editor_preview.sql
           psql -h 127.0.0.1 -U postgres -d preview -f tools/shift-handoff-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/checklist-editor-db-smoke.sql
 
   preview-smoke:
     name: Isolated browser preview
