@@ -1,0 +1,86 @@
+name: Role interface checks
+
+# Final role-aware preview contract; production deployment is intentionally excluded.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assets/js/role-interface*.js'
+      - 'assets/css/role-interface.css'
+      - 'assets/js/checklist-role-*.js'
+      - 'assets/css/checklist-role-workflow.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/functions/admin-employees/**'
+      - 'supabase/migrations/20260724150000_role_security_preview.sql'
+      - 'supabase/migrations/20260724170000_role_security_finalize.sql'
+      - 'tests/role-interface-core.test.js'
+      - 'tests/role-interface-ui.test.js'
+      - 'tests/checklist-role-core.test.js'
+      - 'tests/checklist-role-workflow.test.js'
+      - 'tools/live-preview-smoke.mjs'
+      - '.github/workflows/role-interface-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  role-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check assets/js/role-interface-core.js
+          node --check assets/js/role-interface.js
+          node --check assets/js/checklist-role-core.js
+          node --check assets/js/checklist-role-workflow.js
+          node --check tests/role-interface-ui.test.js
+          node --check tests/checklist-role-workflow.test.js
+          node --check tools/live-preview-smoke.mjs
+      - name: Role and permission matrix
+        run: node tests/role-interface-core.test.js
+      - name: Profile and dashboard interactions
+        run: node tests/role-interface-ui.test.js
+      - name: Waiter checklist source and daily status helpers
+        run: node tests/checklist-role-core.test.js
+      - name: Checklist tabs and work-for-today integration
+        run: node tests/checklist-role-workflow.test.js
+      - name: Loader and PWA integration
+        shell: bash
+        run: |
+          grep -q 'role-interface-core.js?v=20260724-1' assets/js/push.js
+          grep -q 'role-interface.js?v=20260724-2' assets/js/push.js
+          grep -q 'role-interface.css?v=20260724-3' assets/js/push.js
+          grep -q 'checklist-role-workflow.css?v=20260724-1' assets/js/push.js
+          grep -q 'checklist-role-core.js?v=20260724-1' assets/js/push.js
+          grep -q 'checklist-role-workflow.js?v=20260724-1' assets/js/push.js
+          grep -q 'assets/js/role-interface-core.js' service-worker.js
+          grep -q 'assets/js/role-interface.js' service-worker.js
+          grep -q 'assets/css/role-interface.css' service-worker.js
+          grep -q 'assets/js/checklist-role-core.js' service-worker.js
+          grep -q 'assets/js/checklist-role-workflow.js' service-worker.js
+          grep -q 'assets/css/checklist-role-workflow.css' service-worker.js
+      - name: Role migration security contract
+        shell: bash
+        run: |
+          MIGRATION='supabase/migrations/20260724170000_role_security_finalize.sql'
+          grep -q "role in ('admin','manager','barista','waiter')" "$MIGRATION"
+          grep -q 'role_change_audit' "$MIGRATION"
+          grep -q 'public.is_admin()' "$MIGRATION"
+          grep -q 'public.is_admin_or_manager()' "$MIGRATION"
+          grep -q 'role_changed' "$MIGRATION"
+          grep -q 'supabase_realtime add table public.profiles' "$MIGRATION"
+          grep -q 'последнего действующего администратора' "$MIGRATION"
+          grep -q 'migration stopped without changing users' "$MIGRATION"
+      - name: Edge role-change contract
+        shell: bash
+        run: |
+          grep -q 'requester.rpc("change_employee_role"' supabase/functions/admin-employees/index.ts
+          grep -q 'editableRoles = new Set(\["admin", "manager", "barista", "waiter"\])' supabase/functions/admin-employees/index.ts
+          grep -q 'role change audit persisted' tools/live-preview-smoke.mjs
+          grep -q 'non-admin direct role RPC rejected' tools/live-preview-smoke.mjs

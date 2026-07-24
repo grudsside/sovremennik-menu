@@ -107,6 +107,13 @@ let roleChanged = false;
 let scheduleClosed = false;
 
 try {
+  const directLastAdminDemotion = await service.from('profiles')
+    .update({ role:'waiter' })
+    .eq('id', adminProfile.id)
+    .select('id');
+  assert(directLastAdminDemotion.error, 'Database trigger must protect the last active admin.');
+  checks.push('last active admin protected by database trigger');
+
   await invoke(admin, 'admin-employees', {
     action: 'set_role',
     userId: adminProfile.id,
@@ -128,13 +135,54 @@ try {
   assert.equal(changed.data.role, 'manager');
   checks.push('admin changed employee role');
 
+  const audit = await service.from('role_change_audit')
+    .select('employee_id,old_role,new_role,changed_by,changed_at')
+    .eq('employee_id', baristaProfile.id)
+    .eq('old_role', 'barista')
+    .eq('new_role', 'manager')
+    .order('changed_at', { ascending:false })
+    .limit(1)
+    .maybeSingle();
+  if (audit.error) throw audit.error;
+  assert.equal(audit.data?.changed_by, adminProfile.id, 'Role audit must identify the acting admin.');
+  assert(audit.data?.changed_at, 'Role audit must persist a timestamp.');
+  checks.push('role change audit persisted old role, new role, actor and time');
+
+  const roleNotification = await service.from('notification_events')
+    .select('user_id,event_type,title,body,read_at')
+    .eq('user_id', baristaProfile.id)
+    .eq('event_type', 'role_changed')
+    .order('created_at', { ascending:false })
+    .limit(1)
+    .maybeSingle();
+  if (roleNotification.error) throw roleNotification.error;
+  assert.equal(roleNotification.data?.user_id, baristaProfile.id);
+  assert.equal(roleNotification.data?.read_at, null);
+  assert.match(roleNotification.data?.body || '', /Руководитель/);
+  checks.push('employee received an unread role-change notification');
+
+  const forbiddenRpc = await waiter.rpc('change_employee_role', {
+    p_employee_id: baristaProfile.id,
+    p_new_role: 'waiter',
+  });
+  assert(forbiddenRpc.error, 'Non-admin direct role RPC must be rejected.');
+  checks.push('non-admin direct role RPC rejected');
+
   await invoke(waiter, 'admin-employees', {
     action: 'set_role',
     userId: baristaProfile.id,
     login: 'preview-barista',
     role: 'waiter',
   }, false);
-  checks.push('non-admin role change rejected');
+  checks.push('non-admin role change Edge request rejected');
+
+  const managerClient = await signedClient('preview-barista');
+  await invoke(managerClient, 'admin-maintenance', {
+    action: 'set',
+    sectionId: 'schedule',
+    isClosed: true,
+  }, false);
+  checks.push('manager did not receive administrator maintenance rights');
 
   await invoke(admin, 'admin-maintenance', {
     action: 'set',
@@ -149,7 +197,7 @@ try {
     .single();
   if (visible.error) throw visible.error;
   assert.equal(visible.data.is_closed, true);
-  checks.push('closed section visible to employee');
+  checks.push('closed section visible to employee shell');
 
   const directWrite = await waiter.from('section_maintenance')
     .update({ is_closed: false })
@@ -207,7 +255,7 @@ await fs.writeFile(path.join(outputDir, 'summary.md'), [
   `- Uploaded frontend files: ${deployment.uploadedFiles}`,
   `- Authenticated and launcher checks: ${checks.length}`,
   '- Supabase Free rewrites hosted HTML to text/plain, so the launcher opens locally and loads assets from the dedicated preview Storage bucket.',
-  '- Test data restored after the run.',
+  '- Test role and maintenance state restored after the run.',
   '- Production project was not modified.',
   '',
 ].join('\n'));
