@@ -72,13 +72,14 @@ for (const asset of [
   assert(serviceWorker.includes(asset), `Offline app shell is missing ${asset}`);
 }
 for (const token of [
-  'sovremennik-offline-20260724-v2',
+  'sovremennik-offline-20260724-v3',
   'const NETWORK_TIMEOUT_MS = 4000',
-  'new AbortController()',
+  'async function fetchWithTimeout',
   'controller.abort()',
   'fetch(request, { signal:controller.signal })',
+  "staleWhileRevalidate(request, './index.html')",
 ]) {
-  assert(serviceWorker.includes(token), `Bounded network-first fallback is missing: ${token}`);
+  assert(serviceWorker.includes(token), `Cache-first offline navigation is missing: ${token}`);
 }
 for (const token of [
   'create table if not exists public.shift_handoffs',
@@ -128,4 +129,4 @@ for (const token of [
 }
 assert(!productionWorkflow.includes('PRODUCTION_PROJECT_REF: enkftanmqlwvjydliwue'), 'Production target must not use Preview Supabase');
 
-console.log('Shift handoff roles, lifecycle, spacing, mobile focus, offline fallback and production rollout checks passed.');
+console.log('Shift handoff roles, lifecycle, spacing, mobile focus, cache-first offline navigation and production rollout checks passed.');
