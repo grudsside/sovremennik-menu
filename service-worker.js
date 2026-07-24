@@ -1,5 +1,5 @@
 /* Современник PWA: push notifications + offline app shell. */
-// Cache namespace stays on the validated v4 contract; this file revision refreshes the app shell in place.
+// Previous cache version kept for regression trace: sovremennik-offline-20260724-v3
 const CACHE_VERSION = 'sovremennik-offline-20260724-v4';
 const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v4';
 const APP_SHELL = [
