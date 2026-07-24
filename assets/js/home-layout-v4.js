@@ -2,7 +2,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='2026-07-24-home-layout-v4-4';
+  const VERSION='2026-07-24-home-layout-v4-3';
   let queued=false;
   let observer=null;
 
@@ -24,8 +24,6 @@
   }
 
   function removeHandoffForWaiter(home){
-    // The shift handoff feature belongs to baristas only. This also removes a
-    // card that could have been mounted while an admin was previewing another role.
     home.querySelectorAll('[data-shift-handoff-incoming],[data-waiter-shift-handoff]').forEach(card=>card.remove());
   }
 
