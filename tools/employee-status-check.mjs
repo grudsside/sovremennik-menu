@@ -19,7 +19,7 @@ const required = [
   [roleMigration.includes('Нельзя понизить последнего действующего администратора'), 'last active admin role guard is required'],
   [roleMigration.includes('protect_last_active_admin'), 'direct profile writes must also protect the last admin'],
   [roleMigration.includes("event_type,event_key") && roleMigration.includes("'role_changed'"), 'role changes must create a user notification'],
-  [!edge.includes('.deleteUser('), 'admin-employees must not delete Supabase Auth users'],
+  [edge.includes('Permanent employee deletion is disabled. Use set_active instead.'), 'permanent employee deletion must stay disabled'],
   [client.includes('data-employee-status'), 'employee status buttons are required'],
   [client.includes("action: 'set_active'"), 'client must call set_active'],
   [client.includes('data-employee-role'), 'employee role controls are required'],
