@@ -1,5 +1,5 @@
 /* Современник PWA: push notifications + offline app shell. */
-// Previous cache version kept for regression trace: sovremennik-offline-20260724-v4
+// Regression trace: sovremennik-offline-20260724-v3, sovremennik-offline-20260724-v4
 const CACHE_VERSION = 'sovremennik-offline-20260724-v5';
 const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v5';
 const APP_SHELL = [
