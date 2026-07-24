@@ -17,6 +17,7 @@ document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css
 document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/role-interface.css?v=20260724-3">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-role-workflow.css?v=20260724-1">');
+document.write('<link rel="stylesheet" href="assets/css/home-layout-v4.css?v=20260724-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
@@ -45,3 +46,4 @@ document.write('<script src="assets/js/offline-sync.js?v=20260723-1"><\/script>'
 document.write('<script src="assets/js/shift-handoff-core.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/shift-handoff.js?v=20260723-4"><\/script>');
 document.write('<script src="assets/js/shift-handoff-mobile-input-fix.js?v=20260724-1"><\/script>');
+document.write('<script src="assets/js/home-layout-v4.js?v=20260724-1"><\/script>');
