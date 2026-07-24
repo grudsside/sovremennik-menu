@@ -1,0 +1,30 @@
+const assert=require('node:assert/strict');
+const roles=require('../assets/js/role-interface-core.js');
+
+assert.equal(roles.normalizeRole('Руководитель'),'manager');
+assert.equal(roles.normalizeRole('unexpected'),'unknown');
+assert.equal(roles.isKnown('unknown'),false);
+
+assert.equal(roles.canRoute('barista','revisions'),true,'barista sees coffee revisions');
+assert.equal(roles.canRoute('barista','checklists'),true,'barista sees checklists');
+assert.equal(roles.canRoute('waiter','revisions'),false,'waiter does not see coffee revisions');
+assert.equal(roles.canRoute('waiter','tasks'),true,'waiter sees personal tasks');
+assert.equal(roles.canRoute('barista','employees'),false,'barista cannot manage employees');
+assert.equal(roles.canRoute('waiter','employees'),false,'waiter cannot manage employees');
+assert.equal(roles.homeBlocks('manager')[0],'attention','manager has operational dashboard');
+assert.equal(roles.can('manager','manage_employees'),false,'manager does not inherit admin rights');
+assert.equal(roles.canRoute('manager','revisions',{maintenance:true}),false,'maintenance closes manager route');
+assert.equal(roles.canRoute('admin','employees'),true,'admin sees all routes');
+assert.deepEqual(roles.previewRoles('admin'),['manager','barista','waiter']);
+assert.deepEqual(roles.previewRoles('manager'),[]);
+assert.equal(roles.canRoute('waiter','employees',{realRole:'admin'}),true,'admin preview never reduces real rights');
+assert.equal(roles.canRoute('waiter','employees',{realRole:'waiter'}),false,'employee cannot open admin route directly');
+assert.equal(roles.can('waiter','manage_employees'),false,'employee cannot perform admin operation');
+assert.equal(roles.canRoute('unknown','employees'),false,'unknown role has no elevated access');
+assert.deepEqual(roles.routes('unknown'),['home','tasks'],'unknown role receives safe minimal shell');
+assert.equal(roles.canRoute('waiter','tasks',{assigned:true}),true,'personal assignment remains visible');
+assert.ok(!roles.navigation('waiter').some(item=>item.id==='revisions'));
+assert.ok(roles.navigation('barista').some(item=>item.id==='revisions'));
+assert.ok(roles.homeBlocks('barista').indexOf('coffeeRevision')<roles.homeBlocks('barista').indexOf('personalTasks'));
+assert.ok(!roles.homeBlocks('waiter').includes('coffeeRevision'));
+console.log('role-interface-core: 23 assertions passed');
