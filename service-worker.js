@@ -1,6 +1,6 @@
 /* Современник PWA: push notifications + offline app shell. */
-const CACHE_VERSION = 'sovremennik-offline-20260724-v2';
-const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v2';
+const CACHE_VERSION = 'sovremennik-offline-20260724-v3';
+const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -46,6 +46,7 @@ const APP_SHELL = [
   './assets/js/checklist-editor-core.js',
   './assets/js/checklist-photo-reports.js',
   './assets/js/checklist-editor.js',
+  './assets/js/menu-render-guard.js',
   './assets/js/offline-core.js',
   './assets/js/offline-sync.js',
   './assets/js/shift-handoff-core.js',
