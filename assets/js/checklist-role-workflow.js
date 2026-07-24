@@ -237,11 +237,10 @@
     if(!home) return;
     const role=displayRole();
     let current=home.querySelector('[data-role-home-intro]');
-    if(role==='manager'){
-      current?.remove();
+    if(!['barista','waiter'].includes(role)){
+      if(current?.matches?.('[data-role-today-work]')) current.remove();
       return;
     }
-    if(!['barista','waiter'].includes(role)) return;
     let shouldHydrate=false;
     if(!current?.matches?.('[data-role-today-work]')||current.dataset.role!==role){
       current?.remove();
