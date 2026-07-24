@@ -1,0 +1,41 @@
+name: Autoformat role Edge function
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'supabase/functions/admin-employees/index.ts'
+      - '.github/workflows/autoformat-role-edge.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.head_ref == 'feature/role-personalized-interface-20260724'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/role-personalized-interface-20260724
+          fetch-depth: 0
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Format and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          deno fmt supabase/functions/admin-employees/index.ts
+          rm -f .github/workflows/autoformat-role-edge.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format role administration Edge function'
+          git push origin HEAD:feature/role-personalized-interface-20260724
