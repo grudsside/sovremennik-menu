@@ -1,6 +1,6 @@
 /* Современник PWA: push notifications + offline app shell. */
-const CACHE_VERSION = 'sovremennik-offline-20260724-v2';
-const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v2';
+const CACHE_VERSION = 'sovremennik-offline-20260724-v3';
+const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v3';
 const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
   './',
@@ -55,11 +55,21 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
+async function fetchWithTimeout(request){
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+  try {
+    return await fetch(request, { signal:controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function precache(){
   const cache = await caches.open(CACHE_VERSION);
   await Promise.allSettled(APP_SHELL.map(async url => {
     const request = new Request(url, { cache:'reload', mode:url.startsWith('http') ? 'no-cors' : 'same-origin' });
-    const response = await fetch(request);
+    const response = await fetchWithTimeout(request);
     if(response.ok || response.type === 'opaque') await cache.put(request, response);
   }));
 }
@@ -81,10 +91,8 @@ self.addEventListener('activate', event => {
 
 async function networkFirst(request, fallbackUrl){
   const cache = await caches.open(RUNTIME_CACHE);
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
   try {
-    const response = await fetch(request, { signal:controller.signal });
+    const response = await fetchWithTimeout(request);
     if(response.ok || response.type === 'opaque') cache.put(request, response.clone());
     return response;
   } catch(error){
@@ -92,15 +100,14 @@ async function networkFirst(request, fallbackUrl){
       || (await caches.match(request, { ignoreSearch:true }))
       || (fallbackUrl ? await caches.match(fallbackUrl, { ignoreSearch:true }) : null)
       || Response.error();
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
-async function staleWhileRevalidate(request){
+async function staleWhileRevalidate(request, fallbackUrl){
   const cache = await caches.open(RUNTIME_CACHE);
-  const cached = await caches.match(request, { ignoreSearch:true });
-  const update = fetch(request).then(response => {
+  const cached = (await caches.match(request, { ignoreSearch:true }))
+    || (fallbackUrl ? await caches.match(fallbackUrl, { ignoreSearch:true }) : null);
+  const update = fetchWithTimeout(request).then(response => {
     if(response.ok || response.type === 'opaque') cache.put(request, response.clone());
     return response;
   }).catch(() => null);
@@ -114,7 +121,7 @@ self.addEventListener('fetch', event => {
   const sameOrigin = url.origin === self.location.origin;
 
   if(request.mode === 'navigate'){
-    event.respondWith(networkFirst(request, './index.html'));
+    event.respondWith(staleWhileRevalidate(request, './index.html'));
     return;
   }
 
