@@ -10,7 +10,7 @@ for(const token of [
   'data-checklist-department-tab',
   'Подразделение чек-листов',
   "role==='manager'",
-  'current?.remove()',
+  'intros.forEach(node=>node.remove())',
   'Работа бариста на сегодня',
   'Работа официанта на сегодня',
   "core.findShiftDoc(docs,department,'opening')",
