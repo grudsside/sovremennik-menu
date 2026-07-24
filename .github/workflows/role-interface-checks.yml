@@ -1,5 +1,6 @@
 name: Role interface checks
 
+# Final role-aware preview contract; production deployment is intentionally excluded.
 on:
   pull_request:
     branches: [main]
