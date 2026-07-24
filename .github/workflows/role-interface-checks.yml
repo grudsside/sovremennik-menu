@@ -7,6 +7,8 @@ on:
     paths:
       - 'assets/js/role-interface*.js'
       - 'assets/css/role-interface.css'
+      - 'assets/js/checklist-role-*.js'
+      - 'assets/css/checklist-role-workflow.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
       - 'supabase/functions/admin-employees/**'
@@ -14,6 +16,8 @@ on:
       - 'supabase/migrations/20260724170000_role_security_finalize.sql'
       - 'tests/role-interface-core.test.js'
       - 'tests/role-interface-ui.test.js'
+      - 'tests/checklist-role-core.test.js'
+      - 'tests/checklist-role-workflow.test.js'
       - 'tools/live-preview-smoke.mjs'
       - '.github/workflows/role-interface-checks.yml'
   workflow_dispatch:
@@ -33,21 +37,34 @@ jobs:
         run: |
           node --check assets/js/role-interface-core.js
           node --check assets/js/role-interface.js
+          node --check assets/js/checklist-role-core.js
+          node --check assets/js/checklist-role-workflow.js
           node --check tests/role-interface-ui.test.js
+          node --check tests/checklist-role-workflow.test.js
           node --check tools/live-preview-smoke.mjs
       - name: Role and permission matrix
         run: node tests/role-interface-core.test.js
       - name: Profile and dashboard interactions
         run: node tests/role-interface-ui.test.js
+      - name: Waiter checklist source and daily status helpers
+        run: node tests/checklist-role-core.test.js
+      - name: Checklist tabs and work-for-today integration
+        run: node tests/checklist-role-workflow.test.js
       - name: Loader and PWA integration
         shell: bash
         run: |
           grep -q 'role-interface-core.js?v=20260724-1' assets/js/push.js
           grep -q 'role-interface.js?v=20260724-2' assets/js/push.js
-          grep -q 'role-interface.css?v=20260724-2' assets/js/push.js
+          grep -q 'role-interface.css?v=20260724-3' assets/js/push.js
+          grep -q 'checklist-role-workflow.css?v=20260724-1' assets/js/push.js
+          grep -q 'checklist-role-core.js?v=20260724-1' assets/js/push.js
+          grep -q 'checklist-role-workflow.js?v=20260724-1' assets/js/push.js
           grep -q 'assets/js/role-interface-core.js' service-worker.js
           grep -q 'assets/js/role-interface.js' service-worker.js
           grep -q 'assets/css/role-interface.css' service-worker.js
+          grep -q 'assets/js/checklist-role-core.js' service-worker.js
+          grep -q 'assets/js/checklist-role-workflow.js' service-worker.js
+          grep -q 'assets/css/checklist-role-workflow.css' service-worker.js
       - name: Role migration security contract
         shell: bash
         run: |
