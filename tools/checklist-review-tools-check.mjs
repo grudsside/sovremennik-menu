@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const js = fs.readFileSync('assets/js/checklist-review-tools.js', 'utf8');
 const css = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
+const observerGuard = fs.readFileSync('assets/js/checklist-review-observer-guard.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260724210000_checklist_review_tools_preview.sql', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const worker = fs.readFileSync('service-worker.js', 'utf8');
@@ -41,9 +42,12 @@ for (const marker of [
   'deleted_at timestamptz'
 ]) assert.ok(migration.includes(marker), `Missing migration marker: ${marker}`);
 
+assert.ok(observerGuard.includes("closest?.('#control-records')"), 'Observer guard must ignore internal Control mutations');
 assert.ok(loader.includes('assets/css/checklist-review-tools.css'), 'Review CSS is not loaded');
+assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Observer guard is not loaded');
 assert.ok(loader.includes('assets/js/checklist-review-tools.js'), 'Review JS is not loaded');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
+assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
 
 console.log('Checklist review tools structure is valid.');
