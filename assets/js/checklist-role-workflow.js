@@ -176,7 +176,7 @@
       .eq('employee_id',profile.id).gte('created_at',bounds.start).lt('created_at',bounds.end)
       .order('created_at',{ascending:false});
     const revisionPromise=role==='barista'
-      ? supabase.from('coffee_revisions').select('revision_date,employee_id,employee_name,created_at').eq('revision_date',bounds.today)
+      ? supabase.from('coffee_revisions').select('revision_date,employee_id,employee_name').eq('revision_date',bounds.today)
       : Promise.resolve({data:[],error:null});
     const taskQuery=supabase.from('tasks')
       .select('id,title,description,assignee_id,is_vip,due_date,due_at,status,completed_at,created_at')
@@ -236,18 +236,22 @@
     const home=document.querySelector('#top-home');
     if(!home) return;
     const role=displayRole();
-    const current=home.querySelector('[data-role-home-intro]');
+    let current=home.querySelector('[data-role-home-intro]');
     if(role==='manager'){
       current?.remove();
       return;
     }
     if(!['barista','waiter'].includes(role)) return;
+    let shouldHydrate=false;
     if(!current?.matches?.('[data-role-today-work]')||current.dataset.role!==role){
       current?.remove();
       home.insertAdjacentHTML('afterbegin',todayWorkMarkup(role));
+      current=home.querySelector('[data-role-today-work]');
+      shouldHydrate=true;
     }
+    if(current?.querySelector('.role-today-loading')) shouldHydrate=true;
     home.querySelectorAll('.v3-dashboard-card,.home-card').forEach((card,index)=>card.classList.toggle('role-secondary-home',index>4));
-    void hydrateTodayWork();
+    if(shouldHydrate) void hydrateTodayWork();
   }
   function scheduleEnhanceHome(){
     if(enhanceQueued) return;
