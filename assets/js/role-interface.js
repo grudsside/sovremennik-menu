@@ -23,6 +23,7 @@
   function showDenied(){
     const panels=document.querySelector('#panels');
     if(!panels) return;
+    document.querySelector('[data-role-access-denied]')?.remove();
     panels.insertAdjacentHTML('afterbegin','<section class="role-access-denied" data-role-access-denied><strong>У вас нет доступа к этому разделу</strong><p>Раздел не входит в права вашей роли или временно закрыт на техническое обслуживание.</p><button type="button" data-role-home>Вернуться на главную</button></section>');
   }
   function tabs(){
@@ -42,10 +43,34 @@
     document.body.insertAdjacentHTML('afterbegin',`<div class="role-preview-banner" data-role-preview-banner>Вы просматриваете интерфейс роли: <strong>${html(roles.roleLabel(displayRole()))}</strong><button type="button" data-role-preview="admin">Выйти из предпросмотра</button></div>`);
   }
   function decorateUserPanel(){
-    const panel=document.querySelector('#user-panel'); if(!panel||!user()) return;
-    const trigger=panel.querySelector('button')||panel;
-    trigger.setAttribute('data-role-profile-open',''); trigger.setAttribute('role','button'); trigger.setAttribute('tabindex','0');
-    if(!trigger.querySelector('.role-badge')) trigger.insertAdjacentHTML('beforeend',`<span class="role-badge role-${html(realRole())}">${html(roles.roleLabel(realRole()))}</span>`);
+    const panel=document.querySelector('#user-panel');
+    if(!panel||!user()) return;
+    panel.querySelectorAll('[data-role-profile-open]').forEach(node=>node.removeAttribute('data-role-profile-open'));
+    const logout=panel.querySelector('.logout-btn');
+    if(logout){
+      logout.querySelectorAll('.role-badge').forEach(node=>node.remove());
+      logout.textContent='Выйти';
+      logout.removeAttribute('role');
+      logout.removeAttribute('tabindex');
+    }
+    let trigger=panel.querySelector('.user-chip');
+    if(!trigger){
+      trigger=document.createElement('button');
+      trigger.className='user-chip role-profile-trigger';
+      trigger.textContent=`${user()?.name||'Пользователь'} · ${roles.roleLabel(realRole())}`;
+      panel.prepend(trigger);
+    } else if(trigger.tagName!=='BUTTON'){
+      const button=document.createElement('button');
+      button.className=`${trigger.className} role-profile-trigger`.trim();
+      button.innerHTML=trigger.innerHTML;
+      trigger.replaceWith(button);
+      trigger=button;
+    }
+    trigger.type='button';
+    trigger.classList.add('role-profile-trigger');
+    trigger.setAttribute('data-role-profile-open','');
+    trigger.setAttribute('aria-haspopup','dialog');
+    trigger.setAttribute('aria-label','Открыть профиль сотрудника');
   }
   function applyNavigation(){
     const allowed=new Set(tabs().map(tab=>tab.id));
@@ -64,11 +89,11 @@
     const home=document.querySelector('#top-home'); if(!home) return;
     home.querySelector('[data-role-home-intro]')?.remove();
     const role=displayRole();
-    if(role==='manager') home.insertAdjacentHTML('afterbegin','<section class="role-home-intro manager" data-role-home-intro><p>Операционная панель</p><h2>Требует внимания</h2><div class="role-attention-grid"><button data-top-jump="tasks">Просроченные задачи</button><button data-top-jump="checklists">Незавершённые чек-листы</button><button data-top-jump="revisions">Незаполненные ревизии</button><button data-top-jump="reportError">Новые проблемы</button><button data-top-jump="schedule">Сотрудники на смене</button><button data-top-jump="theory">Обучение и аттестации</button></div></section>');
+    if(role==='manager') home.insertAdjacentHTML('afterbegin','<section class="role-home-intro manager" data-role-home-intro data-role-card-target="control" role="link" tabindex="0" aria-label="Открыть операционную панель"><p>Операционная панель</p><h2>Требует внимания</h2><div class="role-attention-grid"><button type="button" data-top-jump="tasks">Просроченные задачи</button><button type="button" data-top-jump="checklists">Незавершённые чек-листы</button><button type="button" data-top-jump="revisions">Незаполненные ревизии</button><button type="button" data-top-jump="reportError">Новые проблемы</button><button type="button" data-top-jump="schedule">Сотрудники на смене</button><button type="button" data-top-jump="theory">Обучение и аттестации</button></div></section>');
     else if(role==='admin') home.insertAdjacentHTML('afterbegin','<section class="role-home-intro admin" data-role-home-intro><p>Техническая сводка</p><h2>Администрирование приложения</h2><span>Системные настройки, сотрудники, права и техническое обслуживание.</span></section>');
     else {
       const action=primaryAction();
-      home.insertAdjacentHTML('afterbegin',`<section class="role-home-intro employee" data-role-home-intro><p>${html(roles.roleLabel(role))} · текущая смена</p><h2>${html(action.title)}</h2><span>${html(action.text)}</span><button type="button" data-top-jump="${action.target}">Открыть</button></section>`);
+      home.insertAdjacentHTML('afterbegin',`<section class="role-home-intro employee" data-role-home-intro data-role-card-target="${action.target}" role="link" tabindex="0" aria-label="Открыть ${html(action.title)}"><p>${html(roles.roleLabel(role))} · текущая смена</p><h2>${html(action.title)}</h2><span>${html(action.text)}</span><button type="button" data-top-jump="${action.target}">Открыть</button></section>`);
       home.querySelectorAll('.v3-dashboard-card,.home-card').forEach((card,index)=>{if(index>4) card.classList.add('role-secondary-home');});
     }
   }
@@ -89,6 +114,12 @@
     if(state.activeTop&&!hasRoute(state.activeTop)) state.activeTop='home';
     render(); legacy.setTop?.(state.activeTop||'home');
   }
+  function activateRoleCard(card){
+    const target=card?.dataset?.roleCardTarget;
+    if(!target) return false;
+    safeTop(target);
+    return true;
+  }
   function bind(){
     if(bound) return; bound=true;
     document.addEventListener('click',event=>{
@@ -96,9 +127,16 @@
       if(event.target.closest('[data-role-profile-close]')||event.target.matches('[data-role-profile-modal]')){closeProfile();return;}
       const preview=event.target.closest('[data-role-preview]'); if(preview){event.preventDefault();setPreview(preview.dataset.rolePreview);return;}
       if(event.target.closest('[data-role-home]')){document.querySelector('[data-role-access-denied]')?.remove();safeTop('home');return;}
+      const introJump=event.target.closest('[data-role-home-intro] [data-top-jump]');
+      if(introJump){event.preventDefault();event.stopImmediatePropagation();safeTop(introJump.dataset.topJump);return;}
+      const card=event.target.closest('[data-role-card-target]');
+      if(card){event.preventDefault();event.stopImmediatePropagation();activateRoleCard(card);return;}
       const jump=event.target.closest('[data-top-jump]'); if(jump&&!hasRoute(jump.dataset.topJump)){event.preventDefault();event.stopImmediatePropagation();showDenied();}
     },true);
-    document.addEventListener('keydown',event=>{if(event.key==='Escape') closeProfile();if((event.key==='Enter'||event.key===' ')&&event.target.matches('[data-role-profile-open]')) openProfile();});
+    document.addEventListener('keydown',event=>{
+      if(event.key==='Escape') closeProfile();
+      if((event.key==='Enter'||event.key===' ')&&event.target.matches('[data-role-card-target]')){event.preventDefault();activateRoleCard(event.target);}
+    });
   }
   window.hasAccess=hasAccess=hasRoute;
   window.allMainTabs=allMainTabs=tabs;
