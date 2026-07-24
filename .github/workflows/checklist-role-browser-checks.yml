@@ -6,6 +6,10 @@ on:
     paths:
       - 'assets/js/checklist-role-*.js'
       - 'assets/css/checklist-role-workflow.css'
+      - 'assets/js/home-layout-v4.js'
+      - 'assets/css/home-layout-v4.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
       - 'tools/checklist-role-browser-smoke.mjs'
       - '.github/workflows/checklist-role-browser-checks.yml'
   workflow_dispatch:
@@ -29,7 +33,7 @@ jobs:
         run: |
           npm install --no-save playwright@1.54.1
           npx playwright install --with-deps chromium
-      - name: Check waiter tabs and work for today
+      - name: Check employee home layout, handoff and checklist tabs
         run: node tools/checklist-role-browser-smoke.mjs
       - name: Upload preview screenshot
         if: always()
