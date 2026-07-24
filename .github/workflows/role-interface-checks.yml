@@ -11,6 +11,7 @@ on:
       - 'service-worker.js'
       - 'supabase/functions/admin-employees/**'
       - 'supabase/migrations/20260724150000_role_security_preview.sql'
+      - 'supabase/migrations/20260724170000_role_security_finalize.sql'
       - 'tests/role-interface-core.test.js'
       - 'tests/role-interface-ui.test.js'
       - 'tools/live-preview-smoke.mjs'
@@ -50,14 +51,15 @@ jobs:
       - name: Role migration security contract
         shell: bash
         run: |
-          grep -q "role in ('admin','manager','barista','waiter')" supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'role_change_audit' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'public.is_admin()' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'public.is_admin_or_manager()' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'role_changed' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'supabase_realtime add table public.profiles' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'последнего действующего администратора' supabase/migrations/20260724150000_role_security_preview.sql
-          grep -q 'migration stopped without changing users' supabase/migrations/20260724150000_role_security_preview.sql
+          MIGRATION='supabase/migrations/20260724170000_role_security_finalize.sql'
+          grep -q "role in ('admin','manager','barista','waiter')" "$MIGRATION"
+          grep -q 'role_change_audit' "$MIGRATION"
+          grep -q 'public.is_admin()' "$MIGRATION"
+          grep -q 'public.is_admin_or_manager()' "$MIGRATION"
+          grep -q 'role_changed' "$MIGRATION"
+          grep -q 'supabase_realtime add table public.profiles' "$MIGRATION"
+          grep -q 'последнего действующего администратора' "$MIGRATION"
+          grep -q 'migration stopped without changing users' "$MIGRATION"
       - name: Edge role-change contract
         shell: bash
         run: |
