@@ -1,0 +1,49 @@
+name: Role interface checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assets/js/role-interface*.js'
+      - 'assets/css/role-interface.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/migrations/20260724150000_role_security_preview.sql'
+      - 'tests/role-interface-core.test.js'
+      - '.github/workflows/role-interface-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  role-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check assets/js/role-interface-core.js
+          node --check assets/js/role-interface.js
+      - name: Role and permission matrix
+        run: node tests/role-interface-core.test.js
+      - name: Loader and PWA integration
+        shell: bash
+        run: |
+          grep -q 'role-interface-core.js?v=20260724-1' assets/js/push.js
+          grep -q 'role-interface.js?v=20260724-1' assets/js/push.js
+          grep -q 'role-interface.css?v=20260724-1' assets/js/push.js
+          grep -q 'assets/js/role-interface-core.js' service-worker.js
+          grep -q 'assets/js/role-interface.js' service-worker.js
+          grep -q 'assets/css/role-interface.css' service-worker.js
+      - name: Role migration security contract
+        shell: bash
+        run: |
+          grep -q "role in ('admin','manager','barista','waiter')" supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'role_change_audit' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'public.is_admin()' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'последнего действующего администратора' supabase/migrations/20260724150000_role_security_preview.sql
+          grep -q 'migration stopped without changing users' supabase/migrations/20260724150000_role_security_preview.sql
