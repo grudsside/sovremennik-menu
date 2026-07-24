@@ -71,7 +71,15 @@ for (const asset of [
 ]) {
   assert(serviceWorker.includes(asset), `Offline app shell is missing ${asset}`);
 }
-assert(serviceWorker.includes('sovremennik-offline-20260724-v1'), 'PWA cache was not refreshed for the hotfix');
+for (const token of [
+  'sovremennik-offline-20260724-v2',
+  'const NETWORK_TIMEOUT_MS = 4000',
+  'new AbortController()',
+  'controller.abort()',
+  'fetch(request, { signal:controller.signal })',
+]) {
+  assert(serviceWorker.includes(token), `Bounded network-first fallback is missing: ${token}`);
+}
 for (const token of [
   'create table if not exists public.shift_handoffs',
   'create table if not exists public.shift_handoff_acknowledgements',
@@ -120,4 +128,4 @@ for (const token of [
 }
 assert(!productionWorkflow.includes('PRODUCTION_PROJECT_REF: enkftanmqlwvjydliwue'), 'Production target must not use Preview Supabase');
 
-console.log('Shift handoff roles, lifecycle, spacing, mobile focus and production rollout checks passed.');
+console.log('Shift handoff roles, lifecycle, spacing, mobile focus, offline fallback and production rollout checks passed.');
