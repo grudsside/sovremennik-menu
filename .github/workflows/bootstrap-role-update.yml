@@ -6,12 +6,23 @@ on:
       - feat/role-personalized-interface
     paths:
       - '.github/workflows/bootstrap-role-update.yml'
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - '.bootstrap/**'
+      - '.github/workflows/bootstrap-role-update.yml'
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'feat/role-personalized-interface' || github.ref == 'refs/heads/feat/role-personalized-interface'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout prepared branch
