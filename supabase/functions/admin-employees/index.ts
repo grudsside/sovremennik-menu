@@ -118,6 +118,9 @@ serve(async (req) => {
         400,
       );
     }
+    if (!editableRoles.has(role)) {
+      return json({ ok: false, error: "Unsupported role" }, 400);
+    }
 
     const email = loginToEmail(login);
     const created = await admin.auth.admin.createUser({
@@ -139,6 +142,7 @@ serve(async (req) => {
       is_active: true,
     });
     if (upsert.error) {
+      await admin.auth.admin.deleteUser(userId).catch(() => {});
       return json({ ok: false, error: upsert.error.message }, 400);
     }
 
@@ -151,8 +155,7 @@ serve(async (req) => {
   if (action === "set_role") {
     const userId = String(body.userId || "").trim();
     const login = String(body.login || "").trim().toLowerCase();
-    const requestedRole = String(body.role || "").trim().toLowerCase();
-    const role = requestedRole;
+    const role = String(body.role || "").trim().toLowerCase();
 
     if (!userId && !login) {
       return json({ ok: false, error: "userId or login is required" }, 400);
@@ -172,39 +175,38 @@ serve(async (req) => {
       return json({ ok: false, error: "Employee not found" }, 404);
     }
 
-    if (target.id === authData.user.id && role !== "admin") {
-      return json(
-        { ok: false, error: "Cannot change current admin role" },
-        400,
-      );
+    // The authenticated RPC is the only role-write path. It records old/new
+    // roles, the acting admin and time, protects the last admin and creates the
+    // employee notification in the same database transaction.
+    const changed = await requester.rpc("change_employee_role", {
+      p_employee_id: target.id,
+      p_new_role: role,
+    });
+    if (changed.error) {
+      const status = changed.error.code === "42501" ? 403 : 400;
+      return json({ ok: false, error: changed.error.message }, status);
     }
 
-    if (
-      target.is_active === true &&
-      normalizeRole(target.role) === "admin" &&
-      role !== "admin"
-    ) {
-      const { count, error: countError } = await admin
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("role", "admin")
-        .eq("is_active", true);
-      if (countError) {
-        return json({ ok: false, error: countError.message }, 400);
-      }
-      if ((count || 0) <= 1) {
-        return json(
-          { ok: false, error: "Cannot demote the last active admin" },
-          400,
-        );
+    // Keep Auth metadata consistent for auxiliary integrations. The app trusts
+    // public.profiles and refreshes it through Realtime with a polling fallback.
+    const authTarget = await admin.auth.admin.getUserById(target.id);
+    if (!authTarget.error && authTarget.data.user) {
+      const metadata = {
+        ...(authTarget.data.user.user_metadata || {}),
+        role,
+      };
+      const metadataUpdate = await admin.auth.admin.updateUserById(target.id, {
+        user_metadata: metadata,
+      });
+      if (metadataUpdate.error) {
+        console.warn("Role metadata update failed", metadataUpdate.error);
       }
     }
 
     const updated = await admin
       .from("profiles")
-      .update({ role })
-      .eq("id", target.id)
       .select("id, login, name, role, is_active")
+      .eq("id", target.id)
       .single();
     if (updated.error) {
       return json({ ok: false, error: updated.error.message }, 400);
