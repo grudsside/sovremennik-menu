@@ -1,0 +1,134 @@
+name: Production checklist editor release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-checklist-editor-release.yml'
+      - 'tools/production-checklist-editor-release.mjs'
+      - 'supabase/migrations/20260724110000_checklist_template_editor_preview.sql'
+      - 'assets/js/checklist-editor-core.js'
+      - 'assets/js/checklist-editor.js'
+      - 'assets/css/checklist-editor.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: production-checklist-editor-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy and verify checklist editor
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+      PRODUCTION_PAGES_URL: https://grudsside.github.io/sovremennik-menu
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+          [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" != 'enkftanmqlwvjydliwue' ]] || { echo 'Refusing to deploy against Preview Supabase.' >&2; exit 1; }
+
+      - name: Apply and verify checklist editor database migration
+        run: node tools/production-checklist-editor-release.mjs
+
+      - name: Verify published GitHub Pages frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          published=false
+          for attempt in {1..60}; do
+            html="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/?release=${GITHUB_SHA}" || true)"
+            loader="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
+            editor="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-editor.js?release=${GITHUB_SHA}" || true)"
+            core="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-editor-core.js?release=${GITHUB_SHA}" || true)"
+            styles="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/css/checklist-editor.css?release=${GITHUB_SHA}" || true)"
+            config="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/supabase-config.js?release=${GITHUB_SHA}" || true)"
+
+            if grep -q 'assets/js/push.js' <<< "$html" \
+              && grep -q 'checklist-editor-core.js?v=20260724-1' <<< "$loader" \
+              && grep -q 'checklist-editor.js?v=20260724-1' <<< "$loader" \
+              && grep -q 'checklist-editor.css?v=20260724-1' <<< "$loader" \
+              && grep -q 'save_checklist_template_override' <<< "$editor" \
+              && grep -q 'SovremennikChecklistEditorCore' <<< "$core" \
+              && grep -q '.checklist-editor-modal' <<< "$styles" \
+              && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
+              && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
+              published=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish checklist editor assets in time.' >&2; exit 1; }
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Checklist editor released to production'
+            echo
+            echo '- Checklist template override and immutable audit tables are active.'
+            echo '- Administrator-only save/reset RPCs and optimistic locking are verified.'
+            echo '- Direct authenticated writes are blocked; anonymous access is denied.'
+            echo '- GitHub Pages serves the checklist editor assets.'
+            echo '- Production configuration does not reference Preview Supabase.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Checklist editor production deployment passed'
+          else
+            state='failure'
+            description='Checklist editor production deployment failed'
+          fi
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/checklist-editor' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-checklist-editor-release
+          path: artifacts/production-checklist-editor-release
+          if-no-files-found: warn
+          retention-days: 30
