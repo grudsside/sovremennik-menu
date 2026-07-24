@@ -80,6 +80,15 @@ for (const marker of ['validateCronAuth', 'req.method !== "POST"', 'missing_conf
   }
 }
 
+for (const script of ['tests/checklist-editor-core.test.js', 'tools/checklist-editor-check.mjs']) {
+  if (!trackedFiles.includes(script)) continue;
+  try {
+    execFileSync(process.execPath, [script], { cwd:root, stdio:'inherit' });
+  } catch (error) {
+    fail(`Checklist editor check failed: ${script}`);
+  }
+}
+
 if (failures.length > 0) {
   console.error('CI repository checks failed:');
   for (const message of failures) console.error(`- ${message}`);
