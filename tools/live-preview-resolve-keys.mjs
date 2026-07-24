@@ -29,8 +29,10 @@ function publicScore(row) {
 function secretScore(row) {
   const value = valueOf(row);
   const text = descriptor(row);
+  // Supabase Auth Admin still requires the legacy service_role JWT. New sb_secret keys
+  // work for Data/Storage APIs but are rejected by GoTrue user administration.
+  if (/service[_ -]?role/.test(text)) return 110;
   if (value.startsWith('sb_secret_')) return 100;
-  if (/service[_ -]?role/.test(text)) return 90;
   if (/\bsecret\b/.test(text)) return 80;
   return 0;
 }

@@ -26,6 +26,7 @@ const plan = [
   ['supabase/migrations/20260723150000_shift_handoff_preview.sql', '20260723150000_shift_handoff_preview.sql'],
   ['supabase/migrations/20260723190000_shift_handoff_barista_only.sql', '20260723190000_shift_handoff_barista_only.sql'],
   ['supabase/migrations/20260723203000_shift_handoff_admin_lifecycle.sql', '20260723203000_shift_handoff_admin_lifecycle.sql'],
+  ['supabase/migrations/20260724110000_checklist_template_editor_preview.sql', '20260724110000_checklist_template_editor_preview.sql'],
 ];
 
 const forbiddenSources = [
