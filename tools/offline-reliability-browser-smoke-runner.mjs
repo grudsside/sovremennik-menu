@@ -29,7 +29,7 @@ patched = patched.replace(
 // and empty table responses used by the new module so real browser errors remain visible.
 patched = patched.replace(
   'eq(key, value){ this.filters[key]=value; return this; }',
-  'eq(key, value){ this.filters[key]=value; return this; }\n    gte(key, value){ this.filters[`gte:${key}`]=value; return this; }\n    in(key, values){ this.filters[`in:${key}`]=values; return this; }'
+  "eq(key, value){ this.filters[key]=value; return this; }\n    gte(key, value){ this.filters['gte:' + key]=value; return this; }\n    in(key, values){ this.filters['in:' + key]=values; return this; }"
 );
 patched = patched.replace(
   "'notification_events','notification_preferences','push_subscriptions','section_maintenance'",
