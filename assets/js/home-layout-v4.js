@@ -2,7 +2,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='2026-07-24-home-layout-v4-1';
+  const VERSION='2026-07-24-home-layout-v4-2';
   const core=global.SovremennikShiftHandoffCore;
   const WAITER_REFRESH_MS=60000;
   let queued=false;
@@ -12,7 +12,6 @@
   let waiterError='';
   let waiterRow=null;
   let waiterGeneration=0;
-  let waiterTimer=null;
 
   function escapeHtml(value){
     return String(value??'').replace(/[&<>"']/g,character=>({
@@ -71,6 +70,20 @@
     return (row?.acknowledgements||[]).find(item=>String(item.employee_id||item.employeeId||'')===userId)||null;
   }
 
+  function waiterSignature(){
+    const acknowledgement=waiterAcknowledgement(waiterRow);
+    const photos=(waiterRow?.photos||[]).map(photo=>photo.signedUrl||photo.storage_path||photo.id||'').join('|');
+    return [
+      waiterLoading?'loading':'ready',
+      waiterLoaded?'loaded':'initial',
+      waiterError,
+      waiterRow?.id||'empty',
+      waiterRow?.created_at||'',
+      acknowledgement?.acknowledged_at||'',
+      photos
+    ].join('::');
+  }
+
   function sectionMarkup(row){
     if(!core) return '';
     const sections=core.sectionRows(row);
@@ -86,12 +99,12 @@
     return `<div class="shift-handoff-photos" aria-label="Фотографии к передаче смены">${photos.map((photo,index)=>photo.signedUrl?`<a href="${escapeHtml(photo.signedUrl)}" target="_blank" rel="noopener" class="shift-handoff-photo"><img src="${escapeHtml(photo.signedUrl)}" alt="Фото к передаче смены ${index+1}"></a>`:'').join('')}</div>`;
   }
 
-  function waiterCardHtml(){
+  function waiterCardHtml(signature=waiterSignature()){
     if(waiterLoading&&!waiterLoaded){
-      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-waiter-shift-handoff data-version="${VERSION}"><div><p class="section-kicker">Передача смены</p><h2>Загружаю передачу…</h2></div></section>`;
+      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-waiter-shift-handoff data-waiter-signature="${escapeHtml(signature)}" data-version="${VERSION}"><div><p class="section-kicker">Передача смены</p><h2>Загружаю передачу…</h2></div></section>`;
     }
     if(!waiterRow){
-      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-waiter-shift-handoff data-version="${VERSION}"><div><p class="section-kicker">Передача смены</p><h2>Передача ещё не отправлена</h2><p class="description">Последняя передача появится здесь сразу после отправки предыдущей сменой.</p></div>${waiterError?`<p class="shift-handoff-error">${escapeHtml(waiterError)}</p>`:''}</section>`;
+      return `<section class="v3-dashboard-card shift-handoff-incoming shift-handoff-home-empty" data-waiter-shift-handoff data-waiter-signature="${escapeHtml(signature)}" data-version="${VERSION}"><div><p class="section-kicker">Передача смены</p><h2>Передача ещё не отправлена</h2><p class="description">Последняя передача появится здесь сразу после отправки предыдущей сменой.</p></div>${waiterError?`<p class="shift-handoff-error">${escapeHtml(waiterError)}</p>`:''}</section>`;
     }
     const own=String(waiterRow.created_by||waiterRow.createdBy||'')===String(currentProfile()?.id||'');
     const acknowledgement=waiterAcknowledgement(waiterRow);
@@ -102,7 +115,7 @@
         ? `<span class="shift-handoff-read-state">Принято · ${escapeHtml(core?.formatDateTime?.(acknowledgement.acknowledged_at)||'')}</span>`
         : `<button type="button" class="small-action" data-waiter-handoff-accept="${escapeHtml(waiterRow.id)}">Принято</button>`;
     const noRemarks=core?.sectionRows?.(waiterRow)?.length===0&&String(waiterRow.notes||'').trim().toLowerCase()==='замечаний нет';
-    return `<section class="v3-dashboard-card shift-handoff-incoming" data-waiter-shift-handoff data-version="${VERSION}"><div class="shift-handoff-incoming-head"><div><span class="shift-handoff-badge">${escapeHtml(badge)}</span><h2>${escapeHtml(authorLabel(waiterRow))}</h2><p>${escapeHtml(core?.formatDateTime?.(waiterRow.created_at)||'')}</p></div>${control}</div>${sectionMarkup(waiterRow)}${waiterRow.notes&&!noRemarks?`<section class="shift-handoff-section shift-handoff-note"><h4>Дополнительно</h4><p>${escapeHtml(waiterRow.notes)}</p></section>`:''}${photoMarkup(waiterRow)}${waiterError?`<p class="shift-handoff-error">${escapeHtml(waiterError)}</p>`:''}</section>`;
+    return `<section class="v3-dashboard-card shift-handoff-incoming" data-waiter-shift-handoff data-waiter-signature="${escapeHtml(signature)}" data-version="${VERSION}"><div class="shift-handoff-incoming-head"><div><span class="shift-handoff-badge">${escapeHtml(badge)}</span><h2>${escapeHtml(authorLabel(waiterRow))}</h2><p>${escapeHtml(core?.formatDateTime?.(waiterRow.created_at)||'')}</p></div>${control}</div>${sectionMarkup(waiterRow)}${waiterRow.notes&&!noRemarks?`<section class="shift-handoff-section shift-handoff-note"><h4>Дополнительно</h4><p>${escapeHtml(waiterRow.notes)}</p></section>`:''}${photoMarkup(waiterRow)}${waiterError?`<p class="shift-handoff-error">${escapeHtml(waiterError)}</p>`:''}</section>`;
   }
 
   async function signedUrl(storagePath){
@@ -113,10 +126,15 @@
   }
 
   async function loadWaiterHandoff(force=false){
-    if(realRole()!=='waiter') return;
-    if(waiterLoading&&!force) return;
+    if(realRole()!=='waiter'||waiterLoading) return;
+    if(waiterLoaded&&!force) return;
     const supabase=client();
-    if(!supabase){waiterError='Передача смены временно недоступна.';queueLayout();return;}
+    if(!supabase){
+      waiterError='Передача смены временно недоступна.';
+      waiterLoaded=true;
+      queueLayout();
+      return;
+    }
     waiterLoading=true;
     waiterError='';
     const generation=++waiterGeneration;
@@ -171,8 +189,10 @@
     const own=home.querySelector('[data-waiter-shift-handoff]');
     if(shared){own?.remove();return shared;}
     if(realRole()!=='waiter'){own?.remove();return null;}
+    const signature=waiterSignature();
+    if(own?.dataset.waiterSignature===signature) return own;
     const wrapper=document.createElement('div');
-    wrapper.innerHTML=waiterCardHtml();
+    wrapper.innerHTML=waiterCardHtml(signature);
     const next=wrapper.firstElementChild;
     if(own) own.replaceWith(next);
     else grid.prepend(next);
@@ -239,7 +259,7 @@
     },true);
     global.addEventListener('online',()=>{if(realRole()==='waiter') void loadWaiterHandoff(true);});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&realRole()==='waiter') void loadWaiterHandoff(true);});
-    waiterTimer=global.setInterval?.(()=>{if(realRole()==='waiter'&&document.visibilityState==='visible') void loadWaiterHandoff(true);},WAITER_REFRESH_MS)||null;
+    global.setInterval?.(()=>{if(realRole()==='waiter'&&document.visibilityState==='visible') void loadWaiterHandoff(true);},WAITER_REFRESH_MS);
     queueLayout();
   }
 
