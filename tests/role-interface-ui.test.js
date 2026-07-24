@@ -16,6 +16,13 @@ for (const token of [
   "event.target.closest('[data-role-card-target]')",
   'function activateRoleCard(card)',
   "event.target.matches('[data-role-card-target]')",
+  'function ensureAdminRoleOption()',
+  "option.value='admin'",
+  'function managerCounts()',
+  'function refreshOwnProfile()',
+  "table:'profiles'",
+  "event:'UPDATE'",
+  'clearRoleCaches()',
 ]) {
   assert(integration.includes(token), `Role interface UI contract is missing: ${token}`);
 }
@@ -30,8 +37,10 @@ assert(!integration.includes("trigger.insertAdjacentHTML('beforeend'"), 'Role ba
 for (const token of [
   '#user-panel button.user-chip.role-profile-trigger',
   '.role-home-intro[data-role-card-target]',
+  '.role-manager-links',
   ':focus-visible',
   '#user-panel .logout-btn .role-badge',
+  '[data-top="more"]',
 ]) {
   assert(css.includes(token), `Role interface CSS contract is missing: ${token}`);
 }
@@ -39,4 +48,4 @@ for (const token of [
 assert(loader.includes('role-interface.css?v=20260724-2'), 'Updated role CSS cache-busting is missing');
 assert(loader.includes('role-interface.js?v=20260724-2'), 'Updated role JS cache-busting is missing');
 
-console.log('Role profile trigger and clickable dashboard cards are wired correctly.');
+console.log('Role profile, dashboard, direct navigation and live role refresh are wired correctly.');
