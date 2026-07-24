@@ -221,6 +221,9 @@ jobs:
       - name: Run checklist photo report browser smoke test
         run: node tools/checklist-photo-browser-smoke.mjs
 
+      - name: Run checklist editor mobile browser smoke test
+        run: node tools/checklist-editor-browser-smoke.mjs
+
       - name: Run offline reliability browser smoke test
         shell: bash
         run: |
