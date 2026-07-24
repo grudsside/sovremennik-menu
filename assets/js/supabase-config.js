@@ -1,3 +1,34 @@
+(function lockApplicationViewport(){
+  const viewportContent = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+  let viewport = document.querySelector('meta[name="viewport"]');
+
+  if(!viewport){
+    viewport = document.createElement('meta');
+    viewport.name = 'viewport';
+    document.head.appendChild(viewport);
+  }
+
+  viewport.setAttribute('content', viewportContent);
+
+  const preventGesture = (event) => {
+    if(event.cancelable) event.preventDefault();
+  };
+
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((eventName) => {
+    document.addEventListener(eventName, preventGesture, { passive: false });
+  });
+
+  document.addEventListener('touchmove', (event) => {
+    if(event.touches && event.touches.length > 1 && event.cancelable){
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('wheel', (event) => {
+    if(event.ctrlKey && event.cancelable) event.preventDefault();
+  }, { passive: false });
+})();
+
 window.SOVREMENNIK_SUPABASE = {
   url: 'https://tjibbzfdughhjenumzxo.supabase.co',
   anonKey: 'sb_publishable_S0QBmN0f6SYvaPXj_QFvzg_uQmdXSwJ',
