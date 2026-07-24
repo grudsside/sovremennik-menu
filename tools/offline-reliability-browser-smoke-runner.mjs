@@ -46,6 +46,17 @@ patched = patched.replace(
   "await Promise.race([\n        new Promise(resolveController => navigator.serviceWorker.addEventListener('controllerchange', resolveController, { once:true })),\n        new Promise((_, rejectController) => setTimeout(() => rejectController(new Error('Service worker controller did not activate in 15 seconds')), 15000))\n      ]);"
 );
 
+// Trace every scenario phase and stop the generated runtime if any future wait is accidentally unbounded.
+patched = patched.replace(
+  "let stage = 'open online app';",
+  "let stage = 'open online app';\nconst offlineWatchdog = setTimeout(() => {\n  console.error('[offline-smoke] overall timeout during: ' + stage);\n  process.exit(124);\n}, 120000);"
+);
+patched = patched.replace(/stage = '([^']+)';/g, (match, label) => `${match}\n  console.log('[offline-smoke] ${label}');`);
+patched = patched.replace(
+  '} finally {\n  await context.setOffline(false).catch(() => {});',
+  '} finally {\n  clearTimeout(offlineWatchdog);\n  await context.setOffline(false).catch(() => {});'
+);
+
 if(patched === source) throw new Error('Offline browser smoke runtime patches were not applied.');
 writeFileSync(runtimePath, patched, 'utf8');
 try {
