@@ -3,6 +3,30 @@
 @import url("./interface-redesign.css?v=20260718");
 @import url("./interface-v3.css?v=20260718-3");
 
+/* Keep the application shell fixed to the device width. Internal components
+   with their own overflow (for example, the schedule table) remain scrollable. */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  touch-action: manipulation;
+}
+
+@supports (overflow: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+.page,
+#panels {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* Compatibility markers: imported bundles contain the full rules. */
 .notification-bell {}
 .notification-panel {}
