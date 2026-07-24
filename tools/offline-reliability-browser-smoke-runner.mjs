@@ -40,7 +40,7 @@ patched = patched.replace(
 // A fresh same-scope navigation exercises the same Service Worker path and respects timeouts.
 patched = patched.replaceAll(
   "await page.reload({ waitUntil:'domcontentloaded', timeout:20000 });",
-  "await page.goto(`${baseUrl}/?offline-smoke=${Date.now()}`, { waitUntil:'domcontentloaded', timeout:20000 });"
+  "await page.goto(`${origin}/?offline-smoke=${Date.now()}`, { waitUntil:'domcontentloaded', timeout:20000 });"
 );
 
 // Never let service-worker readiness or a controller transition hang the whole repository suite.
