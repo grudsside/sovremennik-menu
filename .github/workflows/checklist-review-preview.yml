@@ -1,0 +1,84 @@
+name: Checklist review preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'assets/js/checklist-review-tools.js'
+      - 'assets/css/checklist-review-tools.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/migrations/20260724210000_checklist_review_tools_preview.sql'
+      - 'tools/checklist-review-tools-check.mjs'
+      - 'tools/checklist-review-browser-smoke.mjs'
+      - 'tools/checklist-review-tools-db-smoke.sql'
+      - '.github/workflows/checklist-review-preview.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checklist-review-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structure:
+    name: Structure and browser smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check syntax and integration markers
+        run: |
+          node --check assets/js/checklist-review-tools.js
+          node --check tools/checklist-review-tools-check.mjs
+          node --check tools/checklist-review-browser-smoke.mjs
+          node tools/checklist-review-tools-check.mjs
+
+      - name: Install Chromium for focused smoke test
+        run: |
+          npm install --no-save playwright@1.54.1
+          npx playwright install --with-deps chromium
+
+      - name: Test filters, comments, deletion and photo viewer
+        run: node tools/checklist-review-browser-smoke.mjs
+
+  database:
+    name: Isolated database smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: preview
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply schema and test protected review functions
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260724210000_checklist_review_tools_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/checklist-review-tools-db-smoke.sql
