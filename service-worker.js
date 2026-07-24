@@ -1,6 +1,7 @@
 /* Современник PWA: push notifications + offline app shell. */
-const CACHE_VERSION = 'sovremennik-offline-20260724-v1';
-const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v1';
+const CACHE_VERSION = 'sovremennik-offline-20260724-v2';
+const RUNTIME_CACHE = 'sovremennik-runtime-20260724-v2';
+const NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL = [
   './',
   './index.html',
@@ -80,8 +81,10 @@ self.addEventListener('activate', event => {
 
 async function networkFirst(request, fallbackUrl){
   const cache = await caches.open(RUNTIME_CACHE);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { signal:controller.signal });
     if(response.ok || response.type === 'opaque') cache.put(request, response.clone());
     return response;
   } catch(error){
@@ -89,6 +92,8 @@ async function networkFirst(request, fallbackUrl){
       || (await caches.match(request, { ignoreSearch:true }))
       || (fallbackUrl ? await caches.match(fallbackUrl, { ignoreSearch:true }) : null)
       || Response.error();
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
