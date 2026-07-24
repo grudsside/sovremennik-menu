@@ -36,11 +36,12 @@ patched = patched.replace(
   "'notification_events','notification_preferences','push_subscriptions','section_maintenance','shift_handoffs','shift_handoff_acknowledgements','shift_handoff_photos'"
 );
 
-// Playwright can leave page.reload pending forever when the browser is forced offline.
-// A fresh same-scope navigation exercises the same Service Worker path and respects timeouts.
-patched = patched.replaceAll(
-  "await page.reload({ waitUntil:'domcontentloaded', timeout:20000 });",
-  "await page.goto(`${origin}/?offline-smoke=${Date.now()}`, { waitUntil:'domcontentloaded', timeout:20000 });"
+// Keep the ordinary online reload, but use a controlled same-scope navigation
+// for the fully offline phase. Waiting for `commit` proves that the Service
+// Worker returned a document; app readiness is checked separately below.
+patched = patched.replace(
+  "stage = 'reload application fully offline';\n  await page.reload({ waitUntil:'domcontentloaded', timeout:20000 });",
+  "stage = 'reload application fully offline';\n  await page.goto(`${origin}/?offline-smoke=${Date.now()}`, { waitUntil:'commit', timeout:20000 });"
 );
 
 // Never let service-worker readiness or a controller transition hang the whole repository suite.
