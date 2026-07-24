@@ -2,10 +2,8 @@
 #top-home>.v3-welcome-card+[data-role-today-work]{margin-top:16px}
 body[data-display-role="barista"] #top-home .v3-home-grid,
 body[data-display-role="waiter"] #top-home .v3-home-grid{align-items:start}
-body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming,
-body[data-display-role="waiter"] #top-home .v3-home-grid>.shift-handoff-incoming{min-width:0;margin:0}
-body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-sections,
-body[data-display-role="waiter"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-sections{grid-template-columns:1fr}
-body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-photos,
-body[data-display-role="waiter"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-photos{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-display-role="waiter"] #top-home .v3-home-grid{grid-template-columns:1fr}
+body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming{min-width:0;margin:0}
+body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-sections{grid-template-columns:1fr}
+body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-photos{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:820px){#top-home>.v3-welcome-card+[data-role-today-work]{margin-top:12px}}
