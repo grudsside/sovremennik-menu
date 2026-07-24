@@ -1,0 +1,140 @@
+name: Production shift handoff release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-shift-handoff-release.yml'
+      - 'tools/production-shift-handoff-release.mjs'
+      - 'supabase/migrations/20260723150000_shift_handoff_preview.sql'
+      - 'supabase/migrations/20260723190000_shift_handoff_barista_only.sql'
+      - 'supabase/migrations/20260723203000_shift_handoff_admin_lifecycle.sql'
+      - 'assets/css/shift-handoff.css'
+      - 'assets/css/shift-handoff-hotfix.css'
+      - 'assets/js/shift-handoff-core.js'
+      - 'assets/js/shift-handoff.js'
+      - 'assets/js/shift-handoff-mobile-input-fix.js'
+      - 'assets/js/push.js'
+      - 'assets/js/supabase-config.js'
+      - 'service-worker.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: production-shift-handoff-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy and verify shift handoff
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+      PRODUCTION_PAGES_URL: https://grudsside.github.io/sovremennik-menu
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+          [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
+
+      - name: Apply and verify shift handoff database migrations
+        run: node tools/production-shift-handoff-release.mjs
+
+      - name: Verify published GitHub Pages shift handoff hotfix
+        shell: bash
+        run: |
+          set -euo pipefail
+          published=false
+          for attempt in {1..60}; do
+            html="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/?release=${GITHUB_SHA}" || true)"
+            loader="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
+            integration="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/shift-handoff.js?release=${GITHUB_SHA}" || true)"
+            input_fix="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/shift-handoff-mobile-input-fix.js?release=${GITHUB_SHA}" || true)"
+            styles="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/css/shift-handoff-hotfix.css?release=${GITHUB_SHA}" || true)"
+            config="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/supabase-config.js?release=${GITHUB_SHA}" || true)"
+            worker="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/service-worker.js?release=${GITHUB_SHA}" || true)"
+
+            if grep -q 'assets/js/push.js' <<< "$html" \
+              && grep -q 'shift-handoff-hotfix.css?v=20260724-1' <<< "$loader" \
+              && grep -q 'shift-handoff-mobile-input-fix.js?v=20260724-1' <<< "$loader" \
+              && grep -q "CLOSING_CHECKLIST_ID = 'closing-checklist'" <<< "$integration" \
+              && grep -q 'protectsFocusedShiftEditor' <<< "$input_fix" \
+              && grep -q 'margin-top:24px' <<< "$styles" \
+              && grep -q 'font-size:16px' <<< "$styles" \
+              && grep -q 'shift-handoff-mobile-input-fix.js' <<< "$worker" \
+              && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
+              && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
+              published=true
+              break
+            fi
+            sleep 10
+          done
+          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish the shift handoff hotfix in time.' >&2; exit 1; }
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Shift handoff released to production'
+            echo
+            echo '- Production Supabase schema, RPC, RLS and private Storage were applied and verified.'
+            echo '- Administrator and barista access is active; waiter access is blocked.'
+            echo '- External spacing before the home card is published.'
+            echo '- Mobile text fields preserve focus during background refreshes.'
+            echo '- GitHub Pages and the PWA cache serve the hotfix assets.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Shift handoff production deployment passed'
+          else
+            state='failure'
+            description='Shift handoff production deployment failed'
+          fi
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/shift-handoff' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-shift-handoff-release
+          path: artifacts/production-shift-handoff-release
+          if-no-files-found: warn
+          retention-days: 30
