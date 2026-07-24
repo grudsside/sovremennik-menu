@@ -14,6 +14,7 @@ await page.setContent(`<!doctype html><html lang="ru"><head><meta charset="utf-8
 body{margin:0;background:#eef1eb;font-family:Arial,sans-serif}.page{padding:14px}.top-panel{display:block}.v3-dashboard-card,.doc-card{background:#fff;border-radius:18px;padding:15px;margin-bottom:14px}.small-action,.submit-checklist{border:0;border-radius:11px;padding:10px 13px;background:#365d47;color:#fff}.secondary{background:#e7ede7;color:#365044}.doc-details{display:block}.submit-panel{margin-top:14px}.submit-status.error{color:#9a3d2c}
 </style></head><body><main class="page"><div id="app"></div></main></body></html>`);
 await page.addStyleTag({ path:'assets/css/shift-handoff.css' });
+await page.addStyleTag({ path:'assets/css/shift-handoff-hotfix.css' });
 
 await page.evaluate(() => {
   const user = { id:'22222222-2222-4222-8222-222222222222', name:'Администратор', role:'admin' };
@@ -83,7 +84,7 @@ await page.evaluate(() => {
         if(table === 'shift_handoffs') data = window.__handoffs.slice();
         if(table === 'shift_handoff_acknowledgements') data = window.__acks.slice();
         if(table === 'shift_handoff_photos') data = window.__photos.slice();
-        return Promise.resolve({ data, error:null }).then(resolve, reject);
+        return new Promise(done => setTimeout(() => done({ data, error:null }), 40)).then(resolve, reject);
       },
     };
     return chain;
@@ -120,6 +121,7 @@ await page.evaluate(() => {
 
 await page.addScriptTag({ path:'assets/js/shift-handoff-core.js' });
 await page.addScriptTag({ path:'assets/js/shift-handoff.js' });
+await page.addScriptTag({ path:'assets/js/shift-handoff-mobile-input-fix.js' });
 await page.evaluate(() => window.renderApp());
 
 const openingCard = page.locator('.doc-card[data-checklist-id="opening-checklist"]');
@@ -130,6 +132,8 @@ await page.getByText('Овсяное молоко').waitFor();
 assert.equal(await openingCard.locator('[data-shift-handoff-checklist]').count(), 0);
 await closingCard.locator('[data-shift-handoff-checklist]').waitFor();
 assert.equal(await page.evaluate(() => window.SovremennikShiftHandoff.isAvailable()), true, 'Administrator must have shift handoff access');
+const homeMargin = await homeCard.evaluate(element => Number.parseFloat(getComputedStyle(element).marginTop));
+assert(homeMargin >= 20, `Shift handoff card must have a visible external gap, received ${homeMargin}px`);
 
 await page.locator('[data-shift-handoff-accept]').click();
 await page.getByText(/Принято ·/).waitFor();
@@ -152,7 +156,16 @@ assert.equal(await page.evaluate(() => new Date(window.__handoffs[1].visible_unt
 
 await closingCard.locator('[data-shift-handoff-checklist] summary').click();
 await page.getByRole('button', { name:'Есть информация' }).click();
-await page.locator('textarea[name="outOfStock"]').fill('Сироп ваниль');
+const outOfStock = page.locator('textarea[name="outOfStock"]');
+await outOfStock.focus();
+assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'outOfStock');
+const refreshPromise = page.evaluate(() => window.SovremennikShiftHandoff.refresh());
+await page.waitForTimeout(20);
+assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'outOfStock', 'Background loading rerender must not dismiss the mobile keyboard');
+await refreshPromise;
+assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'outOfStock', 'Background completion rerender must preserve textarea focus');
+await outOfStock.type('Сироп ваниль');
+assert.equal(await outOfStock.inputValue(), 'Сироп ваниль');
 await closingCard.locator('.submit-checklist').click();
 await page.waitForFunction(() => window.__submittedChecklists.length === 3 && window.__handoffs.length === 3);
 await homeCard.getByText('Сироп ваниль').waitFor();
@@ -174,4 +187,4 @@ assert.equal(await page.evaluate(() => window.SovremennikShiftHandoff.isAvailabl
 
 await page.screenshot({ path:path.join(artifactDir, 'shift-handoff-admin-lifecycle-mobile.png'), fullPage:true });
 await browser.close();
-console.log('Shift handoff admin access and latest-until-next-closing browser smoke passed.');
+console.log('Shift handoff spacing, mobile focus, admin access and latest-until-next-closing browser smoke passed.');

@@ -4,12 +4,16 @@ import fs from 'node:fs';
 const core = fs.readFileSync('assets/js/shift-handoff-core.js', 'utf8');
 const integration = fs.readFileSync('assets/js/shift-handoff.js', 'utf8');
 const css = fs.readFileSync('assets/css/shift-handoff.css', 'utf8');
+const hotfixCss = fs.readFileSync('assets/css/shift-handoff-hotfix.css', 'utf8');
+const mobileInputFix = fs.readFileSync('assets/js/shift-handoff-mobile-input-fix.js', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const serviceWorker = fs.readFileSync('service-worker.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260723150000_shift_handoff_preview.sql', 'utf8');
 const roleMigration = fs.readFileSync('supabase/migrations/20260723190000_shift_handoff_barista_only.sql', 'utf8');
 const lifecycleMigration = fs.readFileSync('supabase/migrations/20260723203000_shift_handoff_admin_lifecycle.sql', 'utf8');
 const previewPlan = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
+const productionScript = fs.readFileSync('tools/production-shift-handoff-release.mjs', 'utf8');
+const productionWorkflow = fs.readFileSync('.github/workflows/production-shift-handoff-release.yml', 'utf8');
 
 for (const token of ['splitLines', 'pendingForUser', 'buildStoragePath']) {
   assert(core.includes(token), `Core helper is missing: ${token}`);
@@ -37,10 +41,37 @@ assert(!integration.includes('data-shift-handoff-open'), 'Standalone handoff cre
 assert(css.includes('.shift-handoff-read-state'), 'Persistent acknowledgement status styles are missing');
 assert(css.includes('.shift-handoff-checklist-step'), 'Compact closing-checklist step styles are missing');
 assert(css.includes('@media(max-width:760px)'), 'Mobile shift handoff layout is missing');
+for (const token of [
+  '#top-home > .shift-handoff-incoming',
+  'margin-top:24px !important',
+  'margin-top:20px !important',
+  'font-size:16px !important',
+  'pointer-events:auto !important',
+]) {
+  assert(hotfixCss.includes(token), `Shift handoff spacing/mobile CSS hotfix is missing: ${token}`);
+}
+for (const token of [
+  'protectsFocusedShiftEditor',
+  "this.matches?.('[data-shift-handoff-checklist]')",
+  "document.addEventListener('focusin'",
+  'shift-handoff-mobile-editing',
+]) {
+  assert(mobileInputFix.includes(token), `Shift handoff mobile focus fix is missing: ${token}`);
+}
 assert(loader.indexOf('shift-handoff-core.js') < loader.indexOf('shift-handoff.js'), 'Core must load before integration');
-for (const asset of ['assets/css/shift-handoff.css', 'assets/js/shift-handoff-core.js', 'assets/js/shift-handoff.js']) {
+assert(loader.indexOf('shift-handoff.js') < loader.indexOf('shift-handoff-mobile-input-fix.js'), 'Mobile focus fix must load after integration');
+assert(loader.includes('shift-handoff-hotfix.css?v=20260724-1'), 'Hotfix CSS cache-busting is missing');
+assert(loader.includes('shift-handoff-mobile-input-fix.js?v=20260724-1'), 'Mobile focus hotfix cache-busting is missing');
+for (const asset of [
+  'assets/css/shift-handoff.css',
+  'assets/css/shift-handoff-hotfix.css',
+  'assets/js/shift-handoff-core.js',
+  'assets/js/shift-handoff.js',
+  'assets/js/shift-handoff-mobile-input-fix.js',
+]) {
   assert(serviceWorker.includes(asset), `Offline app shell is missing ${asset}`);
 }
+assert(serviceWorker.includes('sovremennik-offline-20260724-v1'), 'PWA cache was not refreshed for the hotfix assets');
 for (const token of [
   'create table if not exists public.shift_handoffs',
   'create table if not exists public.shift_handoff_acknowledgements',
@@ -65,5 +96,28 @@ for (const source of [roleMigration, lifecycleMigration]) {
 assert(previewPlan.includes('20260723150000_shift_handoff_preview.sql'), 'Live preview migration plan is missing shift handoff schema');
 assert(previewPlan.includes('20260723190000_shift_handoff_barista_only.sql'), 'Live preview migration plan is missing role migration');
 assert(previewPlan.includes('20260723203000_shift_handoff_admin_lifecycle.sql'), 'Live preview migration plan is missing admin lifecycle migration');
+for (const token of [
+  "expectedProductionRef = 'tjibbzfdughhjenumzxo'",
+  '20260723150000_shift_handoff_preview.sql',
+  '20260723190000_shift_handoff_barista_only.sql',
+  '20260723203000_shift_handoff_admin_lifecycle.sql',
+  "to_regclass('public.shift_handoffs')",
+  "to_regprocedure('public.is_shift_handoff_user()')",
+  "bucket: 'shift-handoff-photos'",
+]) {
+  assert(productionScript.includes(token), `Production shift handoff verification is missing: ${token}`);
+}
+for (const token of [
+  'name: Production shift handoff release',
+  'production/shift-handoff',
+  'node tools/production-shift-handoff-release.mjs',
+  'shift-handoff-hotfix.css?v=20260724-1',
+  'shift-handoff-mobile-input-fix.js?v=20260724-1',
+  'PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo',
+  "! grep -q 'enkftanmqlwvjydliwue'",
+]) {
+  assert(productionWorkflow.includes(token), `Production shift handoff workflow is missing: ${token}`);
+}
+assert(!productionWorkflow.includes('PRODUCTION_PROJECT_REF: enkftanmqlwvjydliwue'), 'Production target must not use Preview Supabase');
 
-console.log('Shift handoff admin access and latest-until-next-closing integration checks passed.');
+console.log('Shift handoff roles, lifecycle, spacing, mobile focus and production rollout checks passed.');
