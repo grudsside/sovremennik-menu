@@ -6,4 +6,40 @@ body[data-display-role="waiter"] #top-home .v3-home-grid{grid-template-columns:1
 body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming{min-width:0;margin:0}
 body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-sections{grid-template-columns:1fr}
 body[data-display-role="barista"] #top-home .v3-home-grid>.shift-handoff-incoming .shift-handoff-photos{grid-template-columns:repeat(2,minmax(0,1fr))}
-@media(max-width:820px){#top-home>.v3-welcome-card+[data-role-today-work]{margin-top:12px}}
+
+/* Keep every home dashboard card inside the mobile viewport. */
+#top-home,
+#top-home .v3-home-grid,
+#top-home .v3-home-grid>* ,
+#top-home .v3-dashboard-card,
+#top-home .v3-shift-list,
+#top-home .v3-shift-person,
+#top-home .v3-upcoming-list,
+#top-home .v3-upcoming-item{min-width:0;max-width:100%;box-sizing:border-box}
+#top-home .v3-home-grid>* ,
+#top-home .v3-dashboard-card,
+#top-home .v3-shift-list,
+#top-home .v3-upcoming-list,
+#top-home .v3-upcoming-item{width:100%}
+#top-home .v3-card-head{min-width:0;flex-wrap:wrap}
+#top-home .v3-card-head>*{min-width:0;max-width:100%}
+#top-home .v3-upcoming-item>span:last-child,
+#top-home .v3-shift-copy{overflow:hidden}
+
+@media(max-width:820px){
+  #top-home>.v3-welcome-card+[data-role-today-work]{margin-top:12px}
+  #top-home .v3-home-grid{width:100%;grid-template-columns:minmax(0,1fr)}
+  #top-home .v3-dashboard-card{overflow:hidden}
+  #top-home .v3-upcoming-item{grid-template-columns:48px minmax(0,1fr);gap:9px}
+  #top-home .v3-date-chip{width:48px;max-width:48px}
+  #top-home .v3-shift-person{width:100%;overflow:hidden}
+  #top-home .v3-live-shift-status{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+}
+
+@media(max-width:420px){
+  #top-home .v3-dashboard-card{padding-inline:14px}
+  #top-home .v3-shift-person{grid-template-columns:68px minmax(0,1fr);gap:8px;padding-inline:8px}
+  #top-home .v3-role-badge{width:68px;min-width:68px}
+  #top-home .v3-live-shift-status{grid-column:2;justify-self:start}
+  #top-home .v3-upcoming-item{padding:9px 8px}
+}
