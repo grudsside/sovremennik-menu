@@ -10,6 +10,7 @@ on:
       - 'service-worker.js'
       - 'supabase/migrations/20260724150000_role_security_preview.sql'
       - 'tests/role-interface-core.test.js'
+      - 'tests/role-interface-ui.test.js'
       - '.github/workflows/role-interface-checks.yml'
   workflow_dispatch:
 
@@ -30,12 +31,14 @@ jobs:
           node --check assets/js/role-interface.js
       - name: Role and permission matrix
         run: node tests/role-interface-core.test.js
+      - name: Profile and dashboard interactions
+        run: node tests/role-interface-ui.test.js
       - name: Loader and PWA integration
         shell: bash
         run: |
           grep -q 'role-interface-core.js?v=20260724-1' assets/js/push.js
-          grep -q 'role-interface.js?v=20260724-1' assets/js/push.js
-          grep -q 'role-interface.css?v=20260724-1' assets/js/push.js
+          grep -q 'role-interface.js?v=20260724-2' assets/js/push.js
+          grep -q 'role-interface.css?v=20260724-2' assets/js/push.js
           grep -q 'assets/js/role-interface-core.js' service-worker.js
           grep -q 'assets/js/role-interface.js' service-worker.js
           grep -q 'assets/css/role-interface.css' service-worker.js
