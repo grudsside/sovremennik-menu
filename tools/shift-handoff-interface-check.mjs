@@ -71,7 +71,7 @@ for (const asset of [
 ]) {
   assert(serviceWorker.includes(asset), `Offline app shell is missing ${asset}`);
 }
-assert(serviceWorker.includes('sovremennik-offline-20260724-v2'), 'PWA cache was not refreshed for the current app shell');
+assert(serviceWorker.includes('sovremennik-offline-20260724-v3'), 'PWA cache was not refreshed for the current app shell');
 for (const token of [
   'create table if not exists public.shift_handoffs',
   'create table if not exists public.shift_handoff_acknowledgements',
