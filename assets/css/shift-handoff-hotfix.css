@@ -1,0 +1,38 @@
+/* Современник — production hotfix for shift handoff spacing and mobile text input. */
+#top-home > .shift-handoff-incoming,
+#top-home .shift-handoff-incoming[data-shift-handoff-incoming]{
+  margin-top:24px !important;
+}
+
+.shift-handoff-checklist-step textarea,
+.shift-handoff-checklist-step input,
+.shift-handoff-checklist-step select{
+  position:relative;
+  z-index:1;
+  pointer-events:auto !important;
+  touch-action:auto;
+}
+
+.shift-handoff-checklist-step textarea{
+  -webkit-user-select:text;
+  user-select:text;
+  -webkit-touch-callout:default;
+}
+
+html.shift-handoff-mobile-editing .shift-handoff-checklist-step,
+html.shift-handoff-mobile-editing .shift-handoff-checklist-body{
+  overflow:visible;
+}
+
+@media(max-width:760px){
+  #top-home > .shift-handoff-incoming,
+  #top-home .shift-handoff-incoming[data-shift-handoff-incoming]{
+    margin-top:20px !important;
+  }
+
+  .shift-handoff-checklist-step textarea{
+    min-height:88px;
+    font-size:16px !important;
+    line-height:1.45;
+  }
+}
