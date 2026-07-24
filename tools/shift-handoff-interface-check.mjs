@@ -114,9 +114,10 @@ for (const token of [
   'shift-handoff-hotfix.css?v=20260724-1',
   'shift-handoff-mobile-input-fix.js?v=20260724-1',
   'PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo',
+  "! grep -q 'enkftanmqlwvjydliwue'",
 ]) {
   assert(productionWorkflow.includes(token), `Production shift handoff workflow is missing: ${token}`);
 }
-assert(!productionWorkflow.includes('enkftanmqlwvjydliwue'), 'Production workflow must not reference Preview Supabase');
+assert(!productionWorkflow.includes('PRODUCTION_PROJECT_REF: enkftanmqlwvjydliwue'), 'Production target must not use Preview Supabase');
 
 console.log('Shift handoff roles, lifecycle, spacing, mobile focus and production rollout checks passed.');
