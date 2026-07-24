@@ -33,6 +33,7 @@ document.write('<script src="assets/js/checklist-photo-core.js?v=20260722-1"><\/
 document.write('<script src="assets/js/checklist-editor-core.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/checklist-photo-reports.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-editor.js?v=20260724-1"><\/script>');
+document.write('<script src="assets/js/menu-render-guard.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/offline-core.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/offline-sync.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/shift-handoff-core.js?v=20260723-1"><\/script>');
