@@ -4,7 +4,7 @@ const read = path => fs.readFileSync(path, 'utf8');
 const edge = read('supabase/functions/admin-employees/index.ts');
 const client = read('assets/js/employee-status.js');
 const loader = read('assets/js/push-legacy.js');
-const roleMigration = read('supabase/migrations/20260724150000_role_security_preview.sql');
+const roleMigration = read('supabase/migrations/20260724170000_role_security_finalize.sql');
 const roleInterface = read('assets/js/role-interface.js');
 
 const required = [
