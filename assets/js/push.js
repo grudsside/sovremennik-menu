@@ -46,4 +46,4 @@ document.write('<script src="assets/js/offline-sync.js?v=20260723-1"><\/script>'
 document.write('<script src="assets/js/shift-handoff-core.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/shift-handoff.js?v=20260723-4"><\/script>');
 document.write('<script src="assets/js/shift-handoff-mobile-input-fix.js?v=20260724-1"><\/script>');
-document.write('<script src="assets/js/home-layout-v4.js?v=20260724-2"><\/script>');
+document.write('<script src="assets/js/home-layout-v4.js?v=20260724-3"><\/script>');
