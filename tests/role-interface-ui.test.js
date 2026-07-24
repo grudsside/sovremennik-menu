@@ -45,7 +45,7 @@ for (const token of [
   assert(css.includes(token), `Role interface CSS contract is missing: ${token}`);
 }
 
-assert(loader.includes('role-interface.css?v=20260724-2'), 'Updated role CSS cache-busting is missing');
+assert(loader.includes('role-interface.css?v=20260724-3'), 'Updated role CSS cache-busting is missing');
 assert(loader.includes('role-interface.js?v=20260724-2'), 'Updated role JS cache-busting is missing');
 
 console.log('Role profile, dashboard, direct navigation and live role refresh are wired correctly.');
