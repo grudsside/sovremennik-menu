@@ -36,7 +36,11 @@ patched = patched.replace(
   "'notification_events','notification_preferences','push_subscriptions','section_maintenance','shift_handoffs','shift_handoff_acknowledgements','shift_handoff_photos'"
 );
 
-// Never let a service-worker controller transition hang the whole repository suite.
+// Never let service-worker readiness or a controller transition hang the whole repository suite.
+patched = patched.replace(
+  'await navigator.serviceWorker.ready;',
+  "await Promise.race([\n      navigator.serviceWorker.ready,\n      new Promise((_, rejectReady) => setTimeout(() => rejectReady(new Error('Service worker did not become ready in 20 seconds')), 20000))\n    ]);"
+);
 patched = patched.replace(
   "await new Promise(resolveController => navigator.serviceWorker.addEventListener('controllerchange', resolveController, { once:true }));",
   "await Promise.race([\n        new Promise(resolveController => navigator.serviceWorker.addEventListener('controllerchange', resolveController, { once:true })),\n        new Promise((_, rejectController) => setTimeout(() => rejectController(new Error('Service worker controller did not activate in 15 seconds')), 15000))\n      ]);"
