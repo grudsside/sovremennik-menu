@@ -91,6 +91,7 @@ try {
   await page.locator('[data-editor-responsible]').last().fill('Бариста');
   await page.locator('[data-editor-save]').click();
   await page.waitForFunction(() => document.querySelector('.doc-card h2')?.textContent === 'Открытие обновлённое');
+  await page.waitForFunction(() => document.querySelector('.checklist-template-status')?.textContent === 'изменён');
 
   const saved = await page.evaluate(() => ({
     menu:state.menu,
