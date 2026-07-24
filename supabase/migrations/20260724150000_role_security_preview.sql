@@ -130,6 +130,7 @@ for each row execute function public.protect_last_active_admin();
 -- A manager needs operational visibility across tasks, but still cannot delete
 -- tasks or use administrator-only employee/system functions.
 drop policy if exists "tasks_select_participant" on public.tasks;
+drop policy if exists "tasks_select_control_or_participant" on public.tasks;
 create policy "tasks_select_control_or_participant"
 on public.tasks for select to authenticated
 using (
@@ -142,6 +143,7 @@ using (
 );
 
 drop policy if exists "tasks_update_status_participant" on public.tasks;
+drop policy if exists "tasks_update_status_control_or_participant" on public.tasks;
 create policy "tasks_update_status_control_or_participant"
 on public.tasks for update to authenticated
 using (
