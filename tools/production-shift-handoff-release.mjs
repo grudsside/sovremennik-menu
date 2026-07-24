@@ -120,11 +120,12 @@ begin
     raise exception 'Authenticated shift handoff RPC privileges are incomplete';
   end if;
 
-  select pg_get_functiondef('public.is_shift_handoff_user()'::regprocedure) into role_function;
-  if position('profile.role in (''admin'',''barista'')' in replace(role_function, ' ', '')) = 0 then
+  select regexp_replace(lower(pg_get_functiondef('public.is_shift_handoff_user()'::regprocedure)), '\s+', '', 'g')
+    into role_function;
+  if position('profile.rolein(''admin'',''barista'')' in role_function) = 0 then
     raise exception 'Shift handoff role function must allow administrator and barista';
   end if;
-  if position('waiter' in lower(role_function)) > 0 then
+  if position('waiter' in role_function) > 0 then
     raise exception 'Waiter must not be allowed by the shift handoff role function';
   end if;
 
