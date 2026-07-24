@@ -16,6 +16,7 @@ document.write('<link rel="stylesheet" href="assets/css/shift-handoff.css?v=2026
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/role-interface.css?v=20260724-3">');
+document.write('<link rel="stylesheet" href="assets/css/checklist-role-workflow.css?v=20260724-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
