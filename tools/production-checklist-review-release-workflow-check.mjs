@@ -13,6 +13,7 @@ for (const marker of [
   'files=(',
   '"assets/js/checklist-review-observer-guard.js"',
   '"assets/js/checklist-review-tools.js"',
+  '"assets/js/control-revision-scroll-fix.js"',
   '"assets/js/checklist-photo-rules-open-fix.js"',
   'cmp -s "$file" "$downloaded"',
   'sha256sum "$file"',

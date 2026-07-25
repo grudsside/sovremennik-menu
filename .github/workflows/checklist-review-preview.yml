@@ -8,6 +8,7 @@ on:
       - 'assets/js/checklist-review-tools.js'
       - 'assets/js/checklist-photo-draft-fix.js'
       - 'assets/js/checklist-ui-state-fix.js'
+      - 'assets/js/control-revision-scroll-fix.js'
       - 'assets/js/checklist-photo-rules-open-fix.js'
       - 'assets/css/checklist-review-tools.css'
       - 'assets/js/push.js'
@@ -18,6 +19,7 @@ on:
       - 'tools/checklist-preview-regression-check.mjs'
       - 'tools/checklist-draft-state-browser-smoke.mjs'
       - 'tools/checklist-photo-rules-open-browser-smoke.mjs'
+      - 'tools/checklist-control-toggle-scroll-browser-smoke.mjs'
       - 'tools/checklist-review-tools-db-smoke.sql'
       - '.github/workflows/checklist-review-preview.yml'
 
@@ -46,12 +48,14 @@ jobs:
           node --check assets/js/checklist-review-tools.js
           node --check assets/js/checklist-photo-draft-fix.js
           node --check assets/js/checklist-ui-state-fix.js
+          node --check assets/js/control-revision-scroll-fix.js
           node --check assets/js/checklist-photo-rules-open-fix.js
           node --check tools/checklist-review-tools-check.mjs
           node --check tools/checklist-review-browser-smoke.mjs
           node --check tools/checklist-preview-regression-check.mjs
           node --check tools/checklist-draft-state-browser-smoke.mjs
           node --check tools/checklist-photo-rules-open-browser-smoke.mjs
+          node --check tools/checklist-control-toggle-scroll-browser-smoke.mjs
           node tools/checklist-review-tools-check.mjs
           node tools/checklist-preview-regression-check.mjs
 
@@ -68,6 +72,9 @@ jobs:
 
       - name: Test repeated photo rules panel redraws
         run: node tools/checklist-photo-rules-open-browser-smoke.mjs
+
+      - name: Test revision first-click and Control scroll stability
+        run: node tools/checklist-control-toggle-scroll-browser-smoke.mjs
 
   database:
     name: Isolated database smoke

@@ -11,6 +11,7 @@ on:
       - 'assets/js/checklist-review-tools.js'
       - 'assets/js/checklist-photo-draft-fix.js'
       - 'assets/js/checklist-ui-state-fix.js'
+      - 'assets/js/control-revision-scroll-fix.js'
       - 'assets/js/checklist-photo-rules-open-fix.js'
       - 'assets/js/checklist-review-observer-guard.js'
       - 'assets/css/checklist-review-tools.css'
@@ -70,6 +71,7 @@ jobs:
             "assets/js/checklist-review-tools.js"
             "assets/js/checklist-photo-draft-fix.js"
             "assets/js/checklist-ui-state-fix.js"
+            "assets/js/control-revision-scroll-fix.js"
             "assets/js/checklist-photo-rules-open-fix.js"
             "assets/css/checklist-review-tools.css"
             "service-worker.js"
