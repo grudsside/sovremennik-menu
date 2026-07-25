@@ -10,10 +10,13 @@ for (const marker of [
   "PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo",
   'Apply and verify checklist review database migration',
   "context='production/checklist-review'",
-  'checklist-review-tools.js?v=20260725-2',
-  'checklist-photo-rules-open-fix.js?v=20260725-2',
-  'expected_worker_cache=',
-  'grep -Fq "$expected_worker_cache"',
+  'files=(',
+  '"assets/js/checklist-review-observer-guard.js"',
+  '"assets/js/checklist-review-tools.js"',
+  '"assets/js/checklist-photo-rules-open-fix.js"',
+  'cmp -s "$file" "$downloaded"',
+  'sha256sum "$file"',
+  'exact checklist review release assets',
   'production-checklist-review-release',
 ]) {
   assert.ok(workflow.includes(marker), `Production checklist review workflow marker is missing: ${marker}`);
@@ -40,6 +43,8 @@ for (const marker of [
   assert.ok(migration.toLowerCase().includes(marker.toLowerCase()), `Checklist review migration marker is missing: ${marker}`);
 }
 
+assert.ok(!workflow.includes('removedNodes'), 'Production release must not depend on obsolete implementation markers.');
+assert.ok(!workflow.includes('sovremennik-offline-20260725-v10'), 'Production release must not hardcode an obsolete PWA cache version.');
 assert.ok(!workflow.includes('enkftanmqlwvjydliwue'), 'Production workflow must not reference the preview project.');
 assert.ok(!script.includes("projectRef = 'enkftanmqlwvjydliwue'"), 'Production verifier must not target the preview project.');
 assert.ok(!workflow.includes('--no-verify-jwt'), 'Checklist review production release does not deploy Edge Functions.');
