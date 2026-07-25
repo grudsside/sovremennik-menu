@@ -64,37 +64,47 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected_worker_cache="$(sed -n "s/^const CACHE_VERSION = '\([^']*\)';$/\1/p" service-worker.js)"
-          [[ -n "$expected_worker_cache" ]] || { echo 'Current service worker cache version was not found.' >&2; exit 1; }
+          files=(
+            "assets/js/push.js"
+            "assets/js/checklist-review-observer-guard.js"
+            "assets/js/checklist-review-tools.js"
+            "assets/js/checklist-photo-draft-fix.js"
+            "assets/js/checklist-ui-state-fix.js"
+            "assets/js/checklist-photo-rules-open-fix.js"
+            "assets/css/checklist-review-tools.css"
+            "service-worker.js"
+          )
           published=false
-          for attempt in {1..60}; do
-            html="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/?release=${GITHUB_SHA}" || true)"
-            loader="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
-            review="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-review-tools.js?release=${GITHUB_SHA}" || true)"
-            drafts="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-photo-draft-fix.js?release=${GITHUB_SHA}" || true)"
-            state_fix="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-ui-state-fix.js?release=${GITHUB_SHA}" || true)"
-            rules_fix="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/checklist-photo-rules-open-fix.js?release=${GITHUB_SHA}" || true)"
-            styles="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/css/checklist-review-tools.css?release=${GITHUB_SHA}" || true)"
-            worker="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/service-worker.js?release=${GITHUB_SHA}" || true)"
+          mkdir -p /tmp/checklist-review-pages
 
-            if grep -q 'assets/js/push.js' <<< "$html" \
-              && grep -q 'checklist-review-tools.js?v=20260725-2' <<< "$loader" \
-              && grep -q 'checklist-photo-draft-fix.js?v=20260725-2' <<< "$loader" \
-              && grep -q 'checklist-ui-state-fix.js?v=20260725-1' <<< "$loader" \
-              && grep -q 'checklist-photo-rules-open-fix.js?v=20260725-2' <<< "$loader" \
-              && grep -q "rpc('create_checklist_submission_comment'" <<< "$review" \
-              && grep -q "rpc('delete_checklist_submission'" <<< "$review" \
-              && grep -q 'sovremennik-checklist-photo-drafts-v1' <<< "$drafts" \
-              && grep -q "wrapRender('refreshControl')" <<< "$state_fix" \
-              && grep -q 'removedNodes' <<< "$rules_fix" \
-              && grep -q 'object-fit:contain!important' <<< "$styles" \
-              && grep -Fq "$expected_worker_cache" <<< "$worker"; then
+          for attempt in {1..60}; do
+            all_match=true
+            for file in "${files[@]}"; do
+              downloaded="/tmp/checklist-review-pages/${file//\//_}"
+              if ! curl --fail --silent --show-error \
+                "${PRODUCTION_PAGES_URL}/${file}?release=${GITHUB_SHA}&attempt=${attempt}" \
+                --output "$downloaded"; then
+                echo "Attempt ${attempt}: ${file} is not available on GitHub Pages."
+                all_match=false
+                continue
+              fi
+
+              if ! cmp -s "$file" "$downloaded"; then
+                local_hash="$(sha256sum "$file" | cut -d' ' -f1)"
+                published_hash="$(sha256sum "$downloaded" | cut -d' ' -f1)"
+                echo "Attempt ${attempt}: ${file} does not match release source (local=${local_hash}, published=${published_hash})."
+                all_match=false
+              fi
+            done
+
+            if [[ "$all_match" == 'true' ]]; then
               published=true
               break
             fi
             sleep 10
           done
-          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish checklist review assets in time.' >&2; exit 1; }
+
+          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish the exact checklist review release assets in time.' >&2; exit 1; }
 
       - name: Publish release summary
         if: success()
@@ -107,7 +117,7 @@ jobs:
             echo '- Manager/admin comments create employee tasks through the protected function.'
             echo '- Admin-only soft deletion and audit fields are active.'
             echo '- Soft-deleted submissions are excluded from ordinary application queries.'
-            echo '- GitHub Pages serves the approved photo viewer and reliability fixes.'
+            echo '- GitHub Pages serves files identical to the approved release source.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish machine-readable production status
@@ -145,7 +155,7 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_STATUS" == 'success' ]]; then
             heading='✅ Checklist review production release verified'
-            details='Database migration, RLS, protected comment/deletion RPC functions and GitHub Pages assets passed.'
+            details='Database migration, RLS, protected comment/deletion RPC functions and exact GitHub Pages release assets passed.'
           else
             heading='❌ Checklist review production release requires attention'
             details='At least one production deployment or verification step failed. Review the workflow before using comments or deletion.'
