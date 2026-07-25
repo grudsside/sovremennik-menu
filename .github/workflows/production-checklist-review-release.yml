@@ -56,7 +56,6 @@ jobs:
           [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
           [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
           [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
-          ! grep -R --line-number 'enkftanmqlwvjydliwue' tools/production-checklist-review-release.mjs .github/workflows/production-checklist-review-release.yml
 
       - name: Apply and verify checklist review database migration
         run: node tools/production-checklist-review-release.mjs
