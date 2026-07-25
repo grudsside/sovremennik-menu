@@ -55,7 +55,7 @@ await page.evaluate(() => {
   document.querySelector('#app').innerHTML = window.__markup();
 });
 
-await page.addScriptTag({ path:path.join(root, 'assets/js/control-section-stability.js') });
+await page.addScriptTag({ path:path.join(root, 'assets/js/control-section-stability-v2.js') });
 
 async function touchRace(selector, mutate = null){
   return await page.evaluate(({ selector, mutate }) => {
@@ -72,14 +72,12 @@ async function touchRace(selector, mutate = null){
   }, { selector, mutate });
 }
 
-// Reproduce the recording: a background comment refresh happens while the finger is still down.
 const first = await touchRace('[data-checklist-submission] > summary');
 assert.equal(first.connectedDuringTouch, true, 'Background review refresh must not detach the touched summary');
 await page.waitForTimeout(750);
 assert.equal(await page.locator('[data-checklist-submission]').evaluate(node => node.open), true, 'The first tap must open the checklist');
 assert.equal(await page.evaluate(() => window.__renderCount), 0, 'Redundant review refresh must not redraw Control');
 
-// Close normally, then open while real photo data changes. The changed render is deferred until after click.
 await page.locator('[data-checklist-submission] > summary').click();
 await page.waitForFunction(() => document.querySelector('[data-checklist-submission]')?.open === false);
 const changed = await touchRace('[data-checklist-submission] > summary', 'photo');
@@ -88,12 +86,10 @@ await page.waitForTimeout(800);
 assert.equal(await page.locator('[data-checklist-submission]').evaluate(node => node.open), true, 'The checklist must remain open after the deferred changed-data render');
 assert.equal(await page.evaluate(() => window.__renderCount), 1, 'Changed data must render exactly once');
 
-// Three refresh calls from photo loading and comment metadata with unchanged UI data must be coalesced away.
 await page.evaluate(() => { window.refreshControl(); window.refreshControl(); window.refreshControl(); });
 await page.waitForTimeout(100);
 assert.equal(await page.evaluate(() => window.__renderCount), 1, 'Unchanged background refreshes must not replace the DOM');
 
-// Preserve the exact visible part of an expanded checklist during a real redraw.
 await page.locator('[data-scroll-marker]').scrollIntoViewIfNeeded();
 await page.evaluate(() => window.scrollBy(0, 90));
 await page.waitForTimeout(50);
@@ -109,7 +105,6 @@ assert.equal(after.open, true, 'Expanded checklist must survive a real data redr
 assert(Math.abs(after.scrollY - before.scrollY) <= 3, `Scroll changed: ${before.scrollY} -> ${after.scrollY}`);
 assert(Math.abs(after.markerTop - before.markerTop) <= 3, `Visible content moved: ${before.markerTop} -> ${after.markerTop}`);
 
-// Photo-report settings and unsaved fields survive the same unified coordinator.
 await page.locator('[data-photo-rules-card] > summary').click();
 await page.locator('[data-rule-enabled]').check();
 await page.locator('[data-rule-count]').selectOption('2');
@@ -121,7 +116,6 @@ assert.equal(await page.locator('[data-rule-enabled]').isChecked(), true, 'Unsav
 assert.equal(await page.locator('[data-rule-count]').inputValue(), '2', 'Unsaved photo count must survive');
 assert.equal(await page.locator('[data-rule-hint]').inputValue(), 'Покажите итог крупным планом', 'Unsaved photo hint must survive');
 
-// The same touch race is covered for any expandable revision/control item outside checklist history.
 await page.evaluate(() => { window.state.activeControl = 'revisions'; window.refreshControl(); });
 await page.waitForTimeout(180);
 const revision = await touchRace('[data-revision-id] > summary', 'revision');
