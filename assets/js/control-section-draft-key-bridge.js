@@ -16,6 +16,11 @@
   drafts.set = function(checklistId, draft){
     const id = String(checklistId || '');
     const card = document.querySelector(`.doc-card[data-checklist-id="${CSS.escape(id)}"]`);
+    if(card?.dataset?.offlineSuppressDraft === '1'){
+      drafts.delete(id);
+      return drafts;
+    }
+
     const inputs = card ? Array.from(card.querySelectorAll('.task-checkbox')) : [];
     const checks = [];
     (draft?.checks || []).forEach((row, index) => {
@@ -40,9 +45,19 @@
     return nativeSet(id, { ...draft, checks });
   };
 
+  function clearSuppressedDraft(card){
+    if(!card || card.dataset.offlineSuppressDraft !== '1') return false;
+    const id = String(card.dataset.checklistId || '');
+    if(id) drafts.delete(id);
+    const details = card.querySelector(':scope .doc-details');
+    const key = details instanceof HTMLDetailsElement ? api.detailsKey?.(details) : '';
+    if(key) api.openStates?.delete(key);
+    return true;
+  }
+
   function snapshotRestoredCard(card){
     const id = String(card?.dataset?.checklistId || '');
-    if(!id) return;
+    if(!id || clearSuppressedDraft(card)) return;
     const inputs = Array.from(card.querySelectorAll('.task-checkbox'));
     const checks = inputs.map((input, index) => ({
       key:String(input.dataset.photoItemKey || input.dataset.task || index),
@@ -56,7 +71,7 @@
   }
 
   function openRestoredDraft(card){
-    if(!card || card.dataset.offlineRestored !== '1') return;
+    if(!card || clearSuppressedDraft(card) || card.dataset.offlineRestored !== '1') return;
     const hasContent = Boolean(
       card.querySelector('.employee-name')?.value?.trim() ||
       card.querySelector('.task-checkbox:checked') ||
@@ -75,7 +90,10 @@
   }
 
   function scan(){
-    document.querySelectorAll('.doc-card[data-checklist-id][data-offline-restored="1"]').forEach(openRestoredDraft);
+    document.querySelectorAll('.doc-card[data-checklist-id]').forEach(card => {
+      if(clearSuppressedDraft(card)) return;
+      if(card.dataset.offlineRestored === '1') openRestoredDraft(card);
+    });
   }
 
   const observer = new MutationObserver(records => {
@@ -84,6 +102,9 @@
       return Boolean(target?.closest?.('.doc-card[data-checklist-id]'));
     });
     if(!relevant) return;
+    // Run synchronously in the observer microtask so the coordinator's rAF restoration
+    // sees the draft already removed when offline submission intentionally clears it.
+    scan();
     queueMicrotask(scan);
     setTimeout(scan, 120);
     setTimeout(scan, 1100);
@@ -92,12 +113,12 @@
     childList:true,
     subtree:true,
     attributes:true,
-    attributeFilter:['data-offline-restored']
+    attributeFilter:['data-offline-restored','data-offline-suppress-draft']
   });
   scan();
 
   global.SovremennikControlDraftKeyBridge = Object.freeze({
-    VERSION:'2026-07-25-control-draft-key-3',
+    VERSION:'2026-07-25-control-draft-key-4',
     scan
   });
 })(window);
