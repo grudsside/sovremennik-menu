@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const js = fs.readFileSync('assets/js/checklist-review-tools.js', 'utf8');
 const css = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
+const observerGuard = fs.readFileSync('assets/js/checklist-review-observer-guard.js', 'utf8');
 const stateFix = fs.readFileSync('assets/js/checklist-ui-state-fix.js', 'utf8');
 const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260724210000_checklist_review_tools_preview.sql', 'utf8');
@@ -45,16 +46,19 @@ for (const marker of [
   'deleted_at timestamptz'
 ]) assert.ok(migration.includes(marker), `Missing migration marker: ${marker}`);
 
+assert.ok(observerGuard.includes("closest?.('#control-records')"), 'Observer guard must ignore only internal Control mutations');
 assert.ok(stateFix.includes("wrapRender('renderApp')"), 'Checklist render state preservation is missing');
 assert.ok(stateFix.includes("wrapRender('refreshControl')"), 'Control render state preservation is missing');
 assert.ok(photoDraftFix.includes("sovremennik-checklist-photo-drafts-v1"), 'Persistent photo draft storage is missing');
 assert.ok(photoDraftFix.includes('new DataTransfer()'), 'Photo draft restoration is missing');
 assert.ok(loader.includes('assets/css/checklist-review-tools.css'), 'Review CSS is not loaded');
+assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not loaded');
+assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loader.indexOf('assets/js/checklist-review-tools.js'), 'Observer guard must load directly before review tools');
 assert.ok(loader.includes('assets/js/checklist-review-tools.js'), 'Review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js'), 'Photo draft fix is not loaded');
 assert.ok(loader.includes('assets/js/checklist-ui-state-fix.js'), 'Checklist UI state fix is not loaded');
-assert.ok(!loader.includes('assets/js/checklist-review-observer-guard.js'), 'Global MutationObserver guard must not be loaded');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
+assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-photo-draft-fix.js'), 'Photo draft fix is not cached');
 assert.ok(worker.includes('./assets/js/checklist-ui-state-fix.js'), 'Checklist UI state fix is not cached');
