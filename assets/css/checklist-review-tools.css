@@ -33,23 +33,23 @@ body.checklist-review-viewer-open{overflow:hidden!important;overscroll-behavior:
 .checklist-review-form-actions{grid-column:1/-1;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
 .checklist-review-form-actions [data-checklist-review-status]{color:var(--olive-dark);font-size:10.5px;font-weight:750}
 
-.checklist-review-viewer{position:fixed;inset:0;z-index:1900;background:rgba(14,18,12,.94);backdrop-filter:blur(7px);display:grid;grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;padding:16px;color:#fff;overscroll-behavior:none}
+.checklist-review-viewer{position:fixed;inset:0;width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;box-sizing:border-box;z-index:1900;background:rgba(14,18,12,.94);backdrop-filter:blur(7px);display:grid;grid-template-columns:72px minmax(0,1fr) 72px;grid-template-rows:minmax(48px,auto) minmax(0,1fr) 48px;gap:8px;padding:16px;color:#fff;overflow:hidden;overscroll-behavior:none}
 .checklist-review-viewer[hidden]{display:none!important}
-.checklist-review-viewer-top{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0}
+.checklist-review-viewer-top{grid-column:1/-1;min-height:0;display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0}
 .checklist-review-viewer-top>div{display:flex;flex-direction:column;min-width:0;gap:3px}
 .checklist-review-viewer-top strong{max-width:min(900px,72vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 .checklist-review-viewer-top span{color:rgba(255,255,255,.68);font-size:11px;font-weight:700}
 .checklist-review-viewer-top button{width:46px;height:46px;padding:0;border:1px solid rgba(255,255,255,.22);border-radius:50%;background:rgba(0,0,0,.34);color:#fff;font-size:29px;line-height:1;cursor:pointer}
-.checklist-review-viewer-stage{grid-column:2;grid-row:2;position:relative;min-width:0;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none;user-select:none;cursor:grab;border-radius:14px}
+.checklist-review-viewer-stage{grid-column:2;grid-row:2;position:relative;width:100%;height:100%;max-width:100%;max-height:100%;min-width:0;min-height:0;overflow:hidden;display:grid;place-items:center;touch-action:none;user-select:none;cursor:grab;border-radius:14px;contain:layout paint}
 .checklist-review-viewer-stage:active{cursor:grabbing}
-.checklist-review-viewer-stage img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:10px;box-shadow:0 28px 90px rgba(0,0,0,.48);transform-origin:center center;will-change:transform;transition:transform .08s linear}
+.checklist-review-viewer-stage img{display:block!important;width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;min-width:0;min-height:0;object-fit:contain!important;object-position:center center;border-radius:10px;box-shadow:0 28px 90px rgba(0,0,0,.48);transform-origin:center center;will-change:transform;transition:transform .08s linear}
 .checklist-review-viewer-stage img[hidden]{display:none!important}
 .checklist-review-viewer-loading{padding:18px 20px;border-radius:12px;background:rgba(0,0,0,.28);font-size:12px;font-weight:800;text-align:center}
 .checklist-review-viewer-arrow{grid-row:2;align-self:center;width:56px;height:72px;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:16px;background:rgba(0,0,0,.3);color:#fff;font-size:48px;line-height:1;cursor:pointer}
 .checklist-review-viewer-arrow.previous{grid-column:1}
 .checklist-review-viewer-arrow.next{grid-column:3}
 .checklist-review-viewer-arrow:disabled{opacity:.22;cursor:default}
-.checklist-review-viewer-toolbar{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:8px}
+.checklist-review-viewer-toolbar{grid-column:1/-1;min-height:0;display:flex;align-items:center;justify-content:center;gap:8px}
 .checklist-review-viewer-toolbar button{min-width:46px;height:42px;padding:0 12px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.35);color:#fff;font:inherit;font-size:20px;font-weight:850;cursor:pointer}
 .checklist-review-viewer-toolbar [data-viewer-reset]{min-width:86px;font-size:12px}
 
@@ -61,7 +61,7 @@ body.checklist-review-viewer-open{overflow:hidden!important;overscroll-behavior:
   .checklist-review-form{grid-template-columns:1fr}
   .checklist-review-form-actions{grid-column:auto;display:grid}
   .checklist-review-form-actions button{width:100%}
-  .checklist-review-viewer{grid-template-columns:46px minmax(0,1fr) 46px;padding:9px;gap:4px}
+  .checklist-review-viewer{grid-template-columns:46px minmax(0,1fr) 46px;grid-template-rows:minmax(44px,auto) minmax(0,1fr) 44px;padding:9px;gap:4px}
   .checklist-review-viewer-top strong{max-width:72vw;font-size:12px}
   .checklist-review-viewer-top button{width:42px;height:42px}
   .checklist-review-viewer-arrow{width:42px;height:62px;border-radius:13px;font-size:40px}
