@@ -78,7 +78,6 @@ await page.evaluate(() => {
   window.confirm = () => true;
 });
 
-await page.addScriptTag({ path:path.join(root, 'assets/js/checklist-review-observer-guard.js') });
 await page.addScriptTag({ path:path.join(root, 'assets/js/checklist-review-tools.js') });
 await page.waitForSelector('[data-checklist-department-filter]');
 await page.waitForSelector('[data-checklist-comment-form]');
