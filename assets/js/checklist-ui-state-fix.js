@@ -2,12 +2,15 @@
 (function(global){
   'use strict';
 
-  const VERSION = '2026-07-25-checklist-ui-state-1';
+  const VERSION = '2026-07-25-checklist-ui-state-3';
+  const USER_INTENT_TTL_MS = 15000;
   const openState = new Map();
+  const userIntents = new Map();
   const checklistState = new Map();
   const commentState = new Map();
   let restoreQueued = false;
   let restoring = false;
+  let observer = null;
 
   function detailKey(details){
     if(!details) return '';
@@ -20,9 +23,31 @@
       return label ? `control-day:${label}` : '';
     }
     const submission = details.closest?.('[data-checklist-submission]');
-    if(submission) return `submission-child:${submission.dataset.checklistSubmission}:${details.className}`;
+    if(submission){
+      const classes = Array.from(details.classList || []).sort().join('.') || details.tagName.toLowerCase();
+      return `submission-child:${submission.dataset.checklistSubmission}:${classes}`;
+    }
     if(details.id) return `details-id:${details.id}`;
     return '';
+  }
+
+  function currentIntent(key){
+    const intent = userIntents.get(key);
+    if(!intent) return null;
+    if(intent.expiresAt <= Date.now()){
+      userIntents.delete(key);
+      return null;
+    }
+    return intent;
+  }
+
+  function rememberUserIntent(details, open){
+    const key = detailKey(details);
+    if(!key) return;
+    const desired = Boolean(open);
+    openState.set(key, desired);
+    userIntents.set(key, { open:desired, expiresAt:Date.now() + USER_INTENT_TTL_MS });
+    if(details.open !== desired) details.open = desired;
   }
 
   function itemKey(input, index){
@@ -53,8 +78,12 @@
 
   function captureCurrent(){
     document.querySelectorAll('#top-checklists details,#control-records details').forEach(details => {
+      if(!details.isConnected) return;
       const key = detailKey(details);
-      if(key) openState.set(key, Boolean(details.open));
+      if(!key) return;
+      const intent = currentIntent(key);
+      if(intent && Boolean(details.open) !== intent.open) return;
+      openState.set(key, Boolean(details.open));
     });
     document.querySelectorAll('.doc-card[data-checklist-id]').forEach(rememberChecklist);
     document.querySelectorAll('[data-checklist-comment-form]').forEach(rememberCommentForm);
@@ -62,8 +91,12 @@
 
   function restoreDetails(){
     document.querySelectorAll('#top-checklists details,#control-records details').forEach(details => {
+      if(!details.isConnected) return;
       const key = detailKey(details);
-      if(key && openState.has(key)) details.open = openState.get(key);
+      if(!key) return;
+      const intent = currentIntent(key);
+      const desired = intent ? intent.open : openState.get(key);
+      if(typeof desired === 'boolean' && details.open !== desired) details.open = desired;
     });
   }
 
@@ -107,7 +140,8 @@
     requestAnimationFrame(() => {
       restoreQueued = false;
       restoreCurrent();
-      setTimeout(restoreCurrent, 80);
+      setTimeout(restoreCurrent, 40);
+      setTimeout(restoreCurrent, 220);
     });
   }
 
@@ -115,6 +149,7 @@
     const original = global[name];
     if(typeof original !== 'function' || original.__checklistStateWrapped) return;
     function wrapped(){
+      observer?.takeRecords();
       captureCurrent();
       const result = original.apply(this, arguments);
       queueRestore();
@@ -130,10 +165,38 @@
     } catch(error){}
   }
 
+  function managedControlSummary(target){
+    const summary = target?.closest?.('#control-records details > summary');
+    if(!summary) return null;
+    const details = summary.parentElement;
+    if(!(details instanceof HTMLDetailsElement)) return null;
+    if(summary !== details.querySelector(':scope > summary')) return null;
+    if(!details.matches('.checklist-submission-details[data-checklist-submission],.control-details')) return null;
+    return { summary, details };
+  }
+
+  document.addEventListener('click', event => {
+    const managed = managedControlSummary(event.target);
+    if(!managed || event.defaultPrevented) return;
+    if(event.button !== undefined && event.button !== 0) return;
+    if(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if(event.target.closest?.('button,a,input,select,textarea')) return;
+    event.preventDefault();
+    rememberUserIntent(managed.details, !managed.details.open);
+    queueRestore();
+  }, true);
+
   document.addEventListener('toggle', event => {
     if(restoring || !(event.target instanceof HTMLDetailsElement)) return;
+    if(!event.target.isConnected || !document.documentElement.contains(event.target)) return;
     const key = detailKey(event.target);
-    if(key) openState.set(key, Boolean(event.target.open));
+    if(!key) return;
+    const intent = currentIntent(key);
+    if(intent && Boolean(event.target.open) !== intent.open){
+      event.target.open = intent.open;
+      return;
+    }
+    openState.set(key, Boolean(event.target.open));
   }, true);
 
   document.addEventListener('input', event => {
@@ -153,7 +216,7 @@
   const startObserver = () => {
     const root = document.querySelector('#app') || document.body;
     if(!root || !global.MutationObserver) return;
-    const observer = new MutationObserver(records => {
+    observer = new MutationObserver(records => {
       const relevant = records.some(record => Array.from(record.addedNodes || []).some(node =>
         node.nodeType === 1 && (node.matches?.('details,.doc-card,[data-checklist-comment-form]') || node.querySelector?.('details,.doc-card,[data-checklist-comment-form]'))
       ));
@@ -174,6 +237,8 @@
     captureCurrent,
     restoreCurrent,
     queueRestore,
-    openState
+    rememberUserIntent,
+    openState,
+    userIntents
   });
 })(window);
