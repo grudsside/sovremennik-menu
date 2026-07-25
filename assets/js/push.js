@@ -12,6 +12,7 @@ document.write('<link rel="stylesheet" href="assets/css/section-maintenance.css?
 document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-reports.css?v=20260722-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-viewer-fit.css?v=20260722-1">');
+document.write('<link rel="stylesheet" href="assets/css/checklist-review-tools.css?v=20260725-2">');
 document.write('<link rel="stylesheet" href="assets/css/offline-reliability.css?v=20260723-1">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff.css?v=20260723-5">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css?v=20260724-1">');
@@ -49,3 +50,8 @@ document.write('<script src="assets/js/shift-handoff-core.js?v=20260723-1"><\/sc
 document.write('<script src="assets/js/shift-handoff.js?v=20260723-4"><\/script>');
 document.write('<script src="assets/js/shift-handoff-mobile-input-fix.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/home-layout-v4.js?v=20260724-3"><\/script>');
+document.write('<script src="assets/js/checklist-review-observer-guard.js?v=20260724-1"><\/script>');
+document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><\/script>');
+document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
+document.write('<script src="assets/js/checklist-ui-state-fix.js?v=20260725-1"><\/script>');
+document.write('<script src="assets/js/checklist-photo-rules-open-fix.js?v=20260725-2"><\/script>');
