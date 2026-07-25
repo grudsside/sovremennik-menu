@@ -7,7 +7,7 @@ on:
     paths:
       - 'assets/js/checklist-review-tools.js'
       - 'assets/js/checklist-photo-draft-fix.js'
-      - 'assets/js/control-section-stability.js'
+      - 'assets/js/control-section-stability-v2.js'
       - 'assets/css/checklist-review-tools.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
@@ -44,7 +44,7 @@ jobs:
         run: |
           node --check assets/js/checklist-review-tools.js
           node --check assets/js/checklist-photo-draft-fix.js
-          node --check assets/js/control-section-stability.js
+          node --check assets/js/control-section-stability-v2.js
           node --check tools/checklist-review-tools-check.mjs
           node --check tools/checklist-review-browser-smoke.mjs
           node --check tools/checklist-preview-regression-check.mjs
