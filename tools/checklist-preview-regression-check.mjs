@@ -10,7 +10,7 @@ const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 
 const required = [
   [push.includes('checklist-review-observer-guard.js?v=20260724-1'), 'Control observer guard must load directly before review tools'],
   [push.indexOf('checklist-review-observer-guard.js') < push.indexOf('checklist-review-tools.js'), 'Control observer guard must precede review tools'],
-  [push.includes('checklist-photo-draft-fix.js?v=20260725-1'), 'photo draft fix must be loaded'],
+  [push.includes('checklist-photo-draft-fix.js?v=20260725-2'), 'photo draft fix must be loaded'],
   [push.includes('checklist-ui-state-fix.js?v=20260725-1'), 'UI state fix must be loaded last'],
   [serviceWorker.includes("sovremennik-offline-20260725-v9"), 'PWA cache must be refreshed'],
   [serviceWorker.includes('checklist-review-observer-guard.js') && serviceWorker.includes('checklist-photo-draft-fix.js') && serviceWorker.includes('checklist-ui-state-fix.js'), 'review and regression scripts must be precached'],
@@ -20,6 +20,7 @@ const required = [
   [stateFix.includes("document.addEventListener('toggle'") && stateFix.includes('openState.set'), 'opened details must be tracked'],
   [photoDraftFix.includes("DB_NAME = 'sovremennik-checklist-photo-drafts-v1'"), 'photo drafts must use persistent IndexedDB storage'],
   [photoDraftFix.includes("document.addEventListener('change'") && photoDraftFix.includes('saveSelectedFiles'), 'selected files must be saved immediately'],
+  [photoDraftFix.includes('scheduleRestore(0);'), 'photo draft must schedule restoration immediately after persistence'],
   [photoDraftFix.includes('new DataTransfer()') && photoDraftFix.includes("input.dispatchEvent(new Event('change'"), 'stored photos must be restored into the checklist photo module'],
 ];
 
