@@ -49,8 +49,11 @@ for (const marker of [
 assert.ok(observerGuard.includes("closest?.('#control-records')"), 'Observer guard must ignore only internal Control mutations');
 assert.ok(stateFix.includes("wrapRender('renderApp')"), 'Checklist render state preservation is missing');
 assert.ok(stateFix.includes("wrapRender('refreshControl')"), 'Control render state preservation is missing');
-assert.ok(stateFix.includes('function managedControlSummary'), 'Submitted checklist delegated toggle handler is missing');
-assert.ok(stateFix.includes('rememberUserIntent(managed.details, !managed.details.open)'), 'Submitted checklist user intent must be recorded before redraw');
+assert.ok(stateFix.includes('function managedControlSummary'), 'Control delegated toggle handler is missing');
+assert.ok(stateFix.includes("target?.closest?.('#control-records details > summary')"), 'Revision and checklist summaries must share one stable toggle path');
+assert.ok(stateFix.includes('rememberUserIntent(managed.details, !managed.details.open)'), 'Control user intent must be recorded before redraw');
+assert.ok(stateFix.includes('captureViewportAnchor()') && stateFix.includes('restoreViewport(viewportAnchor)'), 'Control viewport preservation is missing');
+assert.ok(stateFix.includes('global.scrollBy(0, delta)'), 'Viewport anchor correction is missing');
 assert.ok(stateFix.includes('observer?.takeRecords();'), 'Queued observer records must be cleared before controlled redraw');
 assert.ok(stateFix.includes('if(!event.target.isConnected || !document.documentElement.contains(event.target)) return;'), 'Detached toggle events must be ignored');
 assert.ok(photoDraftFix.includes('sovremennik-checklist-photo-drafts-v1'), 'Persistent photo draft storage is missing');
@@ -60,7 +63,8 @@ assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Cont
 assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loader.indexOf('assets/js/checklist-review-tools.js'), 'Observer guard must load directly before review tools');
 assert.ok(loader.includes('assets/js/checklist-review-tools.js?v=20260725-2'), 'Current review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js?v=20260725-2'), 'Current photo draft fix is not loaded');
-assert.ok(loader.includes('assets/js/checklist-ui-state-fix.js?v=20260725-3'), 'Current checklist toggle state fix is not loaded');
+assert.ok(loader.includes('assets/js/checklist-ui-state-fix.js?v=20260725-4'), 'Current Control state and viewport fix is not loaded');
+assert.ok(worker.includes('sovremennik-offline-20260725-v13'), 'Current PWA cache is not active');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
