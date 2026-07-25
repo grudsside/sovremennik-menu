@@ -2,26 +2,24 @@
 (function(global){
   'use strict';
 
-  const VERSION = '2026-07-25-photo-rules-open-1';
+  const VERSION = '2026-07-25-photo-rules-open-2';
   const SELECTOR = '[data-photo-rules-card],.checklist-photo-rules-card';
   let desiredOpen = null;
-  let applying = false;
   let restoreQueued = false;
   let observer = null;
 
   function card(){ return document.querySelector(SELECTOR); }
 
   function remember(details){
-    if(!details || !details.matches?.(SELECTOR) || applying) return;
+    if(!details || !details.matches?.(SELECTOR)) return;
+    if(!details.isConnected || card() !== details) return;
     desiredOpen = Boolean(details.open);
   }
 
   function restore(){
     const details = card();
     if(!details || desiredOpen === null || details.open === desiredOpen) return;
-    applying = true;
     details.open = desiredOpen;
-    queueMicrotask(() => { applying = false; });
   }
 
   function queueRestore(){
@@ -49,7 +47,10 @@
           node.nodeType === 1 && (node.matches?.(SELECTOR) || node.querySelector?.(SELECTOR))
         );
       });
-      if(replaced) queueRestore();
+      if(replaced){
+        restore();
+        queueRestore();
+      }
     });
     observer.observe(document.body, { childList:true, subtree:true });
   };
