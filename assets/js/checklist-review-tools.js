@@ -4,7 +4,7 @@
 
   if(typeof state === 'undefined') return;
 
-  const VERSION = '2026-07-24-checklist-review-preview-1';
+  const VERSION = '2026-07-25-checklist-review-preview-2';
   const PHOTO_BUCKET = 'checklist-photo-reports';
   const roleCore = window.SovremennikChecklistCore || null;
   const signedUrlCache = new Map();
@@ -533,7 +533,7 @@
     });
     stage.addEventListener('wheel', event => {
       event.preventDefault();
-      setZoom(gallery.zoom + (event.deltaY < 0 ? 0.2 : -0.2));
+      setZoom(gallery.zoom + (event.deltaY < 0 ? 0.18 : -0.18));
     }, { passive:false });
     stage.addEventListener('pointerdown', event => {
       stage.setPointerCapture?.(event.pointerId);
