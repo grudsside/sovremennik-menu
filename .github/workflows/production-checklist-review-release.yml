@@ -64,6 +64,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          expected_worker_cache="$(sed -n "s/^const CACHE_VERSION = '\([^']*\)';$/\1/p" service-worker.js)"
+          [[ -n "$expected_worker_cache" ]] || { echo 'Current service worker cache version was not found.' >&2; exit 1; }
           published=false
           for attempt in {1..60}; do
             html="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/?release=${GITHUB_SHA}" || true)"
@@ -86,7 +88,7 @@ jobs:
               && grep -q "wrapRender('refreshControl')" <<< "$state_fix" \
               && grep -q 'removedNodes' <<< "$rules_fix" \
               && grep -q 'object-fit:contain!important' <<< "$styles" \
-              && grep -q 'sovremennik-offline-20260725-v10' <<< "$worker"; then
+              && grep -Fq "$expected_worker_cache" <<< "$worker"; then
               published=true
               break
             fi

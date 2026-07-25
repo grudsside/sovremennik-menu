@@ -12,7 +12,8 @@ for (const marker of [
   "context='production/checklist-review'",
   'checklist-review-tools.js?v=20260725-2',
   'checklist-photo-rules-open-fix.js?v=20260725-2',
-  'sovremennik-offline-20260725-v10',
+  'expected_worker_cache=',
+  'grep -Fq "$expected_worker_cache"',
   'production-checklist-review-release',
 ]) {
   assert.ok(workflow.includes(marker), `Production checklist review workflow marker is missing: ${marker}`);
