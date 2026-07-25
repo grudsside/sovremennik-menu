@@ -53,6 +53,4 @@ document.write('<script src="assets/js/home-layout-v4.js?v=20260724-3"><\/script
 document.write('<script src="assets/js/checklist-review-observer-guard.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
-document.write('<script src="assets/js/checklist-ui-state-fix.js?v=20260725-4"><\/script>');
-document.write('<script src="assets/js/control-revision-scroll-fix.js?v=20260725-1"><\/script>');
-document.write('<script src="assets/js/checklist-photo-rules-open-fix.js?v=20260725-2"><\/script>');
+document.write('<script src="assets/js/control-section-stability.js?v=20260725-1"><\/script>');
