@@ -10,9 +10,8 @@ on:
       - 'supabase/migrations/20260724210000_checklist_review_tools_preview.sql'
       - 'assets/js/checklist-review-tools.js'
       - 'assets/js/checklist-photo-draft-fix.js'
-      - 'assets/js/checklist-ui-state-fix.js'
-      - 'assets/js/control-revision-scroll-fix.js'
-      - 'assets/js/checklist-photo-rules-open-fix.js'
+      - 'assets/js/control-section-stability-v2.js'
+      - 'assets/js/control-section-draft-key-bridge.js'
       - 'assets/js/checklist-review-observer-guard.js'
       - 'assets/css/checklist-review-tools.css'
       - 'assets/js/push.js'
@@ -70,9 +69,8 @@ jobs:
             "assets/js/checklist-review-observer-guard.js"
             "assets/js/checklist-review-tools.js"
             "assets/js/checklist-photo-draft-fix.js"
-            "assets/js/checklist-ui-state-fix.js"
-            "assets/js/control-revision-scroll-fix.js"
-            "assets/js/checklist-photo-rules-open-fix.js"
+            "assets/js/control-section-stability-v2.js"
+            "assets/js/control-section-draft-key-bridge.js"
             "assets/css/checklist-review-tools.css"
             "service-worker.js"
           )
@@ -119,6 +117,8 @@ jobs:
             echo '- Manager/admin comments create employee tasks through the protected function.'
             echo '- Admin-only soft deletion and audit fields are active.'
             echo '- Soft-deleted submissions are excluded from ordinary application queries.'
+            echo '- One Control coordinator protects native taps, coalesces redundant redraws, preserves the viewport and respects restored offline drafts.'
+            echo '- Raw and photo-enhanced checklist keys remain compatible during offline restoration.'
             echo '- GitHub Pages serves files identical to the approved release source.'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -157,7 +157,7 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_STATUS" == 'success' ]]; then
             heading='✅ Checklist review production release verified'
-            details='Database migration, RLS, protected comment/deletion RPC functions and exact GitHub Pages release assets passed.'
+            details='Database migration, RLS, protected comment/deletion RPC functions, unified Control stability, offline-draft key compatibility and exact GitHub Pages release assets passed.'
           else
             heading='❌ Checklist review production release requires attention'
             details='At least one production deployment or verification step failed. Review the workflow before using comments or deletion.'

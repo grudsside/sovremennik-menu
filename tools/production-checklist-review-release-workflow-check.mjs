@@ -13,15 +13,14 @@ for (const marker of [
   'files=(',
   '"assets/js/checklist-review-observer-guard.js"',
   '"assets/js/checklist-review-tools.js"',
-  '"assets/js/control-revision-scroll-fix.js"',
-  '"assets/js/checklist-photo-rules-open-fix.js"',
+  '"assets/js/checklist-photo-draft-fix.js"',
+  '"assets/js/control-section-stability-v2.js"',
+  '"assets/js/control-section-draft-key-bridge.js"',
   'cmp -s "$file" "$downloaded"',
   'sha256sum "$file"',
   'exact checklist review release assets',
   'production-checklist-review-release',
-]) {
-  assert.ok(workflow.includes(marker), `Production checklist review workflow marker is missing: ${marker}`);
-}
+]) assert.ok(workflow.includes(marker), `Production checklist review workflow marker is missing: ${marker}`);
 
 for (const marker of [
   "const expectedProductionRef = 'tjibbzfdughhjenumzxo'",
@@ -31,20 +30,19 @@ for (const marker of [
   'Soft-deleted checklist submissions are not excluded',
   'has_function_privilege',
   'search_path=public',
-]) {
-  assert.ok(script.includes(marker), `Production checklist review verifier marker is missing: ${marker}`);
-}
+]) assert.ok(script.includes(marker), `Production checklist review verifier marker is missing: ${marker}`);
 
 for (const marker of [
   'create table if not exists public.checklist_submission_comments',
   'create or replace function public.create_checklist_submission_comment',
   'create or replace function public.delete_checklist_submission',
   'deleted_at is null',
-]) {
-  assert.ok(migration.toLowerCase().includes(marker.toLowerCase()), `Checklist review migration marker is missing: ${marker}`);
-}
+]) assert.ok(migration.toLowerCase().includes(marker.toLowerCase()), `Checklist review migration marker is missing: ${marker}`);
 
-assert.ok(!workflow.includes('removedNodes'), 'Production release must not depend on obsolete implementation markers.');
+assert.ok(!workflow.includes('"assets/js/checklist-ui-state-fix.js"'), 'Production release must not verify the retired checklist state patch.');
+assert.ok(!workflow.includes('"assets/js/control-revision-scroll-fix.js"'), 'Production release must not verify the retired duplicate scroll patch.');
+assert.ok(!workflow.includes('"assets/js/checklist-photo-rules-open-fix.js"'), 'Production release must not verify the retired photo-rules patch.');
+assert.ok(!workflow.includes('"assets/js/control-section-stability.js"'), 'Production release must not verify the superseded Control coordinator v1.');
 assert.ok(!workflow.includes('sovremennik-offline-20260725-v10'), 'Production release must not hardcode an obsolete PWA cache version.');
 assert.ok(!workflow.includes('enkftanmqlwvjydliwue'), 'Production workflow must not reference the preview project.');
 assert.ok(!script.includes("projectRef = 'enkftanmqlwvjydliwue'"), 'Production verifier must not target the preview project.');

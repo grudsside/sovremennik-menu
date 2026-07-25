@@ -4,63 +4,36 @@ import assert from 'node:assert/strict';
 const js = fs.readFileSync('assets/js/checklist-review-tools.js', 'utf8');
 const css = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
 const observerGuard = fs.readFileSync('assets/js/checklist-review-observer-guard.js', 'utf8');
-const stateFix = fs.readFileSync('assets/js/checklist-ui-state-fix.js', 'utf8');
-const revisionScrollFix = fs.readFileSync('assets/js/control-revision-scroll-fix.js', 'utf8');
+const stability = fs.readFileSync('assets/js/control-section-stability-v2.js', 'utf8');
+const draftKeyBridge = fs.readFileSync('assets/js/control-section-draft-key-bridge.js', 'utf8');
 const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260724210000_checklist_review_tools_preview.sql', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const worker = fs.readFileSync('service-worker.js', 'utf8');
 
 for (const marker of [
-  'data-checklist-review-viewer',
-  'data-viewer-previous',
-  'data-viewer-next',
-  'data-viewer-zoom-in',
-  'data-viewer-zoom-out',
-  "event.key === 'ArrowLeft'",
-  "event.key === 'ArrowRight'",
-  'pointerDistance()',
-  'data-checklist-comment-form',
-  "rpc('create_checklist_submission_comment'",
-  "rpc('delete_checklist_submission'",
-  'data-checklist-department="barista"',
-  'data-checklist-department="waiter"'
+  'data-checklist-review-viewer','data-viewer-previous','data-viewer-next','data-viewer-zoom-in','data-viewer-zoom-out',
+  "event.key === 'ArrowLeft'","event.key === 'ArrowRight'",'pointerDistance()','data-checklist-comment-form',
+  "rpc('create_checklist_submission_comment'","rpc('delete_checklist_submission'",'data-checklist-department="barista"','data-checklist-department="waiter"'
 ]) assert.ok(js.includes(marker), `Missing JS marker: ${marker}`);
 
-for (const marker of [
-  '.checklist-review-viewer-stage{',
-  'touch-action:none',
-  'object-fit:contain!important',
-  'height:100dvh',
-  '.checklist-review-filter{',
-  '.checklist-review-form{',
-  '.checklist-review-delete{'
-]) assert.ok(css.includes(marker), `Missing CSS marker: ${marker}`);
+for (const marker of ['.checklist-review-viewer-stage{','touch-action:none','object-fit:contain!important','height:100dvh','.checklist-review-filter{','.checklist-review-form{','.checklist-review-delete{']) assert.ok(css.includes(marker), `Missing CSS marker: ${marker}`);
 
-for (const marker of [
-  'create table if not exists public.checklist_submission_comments',
-  'create or replace function public.create_checklist_submission_comment',
-  'insert into public.tasks',
-  'create or replace function public.delete_checklist_submission',
-  'public.is_admin_or_manager()',
-  'public.is_admin()',
-  'deleted_at timestamptz'
-]) assert.ok(migration.includes(marker), `Missing migration marker: ${marker}`);
+for (const marker of ['create table if not exists public.checklist_submission_comments','create or replace function public.create_checklist_submission_comment','insert into public.tasks','create or replace function public.delete_checklist_submission','public.is_admin_or_manager()','public.is_admin()','deleted_at timestamptz']) assert.ok(migration.includes(marker), `Missing migration marker: ${marker}`);
 
-assert.ok(observerGuard.includes("closest?.('#control-records')"), 'Observer guard must ignore only internal Control mutations');
-assert.ok(stateFix.includes("wrapRender('renderApp')"), 'Checklist render state preservation is missing');
-assert.ok(stateFix.includes("wrapRender('refreshControl')"), 'Control render state preservation is missing');
-assert.ok(stateFix.includes('function managedControlSummary'), 'Checklist delegated toggle handler is missing');
-assert.ok(stateFix.includes("target?.closest?.('#control-records details > summary')"), 'Submitted checklist summaries must use one stable toggle path');
-assert.ok(stateFix.includes('rememberUserIntent(managed.details, !managed.details.open)'), 'Checklist user intent must be recorded before redraw');
-assert.ok(stateFix.includes('captureViewportAnchor()') && stateFix.includes('restoreViewport(viewportAnchor)'), 'Checklist viewport preservation is missing');
-assert.ok(stateFix.includes('global.scrollBy(0, delta)'), 'Checklist viewport anchor correction is missing');
-assert.ok(revisionScrollFix.includes("event.target.closest?.('#top-control details > summary')"), 'Revision first-click handler is missing');
-assert.ok(revisionScrollFix.includes("!details.closest('#control-records')"), 'Revision handler must not double-toggle checklist history');
-assert.ok(revisionScrollFix.includes('captureAnchor()') && revisionScrollFix.includes('restoreAnchor(anchor)'), 'Full Control viewport preservation is missing');
-assert.ok(revisionScrollFix.includes('global.scrollBy(0, delta)'), 'Control scroll correction is missing');
-assert.ok(stateFix.includes('observer?.takeRecords();') && revisionScrollFix.includes('observer?.takeRecords();'), 'Queued observer records must be cleared before controlled redraw');
-assert.ok(stateFix.includes('if(!event.target.isConnected || !document.documentElement.contains(event.target)) return;'), 'Detached checklist toggle events must be ignored');
+assert.ok(observerGuard.includes("closest?.('#control-records')"), 'Observer guard must ignore internal Control review mutations');
+assert.ok(stability.includes("const VERSION = '2026-07-25-control-section-stability-2'"), 'Unified Control stability coordinator v2 is missing');
+assert.ok(stability.includes("document.addEventListener('pointerdown'"), 'Touch must lock Control before asynchronous refresh');
+assert.ok(stability.includes('pendingRefresh = { context:this, args }'), 'Refresh requested during touch must be deferred');
+assert.ok(stability.includes('signature() === lastSignature'), 'Redundant comment/photo refreshes must be skipped');
+assert.ok(stability.includes('captureOpen()') && stability.includes('restoreOpen()'), 'Native details state preservation is missing');
+assert.ok(stability.includes('captureAnchor()') && stability.includes('restoreAnchor(anchor)'), 'Unified Control viewport preservation is missing');
+assert.ok(stability.includes('rememberComment') && stability.includes('restoreComments'), 'Comment draft preservation is missing');
+assert.ok(stability.includes('rememberPhotoRules') && stability.includes('restorePhotoRules'), 'Photo rule draft preservation is missing');
+assert.ok(draftKeyBridge.includes('drafts.clear()') && draftKeyBridge.includes('userEditingThisCard'), 'Auto-filled blank checklist state must not override offline restoration');
+assert.ok(draftKeyBridge.includes('snapshotRestoredCard') && draftKeyBridge.includes('input?.dataset?.task') && draftKeyBridge.includes('input?.dataset?.photoItemKey'), 'Restored offline checkbox keys must work before and after photo enhancement');
+assert.ok(draftKeyBridge.includes('openRestoredDraft') && draftKeyBridge.includes('data-offline-restored'), 'Checklist with a restored offline draft must be reopened');
+assert.ok(!stability.includes('event.preventDefault()'), 'Unified coordinator must not manually override native details clicks');
 assert.ok(photoDraftFix.includes('sovremennik-checklist-photo-drafts-v1'), 'Persistent photo draft storage is missing');
 assert.ok(photoDraftFix.includes('new DataTransfer()'), 'Photo draft restoration is missing');
 assert.ok(loader.includes('assets/css/checklist-review-tools.css'), 'Review CSS is not loaded');
@@ -68,14 +41,15 @@ assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Cont
 assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loader.indexOf('assets/js/checklist-review-tools.js'), 'Observer guard must load directly before review tools');
 assert.ok(loader.includes('assets/js/checklist-review-tools.js?v=20260725-2'), 'Current review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js?v=20260725-2'), 'Current photo draft fix is not loaded');
-assert.ok(loader.includes('assets/js/checklist-ui-state-fix.js?v=20260725-4'), 'Current checklist state fix is not loaded');
-assert.ok(loader.includes('assets/js/control-revision-scroll-fix.js?v=20260725-1'), 'Current revision and scroll fix is not loaded');
-assert.ok(worker.includes('sovremennik-offline-20260725-v14'), 'Current PWA cache is not active');
+assert.ok(loader.includes('assets/js/control-section-stability-v2.js?v=20260725-2'), 'Unified Control stability coordinator v2 is not loaded');
+assert.ok(loader.includes('assets/js/control-section-draft-key-bridge.js?v=20260725-3'), 'Offline Control draft key bridge v3 is not loaded');
+assert.ok(!loader.includes('checklist-ui-state-fix.js') && !loader.includes('control-revision-scroll-fix.js') && !loader.includes('checklist-photo-rules-open-fix.js') && !loader.includes('control-section-stability.js?v='), 'Legacy competing Control modules are still loaded');
+assert.ok(worker.includes('sovremennik-offline-20260725-v19'), 'Current PWA cache is not active');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-photo-draft-fix.js'), 'Photo draft fix is not cached');
-assert.ok(worker.includes('./assets/js/checklist-ui-state-fix.js'), 'Checklist UI state fix is not cached');
-assert.ok(worker.includes('./assets/js/control-revision-scroll-fix.js'), 'Revision and scroll fix is not cached');
+assert.ok(worker.includes('./assets/js/control-section-stability-v2.js'), 'Unified Control coordinator v2 is not cached');
+assert.ok(worker.includes('./assets/js/control-section-draft-key-bridge.js'), 'Offline draft key bridge is not cached');
 
 console.log('Checklist review tools structure is valid.');
