@@ -1,5 +1,4 @@
 import { chromium } from 'playwright';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -28,7 +27,9 @@ const checklistMarkup = () => `
   </details>
 </section>`;
 
-await page.setContent(`<!doctype html><html><head><meta charset="utf-8"></head><body><div id="app">${checklistMarkup()}</div></body></html>`);
+const pageHtml = `<!doctype html><html><head><meta charset="utf-8"></head><body><div id="app">${checklistMarkup()}</div></body></html>`;
+await page.route('http://preview.local/**', route => route.fulfill({ status:200, contentType:'text/html; charset=utf-8', body:pageHtml }));
+await page.goto('http://preview.local/');
 await page.addStyleTag({ path:path.join(root, 'assets/css/checklist-review-tools.css') });
 
 await page.evaluate(markup => {
@@ -65,7 +66,10 @@ await page.locator('[data-photo-input]').setInputFiles({
   buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8M8WQAAAABJRU5ErkJggg==', 'base64')
 });
 await page.waitForSelector('[data-photo-previews] img');
-await page.waitForTimeout(250);
+await page.waitForFunction(async () => {
+  const rows = await window.SovremennikChecklistPhotoDraftFix.getAllForTesting();
+  return rows.length === 1 && rows[0].files?.length === 1;
+});
 
 await page.evaluate(() => window.renderApp());
 await page.waitForFunction(() => document.querySelector('.doc-details')?.open === true);
