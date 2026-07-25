@@ -7,9 +7,7 @@ on:
     paths:
       - 'assets/js/checklist-review-tools.js'
       - 'assets/js/checklist-photo-draft-fix.js'
-      - 'assets/js/checklist-ui-state-fix.js'
-      - 'assets/js/control-revision-scroll-fix.js'
-      - 'assets/js/checklist-photo-rules-open-fix.js'
+      - 'assets/js/control-section-stability.js'
       - 'assets/css/checklist-review-tools.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
@@ -18,7 +16,6 @@ on:
       - 'tools/checklist-review-browser-smoke.mjs'
       - 'tools/checklist-preview-regression-check.mjs'
       - 'tools/checklist-draft-state-browser-smoke.mjs'
-      - 'tools/checklist-photo-rules-open-browser-smoke.mjs'
       - 'tools/checklist-control-toggle-scroll-browser-smoke.mjs'
       - 'tools/checklist-review-tools-db-smoke.sql'
       - '.github/workflows/checklist-review-preview.yml'
@@ -47,14 +44,11 @@ jobs:
         run: |
           node --check assets/js/checklist-review-tools.js
           node --check assets/js/checklist-photo-draft-fix.js
-          node --check assets/js/checklist-ui-state-fix.js
-          node --check assets/js/control-revision-scroll-fix.js
-          node --check assets/js/checklist-photo-rules-open-fix.js
+          node --check assets/js/control-section-stability.js
           node --check tools/checklist-review-tools-check.mjs
           node --check tools/checklist-review-browser-smoke.mjs
           node --check tools/checklist-preview-regression-check.mjs
           node --check tools/checklist-draft-state-browser-smoke.mjs
-          node --check tools/checklist-photo-rules-open-browser-smoke.mjs
           node --check tools/checklist-control-toggle-scroll-browser-smoke.mjs
           node tools/checklist-review-tools-check.mjs
           node tools/checklist-preview-regression-check.mjs
@@ -67,13 +61,10 @@ jobs:
       - name: Test filters, comments, deletion and photo viewer
         run: node tools/checklist-review-browser-smoke.mjs
 
-      - name: Test open panels, desktop fit and photo draft restoration
+      - name: Test desktop fit and persistent photo draft restoration
         run: node tools/checklist-draft-state-browser-smoke.mjs
 
-      - name: Test repeated photo rules panel redraws
-        run: node tools/checklist-photo-rules-open-browser-smoke.mjs
-
-      - name: Test revision first-click and Control scroll stability
+      - name: Reproduce touch race, coalesce refreshes and preserve scroll
         run: node tools/checklist-control-toggle-scroll-browser-smoke.mjs
 
   database:
