@@ -13,8 +13,8 @@ for (const marker of [
   'files=(',
   '"assets/js/checklist-review-observer-guard.js"',
   '"assets/js/checklist-review-tools.js"',
-  '"assets/js/control-revision-scroll-fix.js"',
-  '"assets/js/checklist-photo-rules-open-fix.js"',
+  '"assets/js/checklist-photo-draft-fix.js"',
+  '"assets/js/control-section-stability.js"',
   'cmp -s "$file" "$downloaded"',
   'sha256sum "$file"',
   'exact checklist review release assets',
@@ -44,7 +44,9 @@ for (const marker of [
   assert.ok(migration.toLowerCase().includes(marker.toLowerCase()), `Checklist review migration marker is missing: ${marker}`);
 }
 
-assert.ok(!workflow.includes('removedNodes'), 'Production release must not depend on obsolete implementation markers.');
+assert.ok(!workflow.includes('"assets/js/checklist-ui-state-fix.js"'), 'Production release must not verify the retired checklist state patch.');
+assert.ok(!workflow.includes('"assets/js/control-revision-scroll-fix.js"'), 'Production release must not verify the retired duplicate scroll patch.');
+assert.ok(!workflow.includes('"assets/js/checklist-photo-rules-open-fix.js"'), 'Production release must not verify the retired photo-rules patch.');
 assert.ok(!workflow.includes('sovremennik-offline-20260725-v10'), 'Production release must not hardcode an obsolete PWA cache version.');
 assert.ok(!workflow.includes('enkftanmqlwvjydliwue'), 'Production workflow must not reference the preview project.');
 assert.ok(!script.includes("projectRef = 'enkftanmqlwvjydliwue'"), 'Production verifier must not target the preview project.');
