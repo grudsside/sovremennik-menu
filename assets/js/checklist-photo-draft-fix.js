@@ -2,7 +2,7 @@
 (function(global){
   'use strict';
 
-  const VERSION = '2026-07-25-checklist-photo-draft-1';
+  const VERSION = '2026-07-25-checklist-photo-draft-2';
   const DB_NAME = 'sovremennik-checklist-photo-drafts-v1';
   const STORE = 'photoDrafts';
   const restoreTimers = new Set();
@@ -92,6 +92,7 @@
       files:merged,
       updatedAt:new Date().toISOString()
     });
+    scheduleRestore(0);
   }
 
   async function removeStoredFile(button, index){
