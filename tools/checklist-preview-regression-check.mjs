@@ -10,6 +10,7 @@ const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 
 const required = [
   [push.includes('checklist-review-observer-guard.js?v=20260724-1'), 'Control observer guard must load directly before review tools'],
   [push.indexOf('checklist-review-observer-guard.js') < push.indexOf('checklist-review-tools.js'), 'Control observer guard must precede review tools'],
+  [push.includes('checklist-review-tools.js?v=20260725-2'), 'current checklist review tools must be loaded'],
   [push.includes('checklist-photo-draft-fix.js?v=20260725-2'), 'photo draft fix must be loaded'],
   [push.includes('checklist-ui-state-fix.js?v=20260725-1'), 'UI state fix must be loaded last'],
   [serviceWorker.includes("sovremennik-offline-20260725-v9"), 'PWA cache must be refreshed'],
