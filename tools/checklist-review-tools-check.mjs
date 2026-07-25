@@ -30,8 +30,8 @@ assert.ok(stability.includes('captureOpen()') && stability.includes('restoreOpen
 assert.ok(stability.includes('captureAnchor()') && stability.includes('restoreAnchor(anchor)'), 'Unified Control viewport preservation is missing');
 assert.ok(stability.includes('rememberComment') && stability.includes('restoreComments'), 'Comment draft preservation is missing');
 assert.ok(stability.includes('rememberPhotoRules') && stability.includes('restorePhotoRules'), 'Photo rule draft preservation is missing');
-assert.ok(stability.includes('if(!force && !checklistDrafts.has(id) && !meaningful) return;'), 'Offline-restored checklist drafts must not be overwritten by blank initial state');
-assert.ok(draftKeyBridge.includes('drafts.set = function') && draftKeyBridge.includes('input?.dataset?.task') && draftKeyBridge.includes('input?.dataset?.photoItemKey'), 'Offline draft keys must work before and after photo enhancement');
+assert.ok(draftKeyBridge.includes('drafts.clear()') && draftKeyBridge.includes('userEditingThisCard'), 'Auto-filled blank checklist state must not override offline restoration');
+assert.ok(draftKeyBridge.includes('snapshotRestoredCard') && draftKeyBridge.includes('input?.dataset?.task') && draftKeyBridge.includes('input?.dataset?.photoItemKey'), 'Restored offline checkbox keys must work before and after photo enhancement');
 assert.ok(draftKeyBridge.includes('openRestoredDraft') && draftKeyBridge.includes('data-offline-restored'), 'Checklist with a restored offline draft must be reopened');
 assert.ok(!stability.includes('event.preventDefault()'), 'Unified coordinator must not manually override native details clicks');
 assert.ok(photoDraftFix.includes('sovremennik-checklist-photo-drafts-v1'), 'Persistent photo draft storage is missing');
@@ -42,9 +42,9 @@ assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loade
 assert.ok(loader.includes('assets/js/checklist-review-tools.js?v=20260725-2'), 'Current review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js?v=20260725-2'), 'Current photo draft fix is not loaded');
 assert.ok(loader.includes('assets/js/control-section-stability-v2.js?v=20260725-2'), 'Unified Control stability coordinator v2 is not loaded');
-assert.ok(loader.includes('assets/js/control-section-draft-key-bridge.js?v=20260725-2'), 'Offline Control draft key bridge v2 is not loaded');
+assert.ok(loader.includes('assets/js/control-section-draft-key-bridge.js?v=20260725-3'), 'Offline Control draft key bridge v3 is not loaded');
 assert.ok(!loader.includes('checklist-ui-state-fix.js') && !loader.includes('control-revision-scroll-fix.js') && !loader.includes('checklist-photo-rules-open-fix.js') && !loader.includes('control-section-stability.js?v='), 'Legacy competing Control modules are still loaded');
-assert.ok(worker.includes('sovremennik-offline-20260725-v18'), 'Current PWA cache is not active');
+assert.ok(worker.includes('sovremennik-offline-20260725-v19'), 'Current PWA cache is not active');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
