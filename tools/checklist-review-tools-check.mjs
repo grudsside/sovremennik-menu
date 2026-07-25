@@ -54,7 +54,7 @@ assert.ok(photoDraftFix.includes('new DataTransfer()'), 'Photo draft restoration
 assert.ok(loader.includes('assets/css/checklist-review-tools.css'), 'Review CSS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not loaded');
 assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loader.indexOf('assets/js/checklist-review-tools.js'), 'Observer guard must load directly before review tools');
-assert.ok(loader.includes('assets/js/checklist-review-tools.js'), 'Review JS is not loaded');
+assert.ok(loader.includes('assets/js/checklist-review-tools.js?v=20260725-2'), 'Current review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js?v=20260725-2'), 'Current photo draft fix is not loaded');
 assert.ok(loader.includes('assets/js/checklist-ui-state-fix.js?v=20260725-1'), 'Checklist UI state fix is not loaded');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
