@@ -54,4 +54,4 @@ document.write('<script src="assets/js/checklist-review-observer-guard.js?v=2026
 document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/checklist-ui-state-fix.js?v=20260725-1"><\/script>');
-document.write('<script src="assets/js/checklist-photo-rules-open-fix.js?v=20260725-1"><\/script>');
+document.write('<script src="assets/js/checklist-photo-rules-open-fix.js?v=20260725-2"><\/script>');
