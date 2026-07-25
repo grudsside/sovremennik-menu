@@ -6,6 +6,25 @@ const root = path.resolve(import.meta.dirname, '..');
 const browser = await chromium.launch({ headless:true });
 const page = await browser.newPage({ viewport:{ width:1440, height:900 } });
 
+const controlMarkup = () => `
+<section id="control-records">
+  <details class="checklist-photo-rules-card" data-photo-rules-card>
+    <summary>Настройка фотоотчёта</summary>
+    <div>Пункты с обязательным фото</div>
+  </details>
+  <div class="checklist-control-days">
+    <details class="control-day-group" open>
+      <summary><span><strong>25 июля 2026</strong><small>1 отчёт</small></span></summary>
+      <div class="control-day-records">
+        <details class="checklist-submission-details" data-checklist-submission="submission-1">
+          <summary><span><strong>Открытие смены</strong><small>Анна</small></span></summary>
+          <div class="control-checklist-task-list"><article class="control-checklist-task done">Проверить бар</article></div>
+        </details>
+      </div>
+    </details>
+  </div>
+</section>`;
+
 const checklistMarkup = () => `
 <section id="top-checklists">
   <article class="doc-card" data-checklist-id="opening-checklist">
@@ -20,27 +39,27 @@ const checklistMarkup = () => `
     </details>
   </article>
 </section>
-<section id="control-records">
-  <details class="checklist-photo-rules-card" data-photo-rules-card>
-    <summary>Настройка фотоотчёта</summary>
-    <div>Пункты с обязательным фото</div>
-  </details>
-</section>`;
+${controlMarkup()}`;
 
 const pageHtml = `<!doctype html><html><head><meta charset="utf-8"></head><body><div id="app">${checklistMarkup()}</div></body></html>`;
 await page.route('http://preview.local/**', route => route.fulfill({ status:200, contentType:'text/html; charset=utf-8', body:pageHtml }));
 await page.goto('http://preview.local/');
 await page.addStyleTag({ path:path.join(root, 'assets/css/checklist-review-tools.css') });
 
-await page.evaluate(markup => {
+await page.evaluate(({ markup, control }) => {
   window.__markup = markup;
+  window.__controlMarkup = control;
   window.state = { menu:{ checklists:[{ id:'opening-checklist', title:'Открытие смены' }] } };
   window.currentUser = () => ({ id:'barista-preview', role:'barista', name:'Анна' });
   window.submitChecklist = async () => true;
   window.renderApp = () => { document.querySelector('#app').innerHTML = window.__markup; };
   window.refreshControl = () => {
-    document.querySelector('#control-records').outerHTML = '<section id="control-records"><details class="checklist-photo-rules-card" data-photo-rules-card><summary>Настройка фотоотчёта</summary><div>Пункты с обязательным фото</div></details></section>';
+    const current = document.querySelector('#control-records');
+    if(current) current.outerHTML = window.__controlMarkup;
   };
+  document.addEventListener('click', event => {
+    if(event.target.closest?.('.checklist-submission-details > summary')) window.refreshControl();
+  });
   document.addEventListener('change', event => {
     const input = event.target.closest?.('[data-photo-input]');
     if(!input) return;
@@ -51,10 +70,44 @@ await page.evaluate(markup => {
     }
     input.value = '';
   });
-}, checklistMarkup());
+}, { markup:checklistMarkup(), control:controlMarkup() });
 
 await page.addScriptTag({ path:path.join(root, 'assets/js/checklist-photo-draft-fix.js') });
 await page.addScriptTag({ path:path.join(root, 'assets/js/checklist-ui-state-fix.js') });
+
+const submission = () => page.locator('.checklist-submission-details[data-checklist-submission="submission-1"]');
+const submissionSummary = () => page.locator('.checklist-submission-details[data-checklist-submission="submission-1"] > summary');
+
+await submissionSummary().click();
+await page.waitForFunction(() => document.querySelector('[data-checklist-submission="submission-1"]')?.open === true);
+
+await page.evaluate(() => {
+  window.refreshControl();
+  window.refreshControl();
+  setTimeout(() => window.refreshControl(), 20);
+  setTimeout(() => {
+    document.querySelector('[data-checklist-submission="submission-1"] .control-checklist-task-list')?.insertAdjacentHTML('beforeend', '<span data-async-thumbnail>Фото загружено</span>');
+  }, 40);
+  setTimeout(() => window.refreshControl(), 80);
+});
+await page.waitForTimeout(400);
+assert.equal(await submission().evaluate(node => node.open), true, 'Opened submitted checklist must survive background redraws and async photo updates');
+
+await submissionSummary().click();
+await page.waitForFunction(() => document.querySelector('[data-checklist-submission="submission-1"]')?.open === false);
+
+for(let index = 0; index < 6; index += 1){
+  const expectedOpen = index % 2 === 0;
+  await submissionSummary().click();
+  await page.waitForFunction(expected => document.querySelector('[data-checklist-submission="submission-1"]')?.open === expected, expectedOpen);
+  await page.evaluate(() => window.refreshControl());
+  await page.waitForFunction(expected => document.querySelector('[data-checklist-submission="submission-1"]')?.open === expected, expectedOpen);
+}
+
+await submissionSummary().click();
+await page.waitForFunction(() => document.querySelector('[data-checklist-submission="submission-1"]')?.open === true);
+await page.waitForTimeout(1200);
+assert.equal(await submission().evaluate(node => node.open), true, 'Submitted checklist must not close itself after the user opens it');
 
 await page.locator('.doc-details').evaluate(node => { node.open = true; });
 await page.locator('[data-photo-rules-card]').evaluate(node => { node.open = true; });
@@ -117,4 +170,4 @@ assert(viewerMetrics.imageWidth <= viewerMetrics.stageWidth + 0.5, 'Photo box mu
 assert(viewerMetrics.imageHeight <= viewerMetrics.stageHeight + 0.5, 'Photo box must not exceed stage height');
 
 await browser.close();
-console.log('Checklist draft and open-state browser smoke passed.');
+console.log('Checklist draft, repeated submitted toggle and open-state browser smoke passed.');
