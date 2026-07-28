@@ -1,0 +1,78 @@
+name: Attestations preview
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'assets/js/attestations-core.js'
+      - 'assets/js/attestations-preview.js'
+      - 'assets/css/attestations-preview.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/migrations/20260728130000_attestations_preview.sql'
+      - 'tools/attestations-preview-check.mjs'
+      - 'tools/attestations-preview-db-smoke.sql'
+      - '.github/workflows/attestations-preview.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attestations-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend structure and source rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check scripts and automatic assembly
+        run: |
+          node --check assets/js/attestations-core.js
+          node --check assets/js/attestations-preview.js
+          node --check tools/attestations-preview-check.mjs
+          node tools/attestations-preview-check.mjs
+          grep -q 'attestations-core.js' assets/js/push.js
+          grep -q 'attestations-preview.js' assets/js/push.js
+          grep -q 'attestations-preview.css' assets/js/push.js
+          grep -q 'attestations-core.js' service-worker.js
+          grep -q 'attestations-preview.js' service-worker.js
+          grep -q 'attestations-preview.css' service-worker.js
+
+  database:
+    name: Isolated role and scoring smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: preview
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Apply schema and test attestation roles
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260728130000_attestations_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/attestations-preview-db-smoke.sql
