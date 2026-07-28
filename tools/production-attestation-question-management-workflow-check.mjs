@@ -14,6 +14,7 @@ for(const marker of [
   "context='production/attestation-question-management'",
   'assets/js/attestations-question-management-core.js',
   'assets/js/attestations-question-management.js',
+  'assets/js/attestations-question-management-guard.js',
   'assets/css/attestations-question-management.css',
   'service-worker.js'
 ]) assert(workflow.includes(marker), `Production question management workflow marker is missing: ${marker}`);
@@ -36,15 +37,12 @@ for(const marker of [
 for(const marker of [
   'add column if not exists deleted_at',
   'add column if not exists deleted_by',
-  'enable row level security',
   'public.is_admin()',
   'attestation_questions_admin_update',
   'attestation_questions_admin_delete'
-]) {
-  if(marker === 'enable row level security') continue;
-  assert(migration.toLowerCase().includes(marker.toLowerCase()), `Question management migration marker is missing: ${marker}`);
-}
+]) assert(migration.toLowerCase().includes(marker.toLowerCase()), `Question management migration marker is missing: ${marker}`);
+
 assert(!migration.includes('tjibbzfdughhjenumzxo'));
 assert(!migration.includes('enkftanmqlwvjydliwue'));
 
-console.log('Production attestation question management workflow safety check passed.');
+console.log('Production attestation question management workflow and post-login guard safety check passed.');
