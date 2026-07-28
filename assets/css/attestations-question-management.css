@@ -1,0 +1,23 @@
+/* Редактирование и удаление вопросов аттестаций. */
+.att-question-row{position:relative;gap:16px;align-items:flex-start;}
+.att-qm-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-left:auto;}
+.att-qm-actions .mini-admin-btn{white-space:nowrap;}
+.att-qm-actions .mini-admin-btn.danger{border-color:#c98672;color:#8a3f2d;background:#fff8f5;}
+.att-qm-actions .mini-admin-btn.danger:hover{background:#fbe7df;}
+body.att-qm-open{overflow:hidden;}
+.att-qm-modal[hidden]{display:none!important;}
+.att-qm-modal{position:fixed;inset:0;z-index:1300;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(28,34,23,.48);backdrop-filter:blur(3px);}
+.att-qm-dialog{width:min(760px,100%);max-height:calc(100vh - 48px);overflow:auto;border:1px solid rgba(88,97,65,.2);border-radius:24px;background:#fffdf8;box-shadow:0 28px 80px rgba(32,38,25,.28);padding:24px;}
+.att-qm-dialog form{display:grid;gap:14px;margin-top:18px;}
+.att-qm-dialog label{display:grid;gap:7px;font-weight:700;color:#39422f;}
+.att-qm-dialog input,.att-qm-dialog select,.att-qm-dialog textarea{width:100%;box-sizing:border-box;border:1px solid #d8d5c6;border-radius:12px;background:#fff;padding:11px 12px;font:inherit;color:#273023;}
+.att-qm-dialog textarea{resize:vertical;}
+.att-qm-kicker{margin:0 0 4px;color:#68734f;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;}
+.att-qm-footer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:4px;}
+.att-qm-footer .submit-status{margin:0;}
+@media(max-width:720px){
+  .att-qm-modal{padding:10px;align-items:flex-end;}
+  .att-qm-dialog{max-height:94vh;border-radius:20px 20px 0 0;padding:18px;}
+  .att-question-row{display:block;}
+  .att-qm-actions{justify-content:flex-start;margin:12px 0 0;}
+}
