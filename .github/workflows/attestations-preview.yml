@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'index.html'
       - 'assets/js/attestations-core.js'
       - 'assets/js/attestations-preview.js'
       - 'assets/css/attestations-preview.css'
@@ -33,15 +34,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check scripts and automatic assembly
+      - name: Check scripts, direct loading and automatic assembly
         run: |
           node --check assets/js/attestations-core.js
           node --check assets/js/attestations-preview.js
           node --check tools/attestations-preview-check.mjs
           node tools/attestations-preview-check.mjs
-          grep -q 'attestations-core.js' assets/js/push.js
-          grep -q 'attestations-preview.js' assets/js/push.js
-          grep -q 'attestations-preview.css' assets/js/push.js
+          grep -q 'attestations-core.js?v=20260728-direct-2' index.html
+          grep -q 'attestations-preview.js?v=20260728-direct-2' index.html
+          grep -q 'attestations-preview.css?v=20260728-direct-2' index.html
+          if grep -q 'attestations-preview.js' assets/js/push.js; then
+            echo 'Attestations must be loaded directly by index.html, not indirectly by push.js.' >&2
+            exit 1
+          fi
           grep -q 'attestations-core.js' service-worker.js
           grep -q 'attestations-preview.js' service-worker.js
           grep -q 'attestations-preview.css' service-worker.js
