@@ -20,6 +20,7 @@ document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=2
 document.write('<link rel="stylesheet" href="assets/css/role-interface.css?v=20260724-3">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-role-workflow.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/home-layout-v4.css?v=20260724-4">');
+document.write('<link rel="stylesheet" href="assets/css/attestations-question-management.css?v=20260728-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
@@ -66,6 +67,35 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
     script.async = false;
     script.dataset.attestationsReadyBank = 'true';
     document.head.appendChild(script);
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
+
+(function loadAttestationQuestionManagement(){
+  const loadScript = src => new Promise((resolve, reject) => {
+    const existing = Array.from(document.scripts).find(script => script.src.includes(src.split('?')[0]));
+    if(existing){ resolve(); return; }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  const waitForBank = async () => {
+    for(let attempt = 0; attempt < 150; attempt += 1){
+      if(window.SovAttestationsCore?.__readyQuestionBankInstalled) return true;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return Boolean(window.SovAttestationsCore);
+  };
+  const load = async () => {
+    try{
+      await waitForBank();
+      await loadScript('assets/js/attestations-question-management-core.js?v=20260728-1');
+      await loadScript('assets/js/attestations-question-management.js?v=20260728-1');
+    }catch(error){ console.error('Attestation question management failed to load.', error); }
   };
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
   else load();
