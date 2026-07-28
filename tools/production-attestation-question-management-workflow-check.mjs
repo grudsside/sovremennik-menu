@@ -15,6 +15,7 @@ for(const marker of [
   'assets/js/attestations-question-management-core.js',
   'assets/js/attestations-question-management.js',
   'assets/js/attestations-question-management-guard.js',
+  'assets/js/attestations-question-management-buttons.js',
   'assets/css/attestations-question-management.css',
   'service-worker.js'
 ]) assert(workflow.includes(marker), `Production question management workflow marker is missing: ${marker}`);
@@ -45,4 +46,4 @@ for(const marker of [
 assert(!migration.includes('tjibbzfdughhjenumzxo'));
 assert(!migration.includes('enkftanmqlwvjydliwue'));
 
-console.log('Production attestation question management workflow and post-login guard safety check passed.');
+console.log('Production attestation question management workflow, post-login guard and reliable button binding safety check passed.');
