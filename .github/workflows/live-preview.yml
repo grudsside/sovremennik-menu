@@ -169,9 +169,6 @@ jobs:
       - name: Install preview test dependencies
         run: npm install --no-save @supabase/supabase-js@2 playwright@1.54.1
 
-      - name: Install Chromium for Attestations browser smoke
-        run: npx playwright install --with-deps chromium
-
       - name: Seed preview accounts and publish frontend
         run: |
           node tools/live-preview-deploy.mjs
