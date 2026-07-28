@@ -27,6 +27,8 @@ async function snapshot(page, login, errors) {
     panels: Array.from(document.querySelectorAll('.top-panel')).map(panel => panel.id),
     guard: window.SovAttestationsTabGuard || null,
     coreLoaded: Boolean(window.SovAttestationsCore),
+    readyBankLoaded: Boolean(window.SovAttestationsReadyBank),
+    readyBankInstalled: Boolean(window.SovAttestationsCore?.__readyQuestionBankInstalled),
     loadedScripts: Array.from(document.scripts).map(script => script.src).filter(src => /attestations|push\.js/.test(src)),
   }));
   return { login, errors:[...errors], ...browserState };
@@ -46,6 +48,7 @@ async function openAs(login) {
 
   await page.goto(pathToFileURL(launcherPath).href, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.locator('#login-form input[name="login"]').waitFor({ state: 'visible', timeout: 60_000 });
+  await page.waitForFunction(() => Boolean(window.SovAttestationsCore?.__readyQuestionBankInstalled), null, { timeout: 60_000 });
   await page.locator('#login-form input[name="login"]').fill(login);
   await page.locator('#login-form input[name="password"]').fill(password);
   await page.locator('#login-form button[type="submit"]').click();
@@ -70,14 +73,28 @@ async function runRole(login, verify) {
 let failure = null;
 try {
   await runRole('preview-admin', async (page, errors) => {
+    const bankState = await page.evaluate(() => {
+      const built = window.SovAttestationsCore.generateQuestionBank(state.menu || {});
+      return {
+        installed:Boolean(window.SovAttestationsCore.__readyQuestionBankInstalled),
+        total:built.questions.length,
+        counts:window.SovAttestationsReadyBank.topicCounts(built.questions),
+      };
+    });
+    assert.equal(bankState.installed, true, 'Ready question bank must be installed before login.');
+    assert.equal(bankState.total, 80, 'Ready bank must contain exactly 80 base questions.');
+    assert.deepEqual(bankState.counts, { techcards:20, coffee:20, espresso:20, milk:20 });
+
     await page.waitForFunction(() => Boolean(document.querySelector('.main-tab[data-top-target="attestations"]')), null, { timeout: 60_000 });
     const tab = page.locator('.main-tab[data-top-target="attestations"]');
     await tab.waitFor({ state: 'visible', timeout: 15_000 });
     await tab.click();
     await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
     await page.getByRole('button', { name: 'Создать тест' }).waitFor({ state: 'visible', timeout: 30_000 });
+    const visibleCounts = await page.locator('.att-stat b').allTextContents();
+    assert.deepEqual(visibleCounts.map(value => Number(value)), [20,20,20,20], 'Admin interface must show 20 available questions in each base topic.');
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Admin console errors: ${errors.join(' | ')}`);
-    checks.push('admin sees and opens Attestations management');
+    checks.push('admin sees 20 ready questions in each topic and opens Attestations management');
   });
 
   await runRole('preview-barista', async (page, errors) => {
