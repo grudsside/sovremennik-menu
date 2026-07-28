@@ -1,0 +1,63 @@
+name: Attestations production safety check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/attestations-production-check.yml'
+      - '.github/workflows/production-attestations-release.yml'
+      - 'tools/production-attestations-release.mjs'
+      - 'tools/production-attestations-release-workflow-check.mjs'
+      - 'supabase/migrations/20260728130000_attestations_preview.sql'
+      - 'index.html'
+      - 'assets/js/attestations-core.js'
+      - 'assets/js/attestations-ready-bank.js'
+      - 'assets/js/attestations-preview.js'
+      - 'assets/js/attestations-tab-guard.js'
+      - 'assets/css/attestations-preview.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: attestations-production-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  safety:
+    name: Fixed target and release verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate production release files
+        run: |
+          node --check tools/production-attestations-release.mjs
+          node --check tools/production-attestations-release-workflow-check.mjs
+          node tools/production-attestations-release-workflow-check.mjs
+
+      - name: Recheck ready question bank
+        run: |
+          node --check assets/js/attestations-ready-bank.js
+          node --check tools/attestations-ready-bank-check.mjs
+          node tools/attestations-ready-bank-check.mjs
+
+      - name: Confirm production-only boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo' .github/workflows/production-attestations-release.yml
+          grep -q "context='production/attestations'" .github/workflows/production-attestations-release.yml
+          ! grep -q 'enkftanmqlwvjydliwue' .github/workflows/production-attestations-release.yml
+          ! grep -q 'PREVIEW_' .github/workflows/production-attestations-release.yml
+          grep -q '20260728130000_attestations_preview.sql' tools/production-attestations-release.mjs
+          grep -q 'cmp -s "$file" "$downloaded"' .github/workflows/production-attestations-release.yml

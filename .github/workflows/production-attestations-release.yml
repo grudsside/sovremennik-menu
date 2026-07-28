@@ -1,0 +1,184 @@
+name: Production attestations release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-attestations-release.yml'
+      - 'tools/production-attestations-release.mjs'
+      - 'supabase/migrations/20260728130000_attestations_preview.sql'
+      - 'index.html'
+      - 'assets/js/attestations-core.js'
+      - 'assets/js/attestations-ready-bank.js'
+      - 'assets/js/attestations-preview.js'
+      - 'assets/js/attestations-tab-guard.js'
+      - 'assets/css/attestations-preview.css'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  statuses: write
+
+concurrency:
+  group: production-attestations-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Deploy and verify Attestations
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+      PRODUCTION_PAGES_URL: https://grudsside.github.io/sovremennik-menu
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+          [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected GitHub Pages URL.' >&2; exit 1; }
+
+      - name: Apply and verify Attestations database migration
+        run: node tools/production-attestations-release.mjs
+
+      - name: Verify published GitHub Pages frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            "index.html"
+            "assets/js/push.js"
+            "assets/js/attestations-core.js"
+            "assets/js/attestations-ready-bank.js"
+            "assets/js/attestations-preview.js"
+            "assets/js/attestations-tab-guard.js"
+            "assets/css/attestations-preview.css"
+            "service-worker.js"
+          )
+          published=false
+          mkdir -p /tmp/attestations-pages
+
+          for attempt in {1..60}; do
+            all_match=true
+            for file in "${files[@]}"; do
+              downloaded="/tmp/attestations-pages/${file//\//_}"
+              if ! curl --fail --silent --show-error \
+                "${PRODUCTION_PAGES_URL}/${file}?release=${GITHUB_SHA}&attempt=${attempt}" \
+                --output "$downloaded"; then
+                echo "Attempt ${attempt}: ${file} is not available on GitHub Pages."
+                all_match=false
+                continue
+              fi
+
+              if ! cmp -s "$file" "$downloaded"; then
+                local_hash="$(sha256sum "$file" | cut -d' ' -f1)"
+                published_hash="$(sha256sum "$downloaded" | cut -d' ' -f1)"
+                echo "Attempt ${attempt}: ${file} does not match release source (local=${local_hash}, published=${published_hash})."
+                all_match=false
+              fi
+            done
+
+            if [[ "$all_match" == 'true' ]]; then
+              published=true
+              break
+            fi
+            sleep 10
+          done
+
+          [[ "$published" == 'true' ]] || { echo 'GitHub Pages did not publish the exact Attestations release assets in time.' >&2; exit 1; }
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Attestations released to production'
+            echo
+            echo '- Five Attestations tables, RLS policies and protected RPC functions are active.'
+            echo '- The ready bank contains 20 current questions in each of four topics.'
+            echo '- Manual question creation remains available to administrators.'
+            echo '- Employees do not receive correct answers before submission.'
+            echo '- Managers can view results but cannot manage tests.'
+            echo '- GitHub Pages serves files identical to the approved release source.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Attestations production deployment passed'
+          else
+            state='failure'
+            description='Attestations production deployment failed'
+          fi
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/attestations' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Publish permanent release receipt
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            heading='✅ Attestations production release verified'
+            details='Database migration, RLS, protected scoring RPC functions, ready bank and exact GitHub Pages assets passed.'
+          else
+            heading='❌ Attestations production release requires attention'
+            details='At least one production deployment or verification step failed. Review the workflow before assigning tests.'
+          fi
+          {
+            printf '%s\n\n' "$heading"
+            printf '%s\n\n' "$details"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Workflow: https://github.com/%s/actions/runs/%s\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf -- '- Production app: https://grudsside.github.io/sovremennik-menu/\n'
+            printf -- '- Production Supabase Ref: `tjibbzfdughhjenumzxo`\n'
+          } > /tmp/attestations-release-comment.md
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/68/comments" \
+            --raw-field body="$(cat /tmp/attestations-release-comment.md)"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-attestations-release
+          path: artifacts/production-attestations-release
+          if-no-files-found: warn
+          retention-days: 30
