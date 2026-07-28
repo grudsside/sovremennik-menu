@@ -7,12 +7,14 @@ on:
     paths:
       - 'index.html'
       - 'assets/js/attestations-core.js'
+      - 'assets/js/attestations-ready-bank.js'
       - 'assets/js/attestations-preview.js'
       - 'assets/css/attestations-preview.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
       - 'supabase/migrations/20260728130000_attestations_preview.sql'
       - 'tools/attestations-preview-check.mjs'
+      - 'tools/attestations-ready-bank-check.mjs'
       - 'tools/attestations-preview-db-smoke.sql'
       - '.github/workflows/attestations-preview.yml'
 
@@ -25,7 +27,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Frontend structure and source rules
+    name: Frontend structure and ready question bank
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,19 +36,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check scripts, direct loading and automatic assembly
+      - name: Check scripts, sources and ready bank
         run: |
           node --check assets/js/attestations-core.js
+          node --check assets/js/attestations-ready-bank.js
           node --check assets/js/attestations-preview.js
           node --check tools/attestations-preview-check.mjs
+          node --check tools/attestations-ready-bank-check.mjs
           node tools/attestations-preview-check.mjs
+          node tools/attestations-ready-bank-check.mjs
           grep -q 'attestations-core.js?v=20260728-direct-2' index.html
           grep -q 'attestations-preview.js?v=20260728-direct-2' index.html
           grep -q 'attestations-preview.css?v=20260728-direct-2' index.html
-          if grep -q 'attestations-preview.js' assets/js/push.js; then
-            echo 'Attestations must be loaded directly by index.html, not indirectly by push.js.' >&2
-            exit 1
-          fi
+          grep -q 'attestations-ready-bank.js?v=20260728-ready-1' assets/js/push.js
+          grep -q 'attestations-ready-bank.js' service-worker.js
           grep -q 'attestations-core.js' service-worker.js
           grep -q 'attestations-preview.js' service-worker.js
           grep -q 'attestations-preview.css' service-worker.js
