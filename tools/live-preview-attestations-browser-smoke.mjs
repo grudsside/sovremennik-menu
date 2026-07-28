@@ -91,7 +91,11 @@ try {
     await tab.click();
     await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
     await page.getByRole('button', { name: 'Создать тест' }).waitFor({ state: 'visible', timeout: 30_000 });
-    const visibleCounts = await page.locator('.att-stat b').allTextContents();
+    await page.waitForFunction(() => {
+      const values = Array.from(document.querySelectorAll('#top-attestations .att-stat b')).map(node => Number(node.textContent));
+      return values.length === 4 && values.every(value => value === 20);
+    }, null, { timeout: 60_000 });
+    const visibleCounts = await page.locator('#top-attestations .att-stat b').allTextContents();
     assert.deepEqual(visibleCounts.map(value => Number(value)), [20,20,20,20], 'Admin interface must show 20 available questions in each base topic.');
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Admin console errors: ${errors.join(' | ')}`);
     checks.push('admin sees 20 ready questions in each topic and opens Attestations management');
