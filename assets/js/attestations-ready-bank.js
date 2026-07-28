@@ -9,6 +9,7 @@
   const api = factory(root && root.SovAttestationsCore);
   if(root) root.SovAttestationsReadyBank = api;
   if(api && typeof api.install === 'function') api.install();
+  if(api && typeof api.installLocalPreviewNavigationGuard === 'function') api.installLocalPreviewNavigationGuard(root);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function(Core){
   'use strict';
 
@@ -94,6 +95,30 @@
     return true;
   }
 
+  function installLocalPreviewNavigationGuard(target){
+    if(!target || target.location?.protocol !== 'file:' || typeof target.setTop !== 'function' || target.__sovAttestationsLocalNavigationGuard) return false;
+    const originalSetTop = target.setTop;
+    target.setTop = function(){
+      const replaceState = target.history?.replaceState;
+      let replaced = false;
+      if(typeof replaceState === 'function'){
+        try{
+          target.history.replaceState = function(){};
+          replaced = true;
+        }catch(error){}
+      }
+      try{
+        return originalSetTop.apply(this, arguments);
+      }finally{
+        if(replaced){
+          try{ target.history.replaceState = replaceState; }catch(error){}
+        }
+      }
+    };
+    target.__sovAttestationsLocalNavigationGuard = true;
+    return true;
+  }
+
   return {
     QUESTIONS_PER_TOPIC,
     BANK_VERSION,
@@ -101,6 +126,7 @@
     topicCounts,
     selectReadyQuestions,
     createGenerator,
-    install
+    install,
+    installLocalPreviewNavigationGuard
   };
 });
