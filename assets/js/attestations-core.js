@@ -12,7 +12,9 @@
     milk: 'Работа с молоком'
   });
 
-  const PREP_RE = /(заготов|полуфабрикат|сироп|соус|пюре|кордиал|раствор|смесь|база|топпинг|варенье|джем|крем|сиропы|заготовки)/i;
+  const PREP_RE = /(заготов|полуфабрикат|сироп|соус|пюре|кордиал|раствор|смесь|база|топпинг|варенье|джем|сиропы|заготовки)/i;
+  const PREP_CATEGORY_RE = /(заготов|полуфабрикат|сиропы|соусы|пюре|кордиал|раствор|смесь|база)/i;
+  const PREP_TITLE_RE = /^(пф\b|сироп\b|соус\b|пюре\b|кордиал\b|раствор\b|база\b|топпинг\b)/i;
   const DRINK_RE = /(напит|кофе|чай|лимонад|какао|раф|латте|капучино|эспрессо|американо|флэт|матча|бамбл|смузи|коктейл|фреш|милкшейк|тоник)/i;
 
   function text(value){ return String(value == null ? '' : value).trim(); }
@@ -54,11 +56,15 @@
   }
 
   function isDrinkTechCard(card, doc){
-    const title = [doc && doc.title, doc && doc.description, card && card.category, card && card.title].map(text).join(' ');
-    if(!text(card && card.title)) return false;
-    if(PREP_RE.test(title)) return false;
+    const documentText = [doc && doc.title, doc && doc.description].map(text).join(' ');
+    const cardTitle = text(card && card.title);
+    const cardCategory = text(card && card.category);
+    const fullText = [documentText, cardCategory, cardTitle].join(' ');
+    if(!cardTitle) return false;
+    if(PREP_RE.test(documentText)) return false;
+    if(PREP_CATEGORY_RE.test(cardCategory) || PREP_TITLE_RE.test(cardTitle)) return false;
     const ingredients = safeArray(card && card.ingredients);
-    const hasDrinkSignal = DRINK_RE.test(title) || Boolean(text(card && card.output)) || Boolean(text(card && card.technology));
+    const hasDrinkSignal = DRINK_RE.test(fullText) || Boolean(text(card && card.output)) || Boolean(text(card && card.technology));
     return hasDrinkSignal && ingredients.length > 0;
   }
 
