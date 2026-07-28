@@ -10,6 +10,7 @@ const menu = {
       {title:'Латте', category:'Кофе', output:'300 мл', technology:'Приготовить эспрессо и влить молоко', ingredients:['Кофе 18 г','Молоко 240 г']},
       {title:'Американо', category:'Кофе', output:'250 мл', technology:'Эспрессо и вода', ingredients:['Кофе 18 г','Вода 200 г']},
       {title:'Эспрессо', category:'Кофе', output:'36 г', technology:'Пролив', ingredients:['Кофе 18 г']},
+      {title:'Лимонад Крем-Сода', category:'Лимонады', output:'300 мл', technology:'Смешать напиток', ingredients:['Кордиал 50 г','Содовая 200 г']},
       {title:'Сироп ванильный', category:'Заготовки', output:'1000 мл', technology:'Сварить', ingredients:['Сахар','Вода','Ваниль']}
     ]
   }],
@@ -33,7 +34,8 @@ const menu = {
 };
 
 const registry = Core.buildSourceRegistry(menu);
-assert.equal(Array.from(registry.values()).filter(item => item.type === 'techcard').length, 4, 'Заготовка должна быть исключена');
+assert.equal(Array.from(registry.values()).filter(item => item.type === 'techcard').length, 5, 'Заготовка должна быть исключена, а напиток Крем-Сода — сохранён');
+assert.ok(Array.from(registry.values()).some(item => item.title === 'Лимонад Крем-Сода'));
 assert.equal(Core.lessonTopic(menu.lessons[0]), 'coffee');
 assert.equal(Core.lessonTopic(menu.lessons[1]), 'espresso');
 assert.equal(Core.lessonTopic(menu.lessons[2]), 'milk');
