@@ -11,7 +11,7 @@ const password = String(process.env.PREVIEW_TEST_PASSWORD || '').trim();
 assert(password, 'PREVIEW_TEST_PASSWORD is required.');
 await fs.access(launcherPath);
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, channel:'chrome' });
 const checks = [];
 const diagnostics = [];
 
