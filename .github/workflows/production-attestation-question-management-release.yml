@@ -10,6 +10,7 @@ on:
       - 'supabase/migrations/20260728223000_attestation_question_management.sql'
       - 'assets/js/attestations-question-management-core.js'
       - 'assets/js/attestations-question-management.js'
+      - 'assets/js/attestations-question-management-guard.js'
       - 'assets/css/attestations-question-management.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
@@ -64,6 +65,7 @@ jobs:
             "assets/js/push.js"
             "assets/js/attestations-question-management-core.js"
             "assets/js/attestations-question-management.js"
+            "assets/js/attestations-question-management-guard.js"
             "assets/css/attestations-question-management.css"
             "service-worker.js"
           )
@@ -107,6 +109,7 @@ jobs:
             echo '- Administrators can edit automatic and manual questions.'
             echo '- Administrators can soft-delete questions with an audit trail.'
             echo '- Deleted automatic questions remain suppressed instead of reappearing from the generated bank.'
+            echo '- Question management initializes after administrator authorization.'
             echo '- Employees and managers do not receive question management controls.'
             echo '- GitHub Pages serves files identical to the approved release source.'
           } >> "$GITHUB_STEP_SUMMARY"
