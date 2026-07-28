@@ -55,3 +55,4 @@ document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><
 document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/control-section-stability-v2.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/control-section-draft-key-bridge.js?v=20260725-3"><\/script>');
+document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guard-1"><\/script>');
