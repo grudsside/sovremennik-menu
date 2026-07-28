@@ -75,3 +75,6 @@ using (public.is_admin());
 revoke execute on function public.touch_attestation_question_management() from public, anon, authenticated;
 
 commit;
+
+-- Supabase PostgREST must see the audit columns immediately after deployment.
+notify pgrst, 'reload schema';
