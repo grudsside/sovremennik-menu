@@ -95,6 +95,7 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
       await waitForBank();
       await loadScript('assets/js/attestations-question-management-core.js?v=20260728-1');
       await loadScript('assets/js/attestations-question-management.js?v=20260728-1');
+      await loadScript('assets/js/attestations-question-management-guard.js?v=20260728-1');
     }catch(error){ console.error('Attestation question management failed to load.', error); }
   };
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
