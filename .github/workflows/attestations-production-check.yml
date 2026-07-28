@@ -7,15 +7,24 @@ on:
     paths:
       - '.github/workflows/attestations-production-check.yml'
       - '.github/workflows/production-attestations-release.yml'
+      - '.github/workflows/production-attestation-question-management-release.yml'
       - 'tools/production-attestations-release.mjs'
       - 'tools/production-attestations-release-workflow-check.mjs'
+      - 'tools/production-attestation-question-management-release.mjs'
+      - 'tools/production-attestation-question-management-workflow-check.mjs'
       - 'supabase/migrations/20260728130000_attestations_preview.sql'
+      - 'supabase/migrations/20260728223000_attestation_question_management.sql'
       - 'index.html'
       - 'assets/js/attestations-core.js'
       - 'assets/js/attestations-ready-bank.js'
       - 'assets/js/attestations-preview.js'
       - 'assets/js/attestations-tab-guard.js'
+      - 'assets/js/attestations-question-management-core.js'
+      - 'assets/js/attestations-question-management.js'
+      - 'assets/js/attestations-question-management-guard.js'
+      - 'assets/js/attestations-question-management-buttons.js'
       - 'assets/css/attestations-preview.css'
+      - 'assets/css/attestations-question-management.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
 
@@ -44,12 +53,21 @@ jobs:
           node --check tools/production-attestations-release.mjs
           node --check tools/production-attestations-release-workflow-check.mjs
           node tools/production-attestations-release-workflow-check.mjs
+          node --check tools/production-attestation-question-management-release.mjs
+          node --check tools/production-attestation-question-management-workflow-check.mjs
+          node tools/production-attestation-question-management-workflow-check.mjs
 
-      - name: Recheck ready question bank
+      - name: Recheck ready question bank and management
         run: |
           node --check assets/js/attestations-ready-bank.js
+          node --check assets/js/attestations-question-management-core.js
+          node --check assets/js/attestations-question-management.js
+          node --check assets/js/attestations-question-management-guard.js
+          node --check assets/js/attestations-question-management-buttons.js
           node --check tools/attestations-ready-bank-check.mjs
+          node --check tools/attestations-question-management-check.mjs
           node tools/attestations-ready-bank-check.mjs
+          node tools/attestations-question-management-check.mjs
 
       - name: Confirm production-only boundaries
         shell: bash
@@ -57,7 +75,13 @@ jobs:
           set -euo pipefail
           grep -q 'PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo' .github/workflows/production-attestations-release.yml
           grep -q "context='production/attestations'" .github/workflows/production-attestations-release.yml
+          grep -q 'PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo' .github/workflows/production-attestation-question-management-release.yml
+          grep -q "context='production/attestation-question-management'" .github/workflows/production-attestation-question-management-release.yml
           ! grep -q 'enkftanmqlwvjydliwue' .github/workflows/production-attestations-release.yml
+          ! grep -q 'enkftanmqlwvjydliwue' .github/workflows/production-attestation-question-management-release.yml
           ! grep -q 'PREVIEW_' .github/workflows/production-attestations-release.yml
+          ! grep -q 'PREVIEW_' .github/workflows/production-attestation-question-management-release.yml
           grep -q '20260728130000_attestations_preview.sql' tools/production-attestations-release.mjs
+          grep -q '20260728223000_attestation_question_management.sql' tools/production-attestation-question-management-release.mjs
           grep -q 'cmp -s "$file" "$downloaded"' .github/workflows/production-attestations-release.yml
+          grep -q 'cmp -s "$file" "$downloaded"' .github/workflows/production-attestation-question-management-release.yml

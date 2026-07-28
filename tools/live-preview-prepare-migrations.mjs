@@ -31,6 +31,8 @@ const plan = [
   ['supabase/migrations/20260724170000_role_security_finalize.sql', '20260724170000_role_security_finalize.sql'],
   ['supabase/migrations/20260724210000_checklist_review_tools_preview.sql', '20260724210000_checklist_review_tools_preview.sql'],
   ['supabase/migrations/20260728130000_attestations_preview.sql', '20260728130000_attestations_preview.sql'],
+  ['supabase/migrations/20260728223000_attestation_question_management.sql', '20260728223000_attestation_question_management.sql'],
+  ['supabase/migrations/20260728231500_attestation_question_management_schema_reload.sql', '20260728231500_attestation_question_management_schema_reload.sql'],
 ];
 
 const forbiddenSources = [

@@ -9,13 +9,22 @@ on:
       - 'assets/js/attestations-core.js'
       - 'assets/js/attestations-ready-bank.js'
       - 'assets/js/attestations-preview.js'
+      - 'assets/js/attestations-question-management-core.js'
+      - 'assets/js/attestations-question-management.js'
+      - 'assets/js/attestations-question-management-guard.js'
+      - 'assets/js/attestations-question-management-buttons.js'
       - 'assets/css/attestations-preview.css'
+      - 'assets/css/attestations-question-management.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
       - 'supabase/migrations/20260728130000_attestations_preview.sql'
+      - 'supabase/migrations/20260728223000_attestation_question_management.sql'
+      - 'supabase/migrations/20260728231500_attestation_question_management_schema_reload.sql'
       - 'tools/attestations-preview-check.mjs'
       - 'tools/attestations-ready-bank-check.mjs'
+      - 'tools/attestations-question-management-check.mjs'
       - 'tools/attestations-preview-db-smoke.sql'
+      - 'tools/attestations-question-management-db-smoke.sql'
       - '.github/workflows/attestations-preview.yml'
 
 permissions:
@@ -27,7 +36,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Frontend structure and ready question bank
+    name: Frontend structure, ready bank and question management
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,26 +45,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check scripts, sources and ready bank
+      - name: Check scripts, sources, bank and management
         run: |
           node --check assets/js/attestations-core.js
           node --check assets/js/attestations-ready-bank.js
           node --check assets/js/attestations-preview.js
+          node --check assets/js/attestations-question-management-core.js
+          node --check assets/js/attestations-question-management.js
+          node --check assets/js/attestations-question-management-guard.js
+          node --check assets/js/attestations-question-management-buttons.js
           node --check tools/attestations-preview-check.mjs
           node --check tools/attestations-ready-bank-check.mjs
+          node --check tools/attestations-question-management-check.mjs
           node tools/attestations-preview-check.mjs
           node tools/attestations-ready-bank-check.mjs
+          node tools/attestations-question-management-check.mjs
           grep -q 'attestations-core.js?v=20260728-direct-2' index.html
           grep -q 'attestations-preview.js?v=20260728-direct-2' index.html
           grep -q 'attestations-preview.css?v=20260728-direct-2' index.html
           grep -q 'attestations-ready-bank.js?v=20260728-ready-1' assets/js/push.js
-          grep -q 'attestations-ready-bank.js' service-worker.js
-          grep -q 'attestations-core.js' service-worker.js
-          grep -q 'attestations-preview.js' service-worker.js
-          grep -q 'attestations-preview.css' service-worker.js
+          grep -q 'attestations-question-management-core.js?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management.js?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management-guard.js?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management-buttons.js?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management.css?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management-core.js' service-worker.js
+          grep -q 'attestations-question-management.js' service-worker.js
+          grep -q 'attestations-question-management-guard.js' service-worker.js
+          grep -q 'attestations-question-management-buttons.js' service-worker.js
+          grep -q 'attestations-question-management.css' service-worker.js
+          grep -q "notify pgrst, 'reload schema'" supabase/migrations/20260728231500_attestation_question_management_schema_reload.sql
 
   database:
-    name: Isolated role and scoring smoke
+    name: Isolated roles, scoring and question management
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -83,4 +105,7 @@ jobs:
         run: |
           psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
           psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260728130000_attestations_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260728223000_attestation_question_management.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260728231500_attestation_question_management_schema_reload.sql
           psql -h 127.0.0.1 -U postgres -d preview -f tools/attestations-preview-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/attestations-question-management-db-smoke.sql
