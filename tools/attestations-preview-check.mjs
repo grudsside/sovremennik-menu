@@ -37,6 +37,7 @@ assert.equal(Array.from(registry.values()).filter(item => item.type === 'techcar
 assert.equal(Core.lessonTopic(menu.lessons[0]), 'coffee');
 assert.equal(Core.lessonTopic(menu.lessons[1]), 'espresso');
 assert.equal(Core.lessonTopic(menu.lessons[2]), 'milk');
+assert.equal(Core.lessonTopic({title:'Все что нужно знать о кофе', category:'Теория', blocks:[{title:'Молоко в кофейных напитках'}]}), 'coffee', 'Название текущего материала должно иметь приоритет над отдельными упоминаниями молока');
 
 const built = Core.generateQuestionBank(menu, () => 0.31);
 assert.ok(built.questions.some(q => q.topic === 'techcards'));
