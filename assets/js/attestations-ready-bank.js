@@ -1,7 +1,9 @@
 (function(root,factory){
   'use strict';
   if(typeof module === 'object' && module.exports){
-    module.exports = factory(require('./attestations-core.js'));
+    const api = factory(require('./attestations-core.js'));
+    module.exports = api;
+    if(api && typeof api.install === 'function') api.install();
     return;
   }
   const api = factory(root && root.SovAttestationsCore);
