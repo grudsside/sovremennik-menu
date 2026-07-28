@@ -60,10 +60,20 @@ for(const marker of [
   'setInterval(reloadAfterLogin, 1500)'
 ]) assert(guard.includes(marker), `Question management login guard marker is missing: ${marker}`);
 
+const buttons = await fs.readFile('assets/js/attestations-question-management-buttons.js', 'utf8');
+for(const marker of [
+  'filteredBank()',
+  'data-att-qm-edit',
+  'data-att-qm-delete',
+  'card.dataset.attQmFingerprint',
+  'SovAttestationsQuestionManagementButtons'
+]) assert(buttons.includes(marker), `Question button binding marker is missing: ${marker}`);
+
 const push = await fs.readFile('assets/js/push.js', 'utf8');
 assert(push.includes('attestations-question-management-core.js?v=20260728-1'));
 assert(push.includes('attestations-question-management.js?v=20260728-1'));
 assert(push.includes('attestations-question-management-guard.js?v=20260728-1'));
+assert(push.includes('attestations-question-management-buttons.js?v=20260728-1'));
 assert(push.includes('attestations-question-management.css?v=20260728-1'));
 
 const worker = await fs.readFile('service-worker.js', 'utf8');
@@ -71,6 +81,7 @@ for(const asset of [
   'assets/js/attestations-question-management-core.js',
   'assets/js/attestations-question-management.js',
   'assets/js/attestations-question-management-guard.js',
+  'assets/js/attestations-question-management-buttons.js',
   'assets/css/attestations-question-management.css'
 ]) assert(worker.includes(asset), `PWA cache is missing ${asset}`);
 
@@ -83,4 +94,4 @@ for(const marker of [
   'public.is_admin()'
 ]) assert(migration.includes(marker), `Question management migration marker is missing: ${marker}`);
 
-console.log('Attestation question editing, deletion, post-login initialization, permissions and PWA integration checks passed.');
+console.log('Attestation question editing, deletion, reliable card binding, permissions and PWA integration checks passed.');
