@@ -63,14 +63,18 @@
   }
 
   function lessonTopic(lesson){
+    const heading = norm([lesson && lesson.title, lesson && lesson.category].join(' '));
+    if(/эспрессо|настройк.*эспрессо/.test(heading)) return 'espresso';
+    if(/молок|латте[- ]?арт|взбив/.test(heading)) return 'milk';
+    if(/кофе|зерн|обжарк|арабик|робуст/.test(heading)) return 'coffee';
+
     const payload = norm([
-      lesson && lesson.title,
-      lesson && lesson.category,
+      heading,
       lesson && lesson.summary,
       ...safeArray(lesson && lesson.blocks).flatMap(block => [block && block.title, block && block.text, block && block.caption])
     ].join(' '));
-    if(/молок|латте[- ]?арт|питчер|микропен|взбив|текстур/.test(payload)) return 'milk';
     if(/эспрессо|экстракц|пролив|помол|дозиров|выход напитка|таблетк|темпер/.test(payload)) return 'espresso';
+    if(/молок|латте[- ]?арт|питчер|микропен|взбив|текстур/.test(payload)) return 'milk';
     if(/кофе|зерн|обжарк|арабик|робуст|обработк|дескриптор|каппинг/.test(payload)) return 'coffee';
     return '';
   }
