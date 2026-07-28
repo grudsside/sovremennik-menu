@@ -25,6 +25,7 @@ async function snapshot(page, login, errors) {
       visible: Boolean(button.offsetWidth || button.offsetHeight || button.getClientRects().length),
     })),
     panels: Array.from(document.querySelectorAll('.top-panel')).map(panel => panel.id),
+    accessDeniedVisible: Boolean(document.querySelector('[data-role-access-denied]')),
     guard: window.SovAttestationsTabGuard || null,
     coreLoaded: Boolean(window.SovAttestationsCore),
     readyBankLoaded: Boolean(window.SovAttestationsReadyBank),
@@ -70,6 +71,16 @@ async function runRole(login, verify) {
   }
 }
 
+async function openEmployeeAttestations(page, roleLabel) {
+  await page.waitForFunction(() => Boolean(document.querySelector('.main-tab[data-top-target="attestations"]')), null, { timeout: 60_000 });
+  const tab = page.locator('.main-tab[data-top-target="attestations"]');
+  await tab.waitFor({ state: 'visible', timeout: 15_000 });
+  await tab.click();
+  await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
+  assert.equal(await page.locator('[data-role-access-denied]').count(), 0, `${roleLabel} must not see the role access warning in Attestations.`);
+  assert.equal(await page.getByRole('button', { name: 'Создать тест' }).count(), 0, `${roleLabel} must not see Attestations management.`);
+}
+
 let failure = null;
 try {
   await runRole('preview-admin', async (page, errors) => {
@@ -91,6 +102,7 @@ try {
     await tab.click();
     await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
     await page.getByRole('button', { name: 'Создать тест' }).waitFor({ state: 'visible', timeout: 30_000 });
+    assert.equal(await page.locator('[data-role-access-denied]').count(), 0, 'Admin must not see the role access warning in Attestations.');
     await page.waitForFunction(() => {
       const values = Array.from(document.querySelectorAll('#top-attestations .att-stat b')).map(node => Number(node.textContent));
       return values.length === 4 && values.every(value => value === 20);
@@ -98,17 +110,19 @@ try {
     const visibleCounts = await page.locator('#top-attestations .att-stat b').allTextContents();
     assert.deepEqual(visibleCounts.map(value => Number(value)), [20,20,20,20], 'Admin interface must show 20 available questions in each base topic.');
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Admin console errors: ${errors.join(' | ')}`);
-    checks.push('admin sees 20 ready questions in each topic and opens Attestations management');
+    checks.push('admin opens Attestations management without an access warning');
   });
 
   await runRole('preview-barista', async (page, errors) => {
-    await page.waitForFunction(() => Boolean(document.querySelector('.main-tab[data-top-target="attestations"]')), null, { timeout: 60_000 });
-    const tab = page.locator('.main-tab[data-top-target="attestations"]');
-    await tab.waitFor({ state: 'visible', timeout: 15_000 });
-    await tab.click();
-    await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
+    await openEmployeeAttestations(page, 'Barista');
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Barista console errors: ${errors.join(' | ')}`);
-    checks.push('barista sees employee Attestations section');
+    checks.push('barista opens assigned Attestations without management or an access warning');
+  });
+
+  await runRole('preview-waiter', async (page, errors) => {
+    await openEmployeeAttestations(page, 'Waiter');
+    assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Waiter console errors: ${errors.join(' | ')}`);
+    checks.push('waiter opens assigned Attestations without management or an access warning');
   });
 
   await runRole('preview-manager', async (page, errors) => {
