@@ -20,7 +20,6 @@ document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=2
 document.write('<link rel="stylesheet" href="assets/css/role-interface.css?v=20260724-3">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-role-workflow.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/home-layout-v4.css?v=20260724-4">');
-document.write('<link rel="stylesheet" href="assets/css/attestations-preview.css?v=20260728-1">');
 document.write('<script src="assets/js/push-legacy.js?v=20260718"><\/script>');
 document.write('<script src="assets/js/interface-redesign.js?v=20260720-2"><\/script>');
 document.write('<script src="assets/js/tasks-v2.js?v=20260720-1"><\/script>');
@@ -56,5 +55,3 @@ document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><
 document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/control-section-stability-v2.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/control-section-draft-key-bridge.js?v=20260725-3"><\/script>');
-document.write('<script src="assets/js/attestations-core.js?v=20260728-1"><\/script>');
-document.write('<script src="assets/js/attestations-preview.js?v=20260728-1"><\/script>');
