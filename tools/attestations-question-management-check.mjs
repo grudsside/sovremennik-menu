@@ -52,15 +52,25 @@ for(const marker of [
   "from('attestation_questions').insert"
 ]) assert(ui.includes(marker), `Question management UI marker is missing: ${marker}`);
 
+const guard = await fs.readFile('assets/js/attestations-question-management-guard.js', 'utf8');
+for(const marker of [
+  "role() !== 'admin'",
+  'attestations-question-management.js?v=20260728-auth-2',
+  "event.target?.id === 'login-form'",
+  'setInterval(reloadAfterLogin, 1500)'
+]) assert(guard.includes(marker), `Question management login guard marker is missing: ${marker}`);
+
 const push = await fs.readFile('assets/js/push.js', 'utf8');
 assert(push.includes('attestations-question-management-core.js?v=20260728-1'));
 assert(push.includes('attestations-question-management.js?v=20260728-1'));
+assert(push.includes('attestations-question-management-guard.js?v=20260728-1'));
 assert(push.includes('attestations-question-management.css?v=20260728-1'));
 
 const worker = await fs.readFile('service-worker.js', 'utf8');
 for(const asset of [
   'assets/js/attestations-question-management-core.js',
   'assets/js/attestations-question-management.js',
+  'assets/js/attestations-question-management-guard.js',
   'assets/css/attestations-question-management.css'
 ]) assert(worker.includes(asset), `PWA cache is missing ${asset}`);
 
@@ -73,4 +83,4 @@ for(const marker of [
   'public.is_admin()'
 ]) assert(migration.includes(marker), `Question management migration marker is missing: ${marker}`);
 
-console.log('Attestation question editing, deletion, permissions and PWA integration checks passed.');
+console.log('Attestation question editing, deletion, post-login initialization, permissions and PWA integration checks passed.');
