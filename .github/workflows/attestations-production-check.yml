@@ -22,6 +22,7 @@ on:
       - 'assets/js/attestations-question-management-core.js'
       - 'assets/js/attestations-question-management.js'
       - 'assets/js/attestations-question-management-guard.js'
+      - 'assets/js/attestations-question-management-buttons.js'
       - 'assets/css/attestations-preview.css'
       - 'assets/css/attestations-question-management.css'
       - 'assets/js/push.js'
@@ -62,6 +63,7 @@ jobs:
           node --check assets/js/attestations-question-management-core.js
           node --check assets/js/attestations-question-management.js
           node --check assets/js/attestations-question-management-guard.js
+          node --check assets/js/attestations-question-management-buttons.js
           node --check tools/attestations-ready-bank-check.mjs
           node --check tools/attestations-question-management-check.mjs
           node tools/attestations-ready-bank-check.mjs
