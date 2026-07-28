@@ -33,7 +33,7 @@ document.write('<script src="assets/js/home-shift-roles.js?v=20260722-1"><\/scri
 document.write('<script src="assets/js/schedule-shift-status-fix.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/mobile-active-panel.js?v=20260720-1"><\/script>');
 document.write('<script src="assets/js/section-maintenance.js?v=20260720-1"><\/script>');
-document.write('<script src="assets/js/role-interface-core.js?v=20260724-1"><\/script>');
+document.write('<script src="assets/js/role-interface-core.js?v=20260728-2"><\/script>');
 document.write('<script src="assets/js/role-interface.js?v=20260724-2"><\/script>');
 document.write('<script src="assets/js/checklist-role-core.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/checklist-role-workflow.js?v=20260724-1"><\/script>');
