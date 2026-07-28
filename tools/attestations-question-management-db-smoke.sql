@@ -8,7 +8,7 @@ DECLARE
   admin_id uuid := '10000000-0000-0000-0000-000000000001';
   employee_id uuid := '10000000-0000-0000-0000-000000000003';
   question_id uuid;
-  blocked boolean := false;
+  affected_rows integer := 0;
 BEGIN
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
   insert into public.attestation_questions (
@@ -46,14 +46,15 @@ BEGIN
   end if;
 
   perform set_config('request.jwt.claim.sub', employee_id::text, true);
-  begin
-    update public.attestation_questions set prompt = 'Запрещённое изменение' where id = question_id;
-  exception when insufficient_privilege then
-    blocked := true;
-  end;
-  if not blocked then raise exception 'Employee unexpectedly edited an attestation question'; end if;
+  update public.attestation_questions set prompt = 'Запрещённое изменение' where id = question_id;
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> 0 then raise exception 'Employee unexpectedly edited an attestation question'; end if;
 
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  if not exists (
+    select 1 from public.attestation_questions
+    where id = question_id and prompt = 'Вопрос после редактирования?'
+  ) then raise exception 'Employee update changed or exposed the question'; end if;
   delete from public.attestation_questions where id = question_id;
 END
 $$;
