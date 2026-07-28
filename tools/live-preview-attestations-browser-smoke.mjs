@@ -30,6 +30,9 @@ async function snapshot(page, login, errors) {
     coreLoaded: Boolean(window.SovAttestationsCore),
     readyBankLoaded: Boolean(window.SovAttestationsReadyBank),
     readyBankInstalled: Boolean(window.SovAttestationsCore?.__readyQuestionBankInstalled),
+    managementCoreLoaded: Boolean(window.SovAttestationsQuestionManagementCore),
+    managementInstalled: Boolean(window.SovAttestationsCore?.__questionManagementInstalled),
+    questionActions: document.querySelectorAll('[data-att-qm-edit],[data-att-qm-delete]').length,
     loadedScripts: Array.from(document.scripts).map(script => script.src).filter(src => /attestations|push\.js/.test(src)),
   }));
   return { login, errors:[...errors], ...browserState };
@@ -79,6 +82,45 @@ async function openEmployeeAttestations(page, roleLabel) {
   await page.locator('#top-attestations h2').filter({ hasText: 'Аттестации' }).waitFor({ state: 'visible', timeout: 30_000 });
   assert.equal(await page.locator('[data-role-access-denied]').count(), 0, `${roleLabel} must not see the role access warning in Attestations.`);
   assert.equal(await page.getByRole('button', { name: 'Создать тест' }).count(), 0, `${roleLabel} must not see Attestations management.`);
+  assert.equal(await page.locator('[data-att-qm-edit],[data-att-qm-delete]').count(), 0, `${roleLabel} must not see question editing controls.`);
+}
+
+async function verifyQuestionManagement(page) {
+  await page.waitForFunction(() => Boolean(window.SovAttestationsCore?.__questionManagementInstalled), null, { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Банк вопросов' }).click();
+  const firstEdit = page.locator('[data-att-qm-edit]').first();
+  await firstEdit.waitFor({ state:'visible', timeout:60_000 });
+  const fingerprint = await firstEdit.getAttribute('data-att-qm-edit');
+  assert(fingerprint, 'Question edit button must contain a fingerprint.');
+
+  const row = page.locator(`[data-att-qm-fingerprint="${fingerprint}"]`);
+  const originalPrompt = (await row.locator('h4').textContent())?.trim() || '';
+  const editedPrompt = `${originalPrompt} · проверка редактирования`;
+
+  await firstEdit.click();
+  const modal = page.locator('[data-att-qm-modal]');
+  await modal.waitFor({ state:'visible', timeout:15_000 });
+  const promptField = modal.locator('textarea[name="prompt"]');
+  assert.equal((await promptField.inputValue()).trim(), originalPrompt, 'Edit form must be prefilled with the selected question.');
+  await promptField.fill(editedPrompt);
+  await modal.getByRole('button', { name:'Сохранить изменения' }).click();
+  await modal.waitFor({ state:'hidden', timeout:30_000 });
+  await page.waitForFunction(({ fingerprint, editedPrompt }) => {
+    const target = document.querySelector(`[data-att-qm-fingerprint="${fingerprint}"] h4`);
+    return target?.textContent?.trim() === editedPrompt;
+  }, { fingerprint, editedPrompt }, { timeout:60_000 });
+  assert.equal(await page.locator(`[data-att-qm-fingerprint="${fingerprint}"] .att-row-tags`).getByText('изменён администратором').count(), 1, 'Edited generated question must be marked as an administrator override.');
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator(`[data-att-qm-delete="${fingerprint}"]`).click();
+  await page.waitForFunction(fingerprintValue => !document.querySelector(`[data-att-qm-fingerprint="${fingerprintValue}"]`), fingerprint, { timeout:60_000 });
+
+  const cleanup = await page.evaluate(async fingerprintValue => {
+    const response = await supa.from('attestation_questions').delete().eq('fingerprint', fingerprintValue);
+    return response.error ? { error:response.error.message } : { ok:true };
+  }, fingerprint);
+  assert.equal(cleanup.error, undefined, `Preview cleanup failed: ${cleanup.error || ''}`);
+  checks.push('administrator edits an automatic question, sees the override and deletes it without exposing the base question again');
 }
 
 let failure = null;
@@ -109,6 +151,7 @@ try {
     }, null, { timeout: 60_000 });
     const visibleCounts = await page.locator('#top-attestations .att-stat b').allTextContents();
     assert.deepEqual(visibleCounts.map(value => Number(value)), [20,20,20,20], 'Admin interface must show 20 available questions in each base topic.');
+    await verifyQuestionManagement(page);
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Admin console errors: ${errors.join(' | ')}`);
     checks.push('admin opens Attestations management without an access warning');
   });
@@ -129,6 +172,7 @@ try {
     assert.equal(await page.locator('.main-tab[data-top-target="attestations"]').count(), 0, 'Manager must not receive a top-level Attestations management tab.');
     await page.locator('.main-tab[data-top-target="control"]').click();
     await page.locator('[data-control-target="attestations"]').waitFor({ state: 'visible', timeout: 30_000 });
+    assert.equal(await page.locator('[data-att-qm-edit],[data-att-qm-delete]').count(), 0, 'Manager must not see question editing controls.');
     assert(!errors.some(text => /Attestations core is not loaded|ReferenceError|SyntaxError|requestfailed/i.test(text)), `Manager console errors: ${errors.join(' | ')}`);
     checks.push('manager sees Attestations results only in Control');
   });
