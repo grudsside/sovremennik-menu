@@ -56,3 +56,17 @@ document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2
 document.write('<script src="assets/js/control-section-stability-v2.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/control-section-draft-key-bridge.js?v=20260725-3"><\/script>');
 document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guard-1"><\/script>');
+
+(function loadReadyAttestationBank(){
+  const src = 'assets/js/attestations-ready-bank.js?v=20260728-ready-1';
+  const load = () => {
+    if(document.querySelector(`script[src="${src}"]`) || window.SovAttestationsReadyBank) return;
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.dataset.attestationsReadyBank = 'true';
+    document.head.appendChild(script);
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
+})();
