@@ -11,6 +11,7 @@ on:
       - 'assets/js/attestations-preview.js'
       - 'assets/js/attestations-question-management-core.js'
       - 'assets/js/attestations-question-management.js'
+      - 'assets/js/attestations-question-management-guard.js'
       - 'assets/css/attestations-preview.css'
       - 'assets/css/attestations-question-management.css'
       - 'assets/js/push.js'
@@ -49,6 +50,7 @@ jobs:
           node --check assets/js/attestations-preview.js
           node --check assets/js/attestations-question-management-core.js
           node --check assets/js/attestations-question-management.js
+          node --check assets/js/attestations-question-management-guard.js
           node --check tools/attestations-preview-check.mjs
           node --check tools/attestations-ready-bank-check.mjs
           node --check tools/attestations-question-management-check.mjs
@@ -61,9 +63,11 @@ jobs:
           grep -q 'attestations-ready-bank.js?v=20260728-ready-1' assets/js/push.js
           grep -q 'attestations-question-management-core.js?v=20260728-1' assets/js/push.js
           grep -q 'attestations-question-management.js?v=20260728-1' assets/js/push.js
+          grep -q 'attestations-question-management-guard.js?v=20260728-1' assets/js/push.js
           grep -q 'attestations-question-management.css?v=20260728-1' assets/js/push.js
           grep -q 'attestations-question-management-core.js' service-worker.js
           grep -q 'attestations-question-management.js' service-worker.js
+          grep -q 'attestations-question-management-guard.js' service-worker.js
           grep -q 'attestations-question-management.css' service-worker.js
 
   database:
