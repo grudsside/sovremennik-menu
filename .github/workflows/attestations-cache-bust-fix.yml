@@ -1,0 +1,46 @@
+name: Attestations preview cache bust fix
+
+on:
+  push:
+    branches:
+      - feature/attestations-preview-20260728
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/attestations-preview-20260728
+          fetch-depth: 0
+
+      - name: Update preview loader version
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          old = 'assets/js/push.js?v=20260720-1'
+          new = 'assets/js/push.js?v=20260728-attestations-3'
+          if old not in text:
+              if new in text:
+                  raise SystemExit(0)
+              raise SystemExit('Expected old loader marker was not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit cache-bust fix
+        run: |
+          if git diff --quiet -- index.html; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Исправить кэш загрузчика превью аттестаций"
+          git push origin HEAD:feature/attestations-preview-20260728
