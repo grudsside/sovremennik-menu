@@ -13,6 +13,7 @@ on:
       - 'assets/js/attestations-ready-bank.js'
       - 'assets/js/attestations-preview.js'
       - 'assets/js/attestations-tab-guard.js'
+      - 'assets/js/role-interface-core.js'
       - 'assets/css/attestations-preview.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
@@ -67,6 +68,7 @@ jobs:
           files=(
             "index.html"
             "assets/js/push.js"
+            "assets/js/role-interface-core.js"
             "assets/js/attestations-core.js"
             "assets/js/attestations-ready-bank.js"
             "assets/js/attestations-preview.js"
@@ -115,7 +117,8 @@ jobs:
             echo
             echo '- Five Attestations tables, RLS policies and protected RPC functions are active.'
             echo '- The ready bank contains 20 current questions in each of four topics.'
-            echo '- Manual question creation remains available to administrators.'
+            echo '- Baristas and waiters can open assigned Attestations without an access warning.'
+            echo '- Manual question creation remains available only to administrators.'
             echo '- Employees do not receive correct answers before submission.'
             echo '- Managers can view results but cannot manage tests.'
             echo '- GitHub Pages serves files identical to the approved release source.'
@@ -156,7 +159,7 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_STATUS" == 'success' ]]; then
             heading='✅ Attestations production release verified'
-            details='Database migration, RLS, protected scoring RPC functions, ready bank and exact GitHub Pages assets passed.'
+            details='Database migration, RLS, protected scoring RPC functions, employee route access, ready bank and exact GitHub Pages assets passed.'
           else
             heading='❌ Attestations production release requires attention'
             details='At least one production deployment or verification step failed. Review the workflow before assigning tests.'

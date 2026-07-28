@@ -53,7 +53,7 @@ jobs:
       - name: Loader and PWA integration
         shell: bash
         run: |
-          grep -q 'role-interface-core.js?v=20260724-1' assets/js/push.js
+          grep -q 'role-interface-core.js?v=20260728-2' assets/js/push.js
           grep -q 'role-interface.js?v=20260724-2' assets/js/push.js
           grep -q 'role-interface.css?v=20260724-3' assets/js/push.js
           grep -q 'checklist-role-workflow.css?v=20260724-1' assets/js/push.js
