@@ -54,9 +54,57 @@ document.write('<script src="assets/js/home-layout-v4.js?v=20260724-3"><\/script
 document.write('<script src="assets/js/checklist-review-observer-guard.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
-document.write('<script src="assets/js/control-section-stability-v2.js?v=20260725-2"><\/script>');
-document.write('<script src="assets/js/control-section-draft-key-bridge.js?v=20260725-3"><\/script>');
 document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guard-1"><\/script>');
+
+/*
+ * The Control coordinator must be the final wrapper around renderApp/refreshControl.
+ * Attestations are parser-loaded after push.js and also wrap these functions, so the
+ * coordinator is intentionally installed on window.load, after all feature modules.
+ */
+(function loadControlCoordinatorLast(){
+  const sources = [
+    'assets/js/control-section-stability-v2.js?v=20260729-order-1',
+    'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1'
+  ];
+  let loading = false;
+
+  const loadScript = src => new Promise((resolve, reject) => {
+    const path = src.split('?')[0];
+    const existing = Array.from(document.scripts).find(script => script.src.includes(path));
+    if(existing){
+      if(existing.dataset.controlCoordinatorReady === 'true' || existing.readyState === 'complete') resolve();
+      else {
+        existing.addEventListener('load', resolve, { once:true });
+        existing.addEventListener('error', reject, { once:true });
+      }
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.dataset.controlCoordinatorDeferred = 'true';
+    script.onload = () => { script.dataset.controlCoordinatorReady = 'true'; resolve(); };
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+
+  const load = async () => {
+    if(loading || window.SovremennikControlSectionStability) return;
+    loading = true;
+    try{
+      for(const source of sources) await loadScript(source);
+      window.SovremennikControlCoordinatorLoad = { status:'ready', loadedAt:new Date().toISOString() };
+    }catch(error){
+      window.SovremennikControlCoordinatorLoad = { status:'error', message:String(error?.message || error) };
+      console.error('Control section coordinator failed to load after feature modules.', error);
+    }finally{
+      loading = false;
+    }
+  };
+
+  if(document.readyState === 'complete') setTimeout(load, 0);
+  else window.addEventListener('load', load, { once:true });
+})();
 
 (function loadReadyAttestationBank(){
   const src = 'assets/js/attestations-ready-bank.js?v=20260728-ready-1';

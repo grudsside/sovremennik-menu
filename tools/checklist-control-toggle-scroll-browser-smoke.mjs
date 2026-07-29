@@ -26,6 +26,7 @@ await page.evaluate(() => {
     checklistPhotoControlHasMore:false, checklistPhotoControlCursor:'2026-07-25T08:00:00Z'
   };
   window.__renderCount = 0;
+  window.__attestationInjectionCount = 0;
 
   window.__markup = () => {
     const active = window.state.activeControl;
@@ -48,13 +49,33 @@ await page.evaluate(() => {
       <div id="control-revisions" class="control-folder ${active === 'revisions' ? 'active' : ''}"><div class="spacer"></div>
         <details class="revision-result-details" data-revision-id="revision-1"><summary><strong>Ревизия кофе 25.07.2026</strong></summary><div style="height:500px">Данные ревизии</div></details>
       </div>
+      <div id="control-attestations" class="control-folder"><div id="attestation-results"></div></div>
     </section>`;
   };
   window.renderApp = () => { window.__renderCount += 1; document.querySelector('#app').innerHTML = window.__markup(); };
   window.refreshControl = () => { window.__renderCount += 1; document.querySelector('#top-control').outerHTML = window.__markup(); };
   document.querySelector('#app').innerHTML = window.__markup();
+
+  // Reproduce the July 28 integration order: Attestations wraps the common Control
+  // functions and mutates its inactive folder on every render/refresh.
+  const renderBeforeAttestations = window.renderApp;
+  window.renderApp = function(...args){
+    const result = renderBeforeAttestations.apply(this, args);
+    const target = document.querySelector('#attestation-results');
+    if(target){ target.innerHTML = `<span>Результаты ${++window.__attestationInjectionCount}</span>`; }
+    return result;
+  };
+  const refreshBeforeAttestations = window.refreshControl;
+  window.refreshControl = function(...args){
+    const result = refreshBeforeAttestations.apply(this, args);
+    const target = document.querySelector('#attestation-results');
+    if(target){ target.innerHTML = `<span>Результаты ${++window.__attestationInjectionCount}</span>`; }
+    return result;
+  };
 });
 
+// The coordinator must load after the feature wrapper and become the final owner
+// of touch deferral and state restoration.
 await page.addScriptTag({ path:path.join(root, 'assets/js/control-section-stability-v2.js') });
 
 async function touchRace(selector, mutate = null){
@@ -73,10 +94,11 @@ async function touchRace(selector, mutate = null){
 }
 
 const first = await touchRace('[data-checklist-submission] > summary');
-assert.equal(first.connectedDuringTouch, true, 'Background review refresh must not detach the touched summary');
+assert.equal(first.connectedDuringTouch, true, 'Background attestation/review refresh must not detach the touched summary');
 await page.waitForTimeout(750);
 assert.equal(await page.locator('[data-checklist-submission]').evaluate(node => node.open), true, 'The first tap must open the checklist');
-assert.equal(await page.evaluate(() => window.__renderCount), 0, 'Redundant review refresh must not redraw Control');
+assert.equal(await page.evaluate(() => window.__renderCount), 0, 'Redundant wrapped refresh must not redraw Control');
+assert.equal(await page.evaluate(() => window.__attestationInjectionCount), 0, 'Inactive attestation rendering must also stay deferred during a redundant refresh');
 
 await page.locator('[data-checklist-submission] > summary').click();
 await page.waitForFunction(() => document.querySelector('[data-checklist-submission]')?.open === false);
@@ -85,10 +107,12 @@ assert.equal(changed.connectedDuringTouch, true, 'A changed-data refresh must wa
 await page.waitForTimeout(800);
 assert.equal(await page.locator('[data-checklist-submission]').evaluate(node => node.open), true, 'The checklist must remain open after the deferred changed-data render');
 assert.equal(await page.evaluate(() => window.__renderCount), 1, 'Changed data must render exactly once');
+assert.equal(await page.evaluate(() => window.__attestationInjectionCount), 1, 'The feature wrapper must run inside the one coordinated redraw');
 
 await page.evaluate(() => { window.refreshControl(); window.refreshControl(); window.refreshControl(); });
 await page.waitForTimeout(100);
 assert.equal(await page.evaluate(() => window.__renderCount), 1, 'Unchanged background refreshes must not replace the DOM');
+assert.equal(await page.evaluate(() => window.__attestationInjectionCount), 1, 'Unchanged wrapped refreshes must not mutate inactive Control folders');
 
 await page.locator('[data-scroll-marker]').scrollIntoViewIfNeeded();
 await page.evaluate(() => window.scrollBy(0, 90));
@@ -124,4 +148,4 @@ await page.waitForTimeout(800);
 assert.equal(await page.locator('[data-revision-id]').evaluate(node => node.open), true, 'Revision must open on the first tap and stay open after redraw');
 
 await browser.close();
-console.log('Control touch race, render coalescing and viewport stability smoke passed.');
+console.log('Control touch race with late feature wrappers, render coalescing and viewport stability smoke passed.');
