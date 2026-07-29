@@ -1,0 +1,57 @@
+/* Современник — isolated Control v3 layout. */
+#top-control.control-v3{
+  --control-v3-border:rgba(36,69,54,.16);
+}
+#top-control.control-v3 .control-subtabs{
+  position:relative;
+  z-index:1;
+  margin-bottom:18px;
+}
+#top-control.control-v3 .control-v3-stage{
+  min-height:360px;
+  overflow-anchor:none;
+  contain:layout style;
+}
+#top-control.control-v3 .control-v3-folder{
+  min-width:0;
+  overflow-anchor:none;
+}
+#top-control.control-v3 .control-v3-folder[hidden]{
+  display:none!important;
+}
+#top-control.control-v3 .control-v3-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:0 0 16px;
+  padding:16px 18px;
+  border:1px solid var(--control-v3-border);
+  border-radius:18px;
+  background:rgba(255,255,255,.72);
+}
+#top-control.control-v3 .control-v3-toolbar p{
+  margin:0;
+  max-width:760px;
+  line-height:1.5;
+}
+#top-control.control-v3 .control-v3-toolbar .doc-actions{
+  flex:0 0 auto;
+}
+#top-control.control-v3 .control-day-group,
+#top-control.control-v3 .checklist-submission-details,
+#top-control.control-v3 .revision-manual{
+  overflow-anchor:none;
+}
+@media (max-width:760px){
+  #top-control.control-v3 .control-v3-toolbar{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  #top-control.control-v3 .control-v3-toolbar .doc-actions{
+    width:100%;
+  }
+  #top-control.control-v3 .control-v3-toolbar .doc-actions > *{
+    flex:1 1 auto;
+  }
+}
