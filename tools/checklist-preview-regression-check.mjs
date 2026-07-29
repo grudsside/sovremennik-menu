@@ -6,6 +6,7 @@ const serviceWorker = fs.readFileSync('service-worker.js', 'utf8');
 const css = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
 const stability = fs.readFileSync('assets/js/control-section-stability-v2.js', 'utf8');
 const draftKeyBridge = fs.readFileSync('assets/js/control-section-draft-key-bridge.js', 'utf8');
+const viewportJitterFix = fs.readFileSync('assets/js/control-viewport-jitter-fix.js', 'utf8');
 const reviewTools = fs.readFileSync('assets/js/checklist-review-tools.js', 'utf8');
 const photoReports = fs.readFileSync('assets/js/checklist-photo-reports.js', 'utf8');
 const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 'utf8');
@@ -17,12 +18,14 @@ const required = [
   [push.includes('checklist-photo-draft-fix.js?v=20260725-2'), 'photo draft fix must be loaded'],
   [push.includes("'assets/js/control-section-stability-v2.js?v=20260729-order-1'"), 'deferred unified Control stability coordinator v2 must be configured'],
   [push.includes("'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1'"), 'deferred offline checklist key bridge must be configured'],
+  [push.includes("'assets/js/control-viewport-jitter-fix.js?v=20260730-1'"), 'deferred desktop Control viewport guard must be configured'],
   [push.indexOf('control-section-stability-v2.js') < push.indexOf('control-section-draft-key-bridge.js'), 'offline key bridge must load after the coordinator'],
+  [push.indexOf('control-section-draft-key-bridge.js') < push.indexOf('control-viewport-jitter-fix.js'), 'viewport guard must load last'],
   [push.includes("window.addEventListener('load', load, { once:true })"), 'coordinator must become the final wrapper after parser-loaded feature modules'],
   [!push.includes("document.write('<script src=\"assets/js/control-section-stability-v2.js") && !push.includes("document.write('<script src=\"assets/js/control-section-draft-key-bridge.js"), 'Control coordinator and key bridge must not load before attestations'],
   [!push.includes('checklist-ui-state-fix.js') && !push.includes('control-revision-scroll-fix.js') && !push.includes('checklist-photo-rules-open-fix.js') && !push.includes('control-section-stability.js?v='), 'competing legacy state and scroll scripts must not be loaded'],
-  [serviceWorker.includes("sovremennik-offline-20260729-v26"), 'PWA cache must be refreshed for the Control render-order fix'],
-  [serviceWorker.includes('control-section-stability-v2.js') && serviceWorker.includes('control-section-draft-key-bridge.js'), 'Control coordinator and offline key bridge must be precached'],
+  [serviceWorker.includes('sovremennik-offline-20260730-v27'), 'PWA cache must be refreshed for the Control viewport fix'],
+  [serviceWorker.includes('control-section-stability-v2.js') && serviceWorker.includes('control-section-draft-key-bridge.js') && serviceWorker.includes('control-viewport-jitter-fix.js'), 'Control coordinator, offline key bridge and viewport guard must be precached'],
   [css.includes('height:100dvh') && css.includes('object-fit:contain!important'), 'desktop viewer must fit the complete photo inside the viewport'],
   [stability.includes("document.addEventListener('pointerdown'"), 'touch interaction must lock Control before background renders'],
   [stability.includes('pendingRefresh = { context:this, args }') && stability.includes('interacting()'), 'refreshes must be deferred while a summary is being touched'],
@@ -31,6 +34,10 @@ const required = [
   [stability.includes('captureOpen()') && stability.includes('restoreOpen()'), 'all Control details must keep native open state across real renders'],
   [stability.includes('captureAnchor()') && stability.includes('restoreAnchor(anchor)'), 'one unified viewport anchor must preserve scroll'],
   [stability.includes('global.scrollBy(0, delta)'), 'viewport anchor correction must be available'],
+  [viewportJitterFix.includes("const VERSION = '2026-07-30-control-viewport-jitter-1'"), 'desktop Control viewport jitter fix must be present'],
+  [viewportJitterFix.includes('desiredScrollY') && viewportJitterFix.includes('viewportHoldUntil'), 'post-scroll viewport hold must be present'],
+  [viewportJitterFix.includes('global.scrollBy = function') && viewportJitterFix.includes('global.scrollTo = function'), 'stale coordinator corrections must be suppressible'],
+  [viewportJitterFix.includes("global.addEventListener('wheel'"), 'deliberate wheel scrolling must remain allowed'],
   [stability.includes('rememberComment') && stability.includes('rememberPhotoRules'), 'comment and photo-rule drafts must survive a changed-data render'],
   [draftKeyBridge.includes('drafts.clear()') && draftKeyBridge.includes('userEditingThisCard'), 'auto-filled blank checklist snapshots must not override IndexedDB restoration'],
   [draftKeyBridge.includes('snapshotRestoredCard') && draftKeyBridge.includes('input?.dataset?.task') && draftKeyBridge.includes('input?.dataset?.photoItemKey'), 'restored offline checkbox state must be accepted under raw and photo-enhanced keys'],
