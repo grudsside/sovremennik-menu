@@ -9,6 +9,7 @@ const draftKeyBridge = fs.readFileSync('assets/js/control-section-draft-key-brid
 const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20260724210000_checklist_review_tools_preview.sql', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
+const index = fs.readFileSync('index.html', 'utf8');
 const worker = fs.readFileSync('service-worker.js', 'utf8');
 
 for (const marker of [
@@ -41,10 +42,15 @@ assert.ok(loader.includes('assets/js/checklist-review-observer-guard.js'), 'Cont
 assert.ok(loader.indexOf('assets/js/checklist-review-observer-guard.js') < loader.indexOf('assets/js/checklist-review-tools.js'), 'Observer guard must load directly before review tools');
 assert.ok(loader.includes('assets/js/checklist-review-tools.js?v=20260725-2'), 'Current review JS is not loaded');
 assert.ok(loader.includes('assets/js/checklist-photo-draft-fix.js?v=20260725-2'), 'Current photo draft fix is not loaded');
-assert.ok(loader.includes('assets/js/control-section-stability-v2.js?v=20260725-2'), 'Unified Control stability coordinator v2 is not loaded');
-assert.ok(loader.includes('assets/js/control-section-draft-key-bridge.js?v=20260725-3'), 'Offline Control draft key bridge v3 is not loaded');
+assert.ok(loader.includes("'assets/js/control-section-stability-v2.js?v=20260729-order-1'"), 'Deferred unified Control coordinator is not configured');
+assert.ok(loader.includes("'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1'"), 'Deferred offline draft bridge is not configured');
+assert.ok(loader.includes("window.addEventListener('load', load, { once:true })"), 'Control coordinator must load after parser feature modules');
+assert.ok(loader.includes('window.SovremennikControlCoordinatorLoad'), 'Control coordinator load diagnostics are missing');
+assert.ok(!loader.includes("document.write('<script src=\"assets/js/control-section-stability-v2.js"), 'Control coordinator must not be parser-loaded before attestations');
+assert.ok(!loader.includes("document.write('<script src=\"assets/js/control-section-draft-key-bridge.js"), 'Control draft bridge must not be parser-loaded before attestations');
+assert.ok(index.indexOf('assets/js/push.js') < index.indexOf('assets/js/attestations-preview.js'), 'Regression precondition changed: push loader is expected before attestations');
 assert.ok(!loader.includes('checklist-ui-state-fix.js') && !loader.includes('control-revision-scroll-fix.js') && !loader.includes('checklist-photo-rules-open-fix.js') && !loader.includes('control-section-stability.js?v='), 'Legacy competing Control modules are still loaded');
-assert.ok(worker.includes('sovremennik-offline-20260725-v19'), 'Current PWA cache is not active');
+assert.ok(worker.includes("const CACHE_VERSION = 'sovremennik-offline-20260729-v26'"), 'Control render-order PWA cache is not active');
 assert.ok(worker.includes('./assets/css/checklist-review-tools.css'), 'Review CSS is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-observer-guard.js'), 'Control observer guard is not cached');
 assert.ok(worker.includes('./assets/js/checklist-review-tools.js'), 'Review JS is not cached');
