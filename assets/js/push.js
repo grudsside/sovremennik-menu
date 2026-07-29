@@ -64,7 +64,8 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
 (function loadControlCoordinatorLast(){
   const sources = [
     'assets/js/control-section-stability-v2.js?v=20260729-order-1',
-    'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1'
+    'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1',
+    'assets/js/control-viewport-jitter-fix.js?v=20260730-1'
   ];
   let loading = false;
 
