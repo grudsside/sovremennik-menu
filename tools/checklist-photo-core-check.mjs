@@ -4,7 +4,9 @@ import vm from 'node:vm';
 
 const source = readFileSync('assets/js/checklist-photo-core.js', 'utf8');
 const loader = readFileSync('assets/js/push.js', 'utf8');
-const viewerFit = readFileSync('assets/css/checklist-photo-viewer-fit.css', 'utf8');
+const service = readFileSync('assets/js/control-v4-service.js', 'utf8');
+const control = readFileSync('assets/js/control-v4-control.js', 'utf8');
+const v4Css = readFileSync('assets/css/control-v4.css', 'utf8');
 const migration = readFileSync('supabase/migrations/20260722130000_checklist_photo_reports_preview.sql', 'utf8');
 const retention = readFileSync('supabase/functions/checklist-photo-retention/index.ts', 'utf8');
 
@@ -13,7 +15,7 @@ context.globalThis = context;
 vm.createContext(context);
 vm.runInContext(source, context, { filename: 'checklist-photo-core.js' });
 const core = context.SovremennikChecklistPhotoCore;
-assert.ok(core, 'Checklist photo core must be published');
+assert.ok(core, 'Checklist photo core must remain available for template/editor compatibility');
 
 const document = {
   id: 'opening',
@@ -79,29 +81,35 @@ assert.equal(grouped.length, 2);
 assert.equal(grouped[0].dateKey, '2026-07-22');
 assert.deepEqual(Array.from(grouped[0].records, row => row.id), ['new-b', 'new-a']);
 
-const paths = core.buildStoragePaths({
-  userId: 'employee-id',
-  submissionId: 'submission-id',
-  itemKey: 'opening:0:1',
-  index: 2,
-  nonce: 'fixed',
-});
-assert.match(paths.fullPath, /^employee-id\/submission-id\/opening-0-1\/full-2-fixed\.jpg$/);
-assert.match(paths.thumbnailPath, /^employee-id\/submission-id\/opening-0-1\/thumb-2-fixed\.jpg$/);
+for (const marker of [
+  'assets/css/control-v4.css?v=20260730-1',
+  'assets/js/checklist-photo-core.js?v=20260722-1',
+  'assets/js/control-v4-service.js?v=20260730-1',
+  'assets/js/control-v4-control.js?v=20260730-1',
+  'assets/js/control-v4-checklists.js?v=20260730-1',
+]) assert.ok(loader.includes(marker), `Missing Control v4 photo loader marker: ${marker}`);
+assert.ok(!loader.includes('assets/js/checklist-photo-reports.js?v='), 'Legacy photo report runtime must stay disconnected');
 
 for (const marker of [
-  'assets/css/checklist-photo-reports.css?v=20260722-1',
-  'assets/css/checklist-photo-viewer-fit.css?v=20260722-1',
-  'assets/js/checklist-photo-core.js?v=20260722-1',
-  'assets/js/checklist-photo-reports.js?v=20260722-1',
-]) {
-  assert.ok(loader.includes(marker), `Missing checklist photo loader marker: ${marker}`);
-}
+  "const PHOTO_BUCKET = 'checklist-photo-reports'",
+  'prepareImage',
+  'existingPhoto',
+  'uploadPhoto',
+  'finalize_checklist_photo_submission',
+  'replace_checklist_photo_rules',
+  'createSignedUrl',
+]) assert.ok(service.includes(marker), `Missing Control v4 photo service marker: ${marker}`);
 
-assert.match(viewerFit, /@media \(min-width:641px\)/, 'Desktop viewer fix must not change the working mobile layout');
-assert.match(viewerFit, /max-height:calc\(100dvh - 56px\)/, 'Viewer image must be bounded by the visible desktop height');
-assert.match(viewerFit, /width:auto;[\s\S]*height:auto;/, 'Portrait photos must keep their aspect ratio');
-assert.match(viewerFit, /object-fit:contain/, 'Desktop photos must fit without cropping');
+for (const marker of [
+  'data-control-v4-viewer',
+  'data-v4-viewer-prev',
+  'data-v4-viewer-next',
+  'data-v4-viewer-in',
+  'data-v4-viewer-out',
+]) assert.ok(control.includes(marker), `Missing Control v4 viewer marker: ${marker}`);
+assert.match(v4Css, /max-height:100%/, 'Viewer image must be bounded by the visible height');
+assert.match(v4Css, /object-fit:contain/, 'Photos must fit without cropping');
+assert.match(v4Css, /touch-action:none/, 'Photo viewer must own pinch and drag gestures');
 
 for (const marker of [
   'checklist_photo_rules',
@@ -112,11 +120,9 @@ for (const marker of [
   "'checklist-photo-reports'",
   "interval '90 days'",
   'storage.foldername(name)',
-]) {
-  assert.ok(migration.includes(marker), `Missing checklist photo migration marker: ${marker}`);
-}
+]) assert.ok(migration.includes(marker), `Missing checklist photo migration marker: ${marker}`);
 assert.ok(retention.includes('retention_90_days'));
 assert.ok(retention.includes('CHECKLIST_PHOTO_RETENTION_SECRET'));
 assert.ok(retention.includes('.remove(objectPaths)'));
 
-console.log('Checklist photo report core checks passed.');
+console.log('Control v4 photo pipeline and retention checks passed.');
