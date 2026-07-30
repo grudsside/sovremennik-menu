@@ -1,0 +1,81 @@
+/* Современник — Control v4 photo viewer: fit the original image to the visible page area. */
+.control-v4-viewer{
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  max-width:100vw;
+  max-height:100vh;
+  max-height:100dvh;
+  overflow:hidden;
+}
+.control-v4-viewer-stage{
+  width:100%;
+  height:100%;
+  min-width:0;
+  min-height:0;
+  padding:12px;
+  box-sizing:border-box;
+  overflow:auto;
+  overscroll-behavior:contain;
+  contain:layout paint;
+}
+.control-v4-viewer-stage img{
+  display:block;
+  width:auto!important;
+  height:auto!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  margin:auto;
+  object-fit:contain!important;
+  object-position:center center;
+  transform-origin:center center;
+}
+@media(max-width:720px){
+  .control-v4-viewer{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:auto minmax(0,1fr) auto;
+  }
+  .control-v4-viewer header{
+    grid-column:1!important;
+    grid-row:1;
+  }
+  .control-v4-viewer-stage{
+    grid-column:1;
+    grid-row:2;
+    padding:8px;
+  }
+  .control-v4-viewer-stage img{
+    max-width:calc(100vw - 16px)!important;
+    max-height:calc(100dvh - 148px)!important;
+  }
+  .control-v4-viewer footer{
+    grid-column:1!important;
+    grid-row:3;
+  }
+  .control-v4-viewer>button{
+    position:fixed;
+    top:50%;
+    z-index:2;
+    transform:translateY(-50%);
+    margin:0;
+  }
+  .control-v4-viewer>.previous{
+    left:max(6px,env(safe-area-inset-left));
+  }
+  .control-v4-viewer>.next{
+    right:max(6px,env(safe-area-inset-right));
+  }
+}
+@media(max-height:560px){
+  .control-v4-viewer-stage img{
+    max-height:calc(100dvh - 126px)!important;
+  }
+  .control-v4-viewer header{
+    padding-top:6px;
+    padding-bottom:6px;
+  }
+  .control-v4-viewer footer{
+    padding-top:6px;
+    padding-bottom:6px;
+  }
+}
