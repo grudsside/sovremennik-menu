@@ -10,11 +10,7 @@ document.write('<link rel="stylesheet" href="assets/css/schedule-shift-status-fi
 document.write('<link rel="stylesheet" href="assets/css/mobile-active-panel.css?v=20260719-2">');
 document.write('<link rel="stylesheet" href="assets/css/section-maintenance.css?v=20260720-1">');
 document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?v=20260720-1">');
-document.write('<link rel="stylesheet" href="assets/css/checklist-photo-reports.css?v=20260722-1">');
-document.write('<link rel="stylesheet" href="assets/css/checklist-photo-viewer-fit.css?v=20260722-1">');
-document.write('<link rel="stylesheet" href="assets/css/checklist-review-tools.css?v=20260725-2">');
-document.write('<link rel="stylesheet" href="assets/css/control-v3.css?v=20260730-1">');
-document.write('<link rel="stylesheet" href="assets/css/offline-reliability.css?v=20260723-1">');
+document.write('<link rel="stylesheet" href="assets/css/control-v4.css?v=20260730-1">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff.css?v=20260723-5">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css?v=20260724-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-editor.css?v=20260724-1">');
@@ -43,38 +39,35 @@ document.write('<script src="assets/js/mobile-photo-expand.js?v=20260720-1"><\/s
 document.write('<script src="assets/js/checklist-details-fix.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-photo-core.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-editor-core.js?v=20260724-1"><\/script>');
-document.write('<script src="assets/js/checklist-photo-reports.js?v=20260722-1"><\/script>');
 document.write('<script src="assets/js/checklist-editor.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/menu-render-guard.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/offline-core.js?v=20260723-1"><\/script>');
-document.write('<script src="assets/js/offline-sync.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/shift-handoff-core.js?v=20260723-1"><\/script>');
 document.write('<script src="assets/js/shift-handoff.js?v=20260723-4"><\/script>');
 document.write('<script src="assets/js/shift-handoff-mobile-input-fix.js?v=20260724-1"><\/script>');
 document.write('<script src="assets/js/home-layout-v4.js?v=20260724-3"><\/script>');
-document.write('<script src="assets/js/checklist-review-observer-guard.js?v=20260724-1"><\/script>');
-document.write('<script src="assets/js/checklist-review-tools.js?v=20260725-2"><\/script>');
-document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2"><\/script>');
 document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guard-1"><\/script>');
 
 /*
- * Control v3 is installed only after every parser-loaded feature module.
- * It becomes the single owner of the Control shell, tab lifecycle and refreshes.
- * The regression guard is loaded last so it can safely wrap the final public APIs.
+ * Control v4 loads after all parser-loaded feature modules and becomes the sole
+ * owner of Control, checklist drafts, the pending queue and submission sync.
+ * The former Control/photo/offline wrappers are intentionally not loaded.
  */
-(function loadControlV3Last(){
+(function loadControlV4Last(){
   const sources = [
-    'assets/js/control-v3-core.js?v=20260730-1',
-    'assets/js/control-v3.js?v=20260730-1',
-    'assets/js/control-v3-regression-fix.js?v=20260730-1'
+    'assets/js/control-v4-core.js?v=20260730-1',
+    'assets/js/control-v4-storage.js?v=20260730-1',
+    'assets/js/control-v4-service.js?v=20260730-1',
+    'assets/js/control-v4-control.js?v=20260730-1',
+    'assets/js/control-v4-checklists.js?v=20260730-1',
+    'assets/js/control-v4.js?v=20260730-1'
   ];
   let loading = false;
-
   const loadScript = src => new Promise((resolve, reject) => {
     const path = src.split('?')[0];
     const existing = Array.from(document.scripts).find(script => script.src.includes(path));
     if(existing){
-      if(existing.dataset.controlV3Ready === 'true' || existing.readyState === 'complete') resolve();
+      if(existing.dataset.controlV4Ready === 'true' || existing.readyState === 'complete') resolve();
       else {
         existing.addEventListener('load', resolve, { once:true });
         existing.addEventListener('error', reject, { once:true });
@@ -84,26 +77,22 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
     const script = document.createElement('script');
     script.src = src;
     script.async = false;
-    script.dataset.controlV3Deferred = 'true';
-    script.onload = () => { script.dataset.controlV3Ready = 'true'; resolve(); };
+    script.dataset.controlV4Deferred = 'true';
+    script.onload = () => { script.dataset.controlV4Ready = 'true'; resolve(); };
     script.onerror = reject;
     document.head.appendChild(script);
   });
-
   const load = async () => {
-    if(loading || window.SovremennikControlV3RegressionFix) return;
+    if(loading || window.SovremennikControlV4) return;
     loading = true;
     try{
       for(const source of sources) await loadScript(source);
-      window.SovremennikControlV3Load = { status:'ready', loadedAt:new Date().toISOString() };
+      window.SovremennikControlV4Load = { status:'ready', loadedAt:new Date().toISOString() };
     }catch(error){
-      window.SovremennikControlV3Load = { status:'error', message:String(error?.message || error) };
-      console.error('Control v3 failed to load after feature modules.', error);
-    }finally{
-      loading = false;
-    }
+      window.SovremennikControlV4Load = { status:'error', message:String(error?.message || error) };
+      console.error('Control v4 failed to load after feature modules.', error);
+    }finally{ loading = false; }
   };
-
   if(document.readyState === 'complete') setTimeout(load, 0);
   else window.addEventListener('load', load, { once:true });
 })();
