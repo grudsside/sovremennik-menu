@@ -9,6 +9,15 @@
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
   let rendering=false,started=false;
 
+  function ensurePhotoFitStyles(){
+    if(document.querySelector('link[data-control-v4-photo-fit]'))return;
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='assets/css/control-v4-photo-fit.css?v=20260730-1';
+    link.dataset.controlV4PhotoFit='true';
+    document.head.appendChild(link);
+  }
+
   function toggleNearest(button,sectionSelector,bodySelector,id,set){
     const section=button?.closest(sectionSelector);
     const body=section?.querySelector(bodySelector);
@@ -55,6 +64,7 @@
   }
   async function start(){
     if(started)return;started=true;
+    ensurePhotoFitStyles();
     install();
     await Storage.open();
     await Checklists.restoreOfflineSession();
