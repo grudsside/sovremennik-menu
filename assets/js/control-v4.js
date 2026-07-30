@@ -5,9 +5,18 @@
   const Core=global.SovremennikControlV4Core,Storage=global.SovremennikControlV4Storage,Service=global.SovremennikControlV4Service,Control=global.SovremennikControlV4Control,Checklists=global.SovremennikControlV4Checklists;
   const app=typeof state!=='undefined'?state:global.state;
   if(!Core||!Storage||!Service||!Control||!Checklists||!app||typeof global.renderApp!=='function'){console.error('Control v4 dependencies are unavailable.');return}
-  const VERSION='2026-07-30-control-v4-1';
+  const VERSION='2026-07-30-control-v4-2';
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
   let rendering=false,started=false;
+
+  function ensurePhotoFitStyles(){
+    if(document.querySelector('link[data-control-v4-photo-fit]'))return;
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='assets/css/control-v4-photo-fit.css?v=20260730-1';
+    link.dataset.controlV4PhotoFit='true';
+    document.head.appendChild(link);
+  }
 
   function toggleNearest(button,sectionSelector,bodySelector,id,set){
     const section=button?.closest(sectionSelector);
@@ -55,6 +64,7 @@
   }
   async function start(){
     if(started)return;started=true;
+    ensurePhotoFitStyles();
     install();
     await Storage.open();
     await Checklists.restoreOfflineSession();
