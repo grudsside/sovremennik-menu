@@ -1,26 +1,25 @@
-name: Checklist review preview
+name: Control v4 preview
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - 'assets/js/checklist-review-tools.js'
-      - 'assets/js/checklist-photo-draft-fix.js'
-      - 'assets/js/control-v3-core.js'
-      - 'assets/js/control-v3.js'
-      - 'assets/js/control-v3-regression-fix.js'
-      - 'assets/css/checklist-review-tools.css'
-      - 'assets/css/control-v3.css'
+      - 'assets/js/control-v4-core.js'
+      - 'assets/js/control-v4-storage.js'
+      - 'assets/js/control-v4-service.js'
+      - 'assets/js/control-v4-control.js'
+      - 'assets/js/control-v4-checklists.js'
+      - 'assets/js/control-v4.js'
+      - 'assets/css/control-v4.css'
       - 'assets/js/push.js'
       - 'service-worker.js'
       - 'supabase/migrations/20260724210000_checklist_review_tools_preview.sql'
+      - 'tools/control-v4-core-check.mjs'
+      - 'tools/control-v4-mobile-browser-smoke.mjs'
+      - 'tools/offline-reliability-browser-smoke.mjs'
       - 'tools/checklist-review-tools-check.mjs'
-      - 'tools/checklist-review-browser-smoke.mjs'
       - 'tools/checklist-preview-regression-check.mjs'
-      - 'tools/checklist-draft-state-browser-smoke.mjs'
-      - 'tools/control-v3-browser-smoke.mjs'
-      - 'tools/control-v3-regression-fix-browser-smoke.mjs'
       - 'tools/checklist-review-tools-db-smoke.sql'
       - '.github/workflows/checklist-review-preview.yml'
 
@@ -28,12 +27,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: checklist-review-preview-${{ github.ref }}
+  group: control-v4-preview-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   structure:
-    name: Structure and browser smoke
+    name: Mobile architecture and browser smoke
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,38 +43,31 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Check syntax and integration markers
+      - name: Check syntax and runtime isolation
         run: |
-          node --check assets/js/checklist-review-tools.js
-          node --check assets/js/checklist-photo-draft-fix.js
-          node --check assets/js/control-v3-core.js
-          node --check assets/js/control-v3.js
-          node --check assets/js/control-v3-regression-fix.js
-          node --check tools/checklist-review-tools-check.mjs
-          node --check tools/checklist-review-browser-smoke.mjs
-          node --check tools/checklist-preview-regression-check.mjs
-          node --check tools/checklist-draft-state-browser-smoke.mjs
-          node --check tools/control-v3-browser-smoke.mjs
-          node --check tools/control-v3-regression-fix-browser-smoke.mjs
-          node tools/checklist-review-tools-check.mjs
-          node tools/checklist-preview-regression-check.mjs
+          node --check assets/js/control-v4-core.js
+          node --check assets/js/control-v4-storage.js
+          node --check assets/js/control-v4-service.js
+          node --check assets/js/control-v4-control.js
+          node --check assets/js/control-v4-checklists.js
+          node --check assets/js/control-v4.js
+          node --check assets/js/push.js
+          node --check service-worker.js
+          node --check tools/control-v4-core-check.mjs
+          node --check tools/control-v4-mobile-browser-smoke.mjs
+          node --check tools/offline-reliability-browser-smoke.mjs
+          node tools/control-v4-core-check.mjs
 
-      - name: Install Chromium for focused smoke tests
+      - name: Install Chromium and WebKit
         run: |
           npm install --no-save playwright@1.54.1
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
 
-      - name: Test filters, comments, deletion and photo viewer
-        run: node tools/checklist-review-browser-smoke.mjs
+      - name: Test real mobile taps and one-shot submissions
+        run: node tools/control-v4-mobile-browser-smoke.mjs
 
-      - name: Test desktop fit and persistent photo draft restoration
-        run: node tools/checklist-draft-state-browser-smoke.mjs
-
-      - name: Test isolated Control v3 rendering and viewport stability
-        run: node tools/control-v3-browser-smoke.mjs
-
-      - name: Test revisions, waiter reports and one-shot submissions
-        run: node tools/control-v3-regression-fix-browser-smoke.mjs
+      - name: Test offline queue and reconnect duplicate protection
+        run: node tools/offline-reliability-browser-smoke.mjs
 
   database:
     name: Isolated database smoke
