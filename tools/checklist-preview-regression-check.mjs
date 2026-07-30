@@ -3,10 +3,10 @@ import fs from 'node:fs';
 
 const push = fs.readFileSync('assets/js/push.js', 'utf8');
 const serviceWorker = fs.readFileSync('service-worker.js', 'utf8');
-const css = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
-const stability = fs.readFileSync('assets/js/control-section-stability-v2.js', 'utf8');
-const draftKeyBridge = fs.readFileSync('assets/js/control-section-draft-key-bridge.js', 'utf8');
-const viewportJitterFix = fs.readFileSync('assets/js/control-viewport-jitter-fix.js', 'utf8');
+const reviewCss = fs.readFileSync('assets/css/checklist-review-tools.css', 'utf8');
+const controlCss = fs.readFileSync('assets/css/control-v3.css', 'utf8');
+const controlCore = fs.readFileSync('assets/js/control-v3-core.js', 'utf8');
+const control = fs.readFileSync('assets/js/control-v3.js', 'utf8');
 const reviewTools = fs.readFileSync('assets/js/checklist-review-tools.js', 'utf8');
 const photoReports = fs.readFileSync('assets/js/checklist-photo-reports.js', 'utf8');
 const photoDraftFix = fs.readFileSync('assets/js/checklist-photo-draft-fix.js', 'utf8');
@@ -16,36 +16,24 @@ const required = [
   [push.indexOf('checklist-review-observer-guard.js') < push.indexOf('checklist-review-tools.js'), 'Control observer guard must precede review tools'],
   [push.includes('checklist-review-tools.js?v=20260725-2'), 'current checklist review tools must be loaded'],
   [push.includes('checklist-photo-draft-fix.js?v=20260725-2'), 'photo draft fix must be loaded'],
-  [push.includes("'assets/js/control-section-stability-v2.js?v=20260729-order-1'"), 'deferred unified Control stability coordinator v2 must be configured'],
-  [push.includes("'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1'"), 'deferred offline checklist key bridge must be configured'],
-  [push.includes("'assets/js/control-viewport-jitter-fix.js?v=20260730-1'"), 'deferred desktop Control viewport guard must be configured'],
-  [push.indexOf('control-section-stability-v2.js') < push.indexOf('control-section-draft-key-bridge.js'), 'offline key bridge must load after the coordinator'],
-  [push.indexOf('control-section-draft-key-bridge.js') < push.indexOf('control-viewport-jitter-fix.js'), 'viewport guard must load last'],
-  [push.includes("window.addEventListener('load', load, { once:true })"), 'coordinator must become the final wrapper after parser-loaded feature modules'],
-  [!push.includes("document.write('<script src=\"assets/js/control-section-stability-v2.js") && !push.includes("document.write('<script src=\"assets/js/control-section-draft-key-bridge.js"), 'Control coordinator and key bridge must not load before attestations'],
-  [!push.includes('checklist-ui-state-fix.js') && !push.includes('control-revision-scroll-fix.js') && !push.includes('checklist-photo-rules-open-fix.js') && !push.includes('control-section-stability.js?v='), 'competing legacy state and scroll scripts must not be loaded'],
-  [serviceWorker.includes('sovremennik-offline-20260730-v27'), 'PWA cache must be refreshed for the Control viewport fix'],
-  [serviceWorker.includes('control-section-stability-v2.js') && serviceWorker.includes('control-section-draft-key-bridge.js') && serviceWorker.includes('control-viewport-jitter-fix.js'), 'Control coordinator, offline key bridge and viewport guard must be precached'],
-  [css.includes('height:100dvh') && css.includes('object-fit:contain!important'), 'desktop viewer must fit the complete photo inside the viewport'],
-  [stability.includes("document.addEventListener('pointerdown'"), 'touch interaction must lock Control before background renders'],
-  [stability.includes('pendingRefresh = { context:this, args }') && stability.includes('interacting()'), 'refreshes must be deferred while a summary is being touched'],
-  [stability.includes('signature() === lastSignature'), 'unchanged review/photo refreshes must be coalesced'],
-  [stability.includes('controlLoading:controls.length ? false'), 'loading flags must not replace already visible checklist records'],
-  [stability.includes('captureOpen()') && stability.includes('restoreOpen()'), 'all Control details must keep native open state across real renders'],
-  [stability.includes('captureAnchor()') && stability.includes('restoreAnchor(anchor)'), 'one unified viewport anchor must preserve scroll'],
-  [stability.includes('global.scrollBy(0, delta)'), 'viewport anchor correction must be available'],
-  [viewportJitterFix.includes("const VERSION = '2026-07-30-control-viewport-jitter-1'"), 'desktop Control viewport jitter fix must be present'],
-  [viewportJitterFix.includes('desiredScrollY') && viewportJitterFix.includes('viewportHoldUntil'), 'post-scroll viewport hold must be present'],
-  [viewportJitterFix.includes('global.scrollBy = function') && viewportJitterFix.includes('global.scrollTo = function'), 'stale coordinator corrections must be suppressible'],
-  [viewportJitterFix.includes("global.addEventListener('wheel'"), 'deliberate wheel scrolling must remain allowed'],
-  [stability.includes('rememberComment') && stability.includes('rememberPhotoRules'), 'comment and photo-rule drafts must survive a changed-data render'],
-  [draftKeyBridge.includes('drafts.clear()') && draftKeyBridge.includes('userEditingThisCard'), 'auto-filled blank checklist snapshots must not override IndexedDB restoration'],
-  [draftKeyBridge.includes('snapshotRestoredCard') && draftKeyBridge.includes('input?.dataset?.task') && draftKeyBridge.includes('input?.dataset?.photoItemKey'), 'restored offline checkbox state must be accepted under raw and photo-enhanced keys'],
-  [draftKeyBridge.includes('openRestoredDraft') && draftKeyBridge.includes('card.dataset.offlineRestored'), 'restored offline drafts must reopen their checklist card'],
-  [draftKeyBridge.includes('clearSuppressedDraft') && draftKeyBridge.includes('offlineSuppressDraft'), 'intentional offline queue clearing must remove the coordinator draft'],
-  [!stability.includes('event.preventDefault()'), 'native details clicks must not be manually double-toggled'],
-  [reviewTools.includes("if(typeof refreshControl === 'function') refreshControl();"), 'review metadata still requests refresh and must be handled by the coordinator'],
-  [photoReports.includes('state.controlLoading = true') && photoReports.includes("if(typeof refreshControl === 'function') refreshControl();"), 'photo report redraw sequence must be covered by the coordinator'],
+  [push.includes('control-v3.css?v=20260730-1'), 'Control v3 CSS must be loaded'],
+  [push.includes("'assets/js/control-v3-core.js?v=20260730-1'"), 'Control v3 core must be configured'],
+  [push.includes("'assets/js/control-v3.js?v=20260730-1'"), 'Control v3 renderer must be configured'],
+  [push.indexOf('control-v3-core.js') < push.indexOf('control-v3.js'), 'Control v3 core must load before the renderer'],
+  [push.includes("window.addEventListener('load', load, { once:true })"), 'Control v3 must become the final renderer after parser-loaded feature modules'],
+  [!push.includes('control-section-stability-v2.js?v=') && !push.includes('control-section-draft-key-bridge.js?v=') && !push.includes('control-viewport-jitter-fix.js?v='), 'old Control state/scroll modules must be disconnected'],
+  [serviceWorker.includes('sovremennik-offline-20260730-v28'), 'PWA cache must be refreshed for Control v3'],
+  [serviceWorker.includes('control-v3-core.js') && serviceWorker.includes('control-v3.js') && serviceWorker.includes('control-v3.css'), 'Control v3 assets must be precached'],
+  [reviewCss.includes('height:100dvh') && reviewCss.includes('object-fit:contain!important'), 'desktop viewer must fit the complete photo inside the viewport'],
+  [controlCss.includes('overflow-anchor:none') && controlCss.includes('contain:layout style'), 'Control v3 must isolate browser scroll anchoring and layout'],
+  [controlCore.includes('tabSignature') && controlCore.includes('detailsKey'), 'Control v3 core must provide deterministic state keys'],
+  [control.includes('signatures.get(current) === nextSignature'), 'unchanged review/photo refreshes must not replace the DOM'],
+  [control.includes('target.innerHTML = standardBody(current)'), 'changed data must update only the active Control folder'],
+  [control.includes('oldFolder.replaceChildren()'), 'inactive Control folders must not keep heavy hidden DOM'],
+  [control.includes('Core.captureOpen(target)') && control.includes('Core.restoreOpen(target, open)'), 'expanded Control records must survive a real data update'],
+  [!control.includes('scrollTo(') && !control.includes('scrollBy(') && !control.includes('scrollIntoView('), 'Control v3 must never move the page programmatically'],
+  [reviewTools.includes("if(typeof refreshControl === 'function') refreshControl();"), 'review metadata must continue to request the public Control refresh'],
+  [photoReports.includes('state.controlLoading = true') && photoReports.includes("if(typeof refreshControl === 'function') refreshControl();"), 'photo report data must continue through the public Control refresh'],
   [photoDraftFix.includes("DB_NAME = 'sovremennik-checklist-photo-drafts-v1'"), 'photo drafts must use persistent IndexedDB storage'],
   [photoDraftFix.includes('new DataTransfer()') && photoDraftFix.includes("input.dispatchEvent(new Event('change'"), 'stored photos must be restored into the checklist photo module'],
 ];
@@ -57,4 +45,4 @@ if(failures.length){
   process.exit(1);
 }
 
-console.log('Checklist preview regression checks passed.');
+console.log('Checklist preview and Control v3 regression checks passed.');

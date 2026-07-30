@@ -13,6 +13,7 @@ document.write('<link rel="stylesheet" href="assets/css/mobile-photo-expand.css?
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-reports.css?v=20260722-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-photo-viewer-fit.css?v=20260722-1">');
 document.write('<link rel="stylesheet" href="assets/css/checklist-review-tools.css?v=20260725-2">');
+document.write('<link rel="stylesheet" href="assets/css/control-v3.css?v=20260730-1">');
 document.write('<link rel="stylesheet" href="assets/css/offline-reliability.css?v=20260723-1">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff.css?v=20260723-5">');
 document.write('<link rel="stylesheet" href="assets/css/shift-handoff-hotfix.css?v=20260724-1">');
@@ -57,15 +58,14 @@ document.write('<script src="assets/js/checklist-photo-draft-fix.js?v=20260725-2
 document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guard-1"><\/script>');
 
 /*
- * The Control coordinator must be the final wrapper around renderApp/refreshControl.
- * Attestations are parser-loaded after push.js and also wrap these functions, so the
- * coordinator is intentionally installed on window.load, after all feature modules.
+ * Control v3 is installed only after every parser-loaded feature module.
+ * It becomes the single owner of the Control shell, tab lifecycle and refreshes.
+ * The former scroll/state coordinators are intentionally not loaded.
  */
-(function loadControlCoordinatorLast(){
+(function loadControlV3Last(){
   const sources = [
-    'assets/js/control-section-stability-v2.js?v=20260729-order-1',
-    'assets/js/control-section-draft-key-bridge.js?v=20260729-order-1',
-    'assets/js/control-viewport-jitter-fix.js?v=20260730-1'
+    'assets/js/control-v3-core.js?v=20260730-1',
+    'assets/js/control-v3.js?v=20260730-1'
   ];
   let loading = false;
 
@@ -73,7 +73,7 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
     const path = src.split('?')[0];
     const existing = Array.from(document.scripts).find(script => script.src.includes(path));
     if(existing){
-      if(existing.dataset.controlCoordinatorReady === 'true' || existing.readyState === 'complete') resolve();
+      if(existing.dataset.controlV3Ready === 'true' || existing.readyState === 'complete') resolve();
       else {
         existing.addEventListener('load', resolve, { once:true });
         existing.addEventListener('error', reject, { once:true });
@@ -83,21 +83,21 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
     const script = document.createElement('script');
     script.src = src;
     script.async = false;
-    script.dataset.controlCoordinatorDeferred = 'true';
-    script.onload = () => { script.dataset.controlCoordinatorReady = 'true'; resolve(); };
+    script.dataset.controlV3Deferred = 'true';
+    script.onload = () => { script.dataset.controlV3Ready = 'true'; resolve(); };
     script.onerror = reject;
     document.head.appendChild(script);
   });
 
   const load = async () => {
-    if(loading || window.SovremennikControlSectionStability) return;
+    if(loading || window.SovremennikControlV3) return;
     loading = true;
     try{
       for(const source of sources) await loadScript(source);
-      window.SovremennikControlCoordinatorLoad = { status:'ready', loadedAt:new Date().toISOString() };
+      window.SovremennikControlV3Load = { status:'ready', loadedAt:new Date().toISOString() };
     }catch(error){
-      window.SovremennikControlCoordinatorLoad = { status:'error', message:String(error?.message || error) };
-      console.error('Control section coordinator failed to load after feature modules.', error);
+      window.SovremennikControlV3Load = { status:'error', message:String(error?.message || error) };
+      console.error('Control v3 failed to load after feature modules.', error);
     }finally{
       loading = false;
     }
