@@ -8,7 +8,39 @@
   const VERSION='2026-07-30-control-v4-1';
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
   let rendering=false,started=false;
-  function mount(){Control.mount();Checklists.mount()}
+
+  function toggleNearest(button,sectionSelector,bodySelector,id,set){
+    const section=button?.closest(sectionSelector);
+    const body=section?.querySelector(bodySelector);
+    if(!button||!body)return;
+    const open=body.hidden;
+    body.hidden=!open;
+    button.setAttribute('aria-expanded',String(open));
+    if(open)set.add(id);else set.delete(id);
+  }
+
+  function installScopedJournalTaps(){
+    const root=document.querySelector('#top-control');
+    if(!root||root.dataset.controlV4ScopedTaps==='1')return;
+    root.dataset.controlV4ScopedTaps='1';
+    root.addEventListener('click',event=>{
+      const dayButton=event.target.closest?.('[data-control-v4-day-toggle]');
+      if(dayButton){
+        event.preventDefault();
+        event.stopPropagation();
+        toggleNearest(dayButton,'.control-v4-day','.control-v4-day-body',dayButton.dataset.controlV4DayToggle,Control.ui.openDays);
+        return;
+      }
+      const reportButton=event.target.closest?.('[data-control-v4-report-toggle]');
+      if(reportButton){
+        event.preventDefault();
+        event.stopPropagation();
+        toggleNearest(reportButton,'.control-v4-report','.control-v4-report-body',reportButton.dataset.controlV4ReportToggle,Control.ui.openReports);
+      }
+    });
+  }
+
+  function mount(){installScopedJournalTaps();Control.mount();Checklists.mount()}
   function install(){
     global.renderControl=Control.render;
     global.refreshControl=Control.refresh;
