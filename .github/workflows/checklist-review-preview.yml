@@ -9,6 +9,7 @@ on:
       - 'assets/js/checklist-photo-draft-fix.js'
       - 'assets/js/control-v3-core.js'
       - 'assets/js/control-v3.js'
+      - 'assets/js/control-v3-regression-fix.js'
       - 'assets/css/checklist-review-tools.css'
       - 'assets/css/control-v3.css'
       - 'assets/js/push.js'
@@ -19,6 +20,7 @@ on:
       - 'tools/checklist-preview-regression-check.mjs'
       - 'tools/checklist-draft-state-browser-smoke.mjs'
       - 'tools/control-v3-browser-smoke.mjs'
+      - 'tools/control-v3-regression-fix-browser-smoke.mjs'
       - 'tools/checklist-review-tools-db-smoke.sql'
       - '.github/workflows/checklist-review-preview.yml'
 
@@ -48,11 +50,13 @@ jobs:
           node --check assets/js/checklist-photo-draft-fix.js
           node --check assets/js/control-v3-core.js
           node --check assets/js/control-v3.js
+          node --check assets/js/control-v3-regression-fix.js
           node --check tools/checklist-review-tools-check.mjs
           node --check tools/checklist-review-browser-smoke.mjs
           node --check tools/checklist-preview-regression-check.mjs
           node --check tools/checklist-draft-state-browser-smoke.mjs
           node --check tools/control-v3-browser-smoke.mjs
+          node --check tools/control-v3-regression-fix-browser-smoke.mjs
           node tools/checklist-review-tools-check.mjs
           node tools/checklist-preview-regression-check.mjs
 
@@ -69,6 +73,9 @@ jobs:
 
       - name: Test isolated Control v3 rendering and viewport stability
         run: node tools/control-v3-browser-smoke.mjs
+
+      - name: Test revisions, waiter reports and one-shot submissions
+        run: node tools/control-v3-regression-fix-browser-smoke.mjs
 
   database:
     name: Isolated database smoke

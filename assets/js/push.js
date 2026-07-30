@@ -60,12 +60,13 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
 /*
  * Control v3 is installed only after every parser-loaded feature module.
  * It becomes the single owner of the Control shell, tab lifecycle and refreshes.
- * The former scroll/state coordinators are intentionally not loaded.
+ * The regression guard is loaded last so it can safely wrap the final public APIs.
  */
 (function loadControlV3Last(){
   const sources = [
     'assets/js/control-v3-core.js?v=20260730-1',
-    'assets/js/control-v3.js?v=20260730-1'
+    'assets/js/control-v3.js?v=20260730-1',
+    'assets/js/control-v3-regression-fix.js?v=20260730-1'
   ];
   let loading = false;
 
@@ -90,7 +91,7 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
   });
 
   const load = async () => {
-    if(loading || window.SovremennikControlV3) return;
+    if(loading || window.SovremennikControlV3RegressionFix) return;
     loading = true;
     try{
       for(const source of sources) await loadScript(source);
