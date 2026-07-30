@@ -5,7 +5,7 @@
   const Core=global.SovremennikControlV4Core,Storage=global.SovremennikControlV4Storage,Service=global.SovremennikControlV4Service,Control=global.SovremennikControlV4Control,Checklists=global.SovremennikControlV4Checklists;
   const app=typeof state!=='undefined'?state:global.state;
   if(!Core||!Storage||!Service||!Control||!Checklists||!app||typeof global.renderApp!=='function'){console.error('Control v4 dependencies are unavailable.');return}
-  const VERSION='2026-07-30-control-v4-2';
+  const VERSION='2026-07-30-control-v4-1';
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
   let rendering=false,started=false;
 
