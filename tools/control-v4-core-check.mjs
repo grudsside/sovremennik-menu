@@ -64,8 +64,12 @@ assert.ok(submitBody.indexOf('Storage.saveQueue(item)') < submitBody.indexOf('St
 
 for(const marker of [
   "const VERSION='2026-07-30-control-v4-1'", 'global.renderControl=Control.render',
-  'global.submitChecklist=Checklists.submit', 'global.SovremennikOffline=Object.freeze'
+  'global.submitChecklist=Checklists.submit', 'global.SovremennikOffline=Object.freeze',
+  "const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-1'", 'function installSummaryRestore()',
+  'global.renderControlSummaryV21', 'global.renderManualReportBuilderV23',
+  'app.controlRecords=Array.isArray(Control.ui.submissions)'
 ]) assert.ok(bootstrap.includes(marker), `Missing bootstrap marker: ${marker}`);
+assert.ok(bootstrap.includes('if(oldButton)oldButton.remove()'), 'Summary must keep one global refresh action');
 
 for(const marker of [
   'touch-action:manipulation', '.control-v4-day-toggle', '.control-v4-report-toggle',
@@ -91,11 +95,12 @@ for(const old of [
   'control-v3.js','control-v3-regression-fix.js'
 ]) assert.ok(!loader.includes(old), `Legacy runtime still loaded: ${old}`);
 
-assert.ok(worker.includes('sovremennik-offline-20260730-v30'), 'PWA cache v30 is required');
+assert.ok(worker.includes('sovremennik-offline-20260730-v30'), 'PWA cache v30 trace is required');
+assert.ok(worker.includes("sovremennik-offline-20260730-v32"), 'PWA cache v32 is required');
 for(const asset of v4Assets) assert.ok(worker.includes(`./assets/js/${asset}`), `Control v4 app shell missing: ${asset}`);
 assert.ok(worker.includes('./assets/css/control-v4.css'), 'Control v4 CSS must be precached');
 for(const old of ['checklist-photo-reports.js','offline-sync.js','checklist-review-tools.js','checklist-photo-draft-fix.js','control-v3.js']) {
   assert.ok(!worker.includes(`./assets/js/${old}`), `Legacy app-shell asset remains: ${old}`);
 }
 
-console.log('Control v4 core, storage, one-shot submission and runtime isolation checks passed.');
+console.log('Control v4 core, storage, one-shot submission, restored summary and runtime isolation checks passed.');

@@ -6,8 +6,9 @@
   const app=typeof state!=='undefined'?state:global.state;
   if(!Core||!Storage||!Service||!Control||!Checklists||!app||typeof global.renderApp!=='function'){console.error('Control v4 dependencies are unavailable.');return}
   const VERSION='2026-07-30-control-v4-1';
+  const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-1';
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
-  let rendering=false,started=false;
+  let rendering=false,started=false,summaryRestoreQueued=false;
 
   function ensurePhotoFitStyles(){
     if(document.querySelector('link[data-control-v4-photo-fit]'))return;
@@ -49,7 +50,44 @@
     });
   }
 
-  function mount(){installScopedJournalTaps();Control.mount();Checklists.mount()}
+  function syncLegacySummaryState(){
+    app.controlRecords=Array.isArray(Control.ui.submissions)?Control.ui.submissions:[];
+    app.revisionRecords=Array.isArray(Control.ui.revisions)?Control.ui.revisions:[];
+    app.errorReports=Array.isArray(Control.ui.errors)?Control.ui.errors:[];
+  }
+
+  function restoreSummary(){
+    const root=document.querySelector('#top-control');
+    const folder=root?.querySelector('#control-summary');
+    if(!folder||folder.hidden||app.activeControl!=='summary')return;
+    if(folder.dataset.controlV4SummaryRestored===SUMMARY_RESTORE_VERSION&&folder.querySelector('#control-summary-wrap'))return;
+    if(typeof global.renderControlSummaryV21!=='function'||typeof global.renderManualReportBuilderV23!=='function')return;
+    syncLegacySummaryState();
+    folder.innerHTML=`<div class="control-v4-toolbar control-v4-summary-toolbar"><p>Сводка собирается из чек-листов, ревизий и сообщений об ошибках.</p><button type="button" class="small-action secondary" data-control-v4-refresh="summary">Обновить сводку</button></div><div id="control-summary-wrap">${global.renderControlSummaryV21()}${global.renderManualReportBuilderV23()}</div>`;
+    const oldButton=folder.querySelector('[data-control-summary-refresh]');
+    if(oldButton)oldButton.remove();
+    folder.dataset.controlV4SummaryRestored=SUMMARY_RESTORE_VERSION;
+    if(typeof global.bindControlSummaryEventsV23==='function')global.bindControlSummaryEventsV23();
+  }
+
+  function queueSummaryRestore(){
+    if(summaryRestoreQueued)return;
+    summaryRestoreQueued=true;
+    queueMicrotask(()=>{summaryRestoreQueued=false;restoreSummary()});
+  }
+
+  function installSummaryRestore(){
+    const root=document.querySelector('#top-control');
+    if(!root)return;
+    if(root.dataset.controlV4SummaryObserver!=='1'){
+      root.dataset.controlV4SummaryObserver='1';
+      const observer=new MutationObserver(queueSummaryRestore);
+      observer.observe(root,{childList:true,subtree:true});
+    }
+    queueSummaryRestore();
+  }
+
+  function mount(){installScopedJournalTaps();Control.mount();Checklists.mount();installSummaryRestore()}
   function install(){
     global.renderControl=Control.render;
     global.refreshControl=Control.refresh;
