@@ -6,7 +6,7 @@
   const app=typeof state!=='undefined'?state:global.state;
   if(!Core||!Storage||!Service||!Control||!Checklists||!app||typeof global.renderApp!=='function'){console.error('Control v4 dependencies are unavailable.');return}
   const VERSION='2026-07-30-control-v4-1';
-  const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-1';
+  const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-2';
   const legacy=Object.freeze({renderApp:global.renderApp,setControlTab:typeof global.setControlTab==='function'?global.setControlTab:null});
   let rendering=false,started=false,summaryRestoreQueued=false;
 
@@ -56,16 +56,22 @@
     app.errorReports=Array.isArray(Control.ui.errors)?Control.ui.errors:[];
   }
 
+  function removeDuplicateSummaryToolbars(folder){
+    folder?.querySelectorAll('.control-summary-global-toolbar').forEach(toolbar=>toolbar.remove());
+  }
+
   function restoreSummary(){
     const root=document.querySelector('#top-control');
     const folder=root?.querySelector('#control-summary');
     if(!folder||folder.hidden||app.activeControl!=='summary')return;
+    removeDuplicateSummaryToolbars(folder);
     if(folder.dataset.controlV4SummaryRestored===SUMMARY_RESTORE_VERSION&&folder.querySelector('#control-summary-wrap'))return;
     if(typeof global.renderControlSummaryV21!=='function'||typeof global.renderManualReportBuilderV23!=='function')return;
     syncLegacySummaryState();
     folder.innerHTML=`<div class="control-v4-toolbar control-v4-summary-toolbar"><p>Сводка собирается из чек-листов, ревизий и сообщений об ошибках.</p><button type="button" class="small-action secondary" data-control-v4-refresh="summary">Обновить сводку</button></div><div id="control-summary-wrap">${global.renderControlSummaryV21()}${global.renderManualReportBuilderV23()}</div>`;
     const oldButton=folder.querySelector('[data-control-summary-refresh]');
     if(oldButton)oldButton.remove();
+    removeDuplicateSummaryToolbars(folder);
     folder.dataset.controlV4SummaryRestored=SUMMARY_RESTORE_VERSION;
     if(typeof global.bindControlSummaryEventsV23==='function')global.bindControlSummaryEventsV23();
   }
