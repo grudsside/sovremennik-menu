@@ -65,11 +65,14 @@ assert.ok(submitBody.indexOf('Storage.saveQueue(item)') < submitBody.indexOf('St
 for(const marker of [
   "const VERSION='2026-07-30-control-v4-1'", 'global.renderControl=Control.render',
   'global.submitChecklist=Checklists.submit', 'global.SovremennikOffline=Object.freeze',
-  "const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-1'", 'function installSummaryRestore()',
+  "const SUMMARY_RESTORE_VERSION='2026-07-31-summary-restore-2'", 'function installSummaryRestore()',
   'global.renderControlSummaryV21', 'global.renderManualReportBuilderV23',
-  'app.controlRecords=Array.isArray(Control.ui.submissions)'
+  'app.controlRecords=Array.isArray(Control.ui.submissions)', 'function removeDuplicateSummaryToolbars(folder)',
+  "querySelectorAll('.control-summary-global-toolbar')"
 ]) assert.ok(bootstrap.includes(marker), `Missing bootstrap marker: ${marker}`);
-assert.ok(bootstrap.includes('if(oldButton)oldButton.remove()'), 'Summary must keep one global refresh action');
+assert.ok(bootstrap.includes('if(oldButton)oldButton.remove()'), 'Summary must remove its old card-level refresh action');
+const restoreBody = bootstrap.slice(bootstrap.indexOf('function restoreSummary()'), bootstrap.indexOf('function queueSummaryRestore()'));
+assert.ok(restoreBody.indexOf('removeDuplicateSummaryToolbars(folder)') < restoreBody.indexOf('SUMMARY_RESTORE_VERSION&&folder.querySelector'), 'Duplicate toolbar cleanup must run before the restored-summary early return');
 
 for(const marker of [
   'touch-action:manipulation', '.control-v4-day-toggle', '.control-v4-report-toggle',
@@ -96,11 +99,11 @@ for(const old of [
 ]) assert.ok(!loader.includes(old), `Legacy runtime still loaded: ${old}`);
 
 assert.ok(worker.includes('sovremennik-offline-20260730-v30'), 'PWA cache v30 trace is required');
-assert.ok(worker.includes("sovremennik-offline-20260730-v32"), 'PWA cache v32 is required');
+assert.ok(worker.includes("sovremennik-offline-20260730-v33"), 'PWA cache v33 is required');
 for(const asset of v4Assets) assert.ok(worker.includes(`./assets/js/${asset}`), `Control v4 app shell missing: ${asset}`);
 assert.ok(worker.includes('./assets/css/control-v4.css'), 'Control v4 CSS must be precached');
 for(const old of ['checklist-photo-reports.js','offline-sync.js','checklist-review-tools.js','checklist-photo-draft-fix.js','control-v3.js']) {
   assert.ok(!worker.includes(`./assets/js/${old}`), `Legacy app-shell asset remains: ${old}`);
 }
 
-console.log('Control v4 core, storage, one-shot submission, restored summary and runtime isolation checks passed.');
+console.log('Control v4 core, storage, one-shot submission, restored summary, single refresh action and runtime isolation checks passed.');
