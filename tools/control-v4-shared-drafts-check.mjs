@@ -7,7 +7,12 @@ const storage = fs.readFileSync('assets/js/control-v4-storage.js', 'utf8');
 const checklists = fs.readFileSync('assets/js/control-v4-checklists.js', 'utf8');
 const loader = fs.readFileSync('assets/js/push.js', 'utf8');
 const worker = fs.readFileSync('service-worker.js', 'utf8');
-const migration = fs.readFileSync('supabase/migrations/20260804170000_checklist_shared_drafts_preview.sql', 'utf8');
+const migrationFiles = [
+  'supabase/migrations/20260804170000_checklist_shared_drafts_schema.sql',
+  'supabase/migrations/20260804171000_checklist_shared_drafts_photos_finalize.sql',
+  'supabase/migrations/20260804172000_checklist_shared_drafts_security.sql'
+];
+const migration = migrationFiles.map(file => fs.readFileSync(file, 'utf8')).join('\n');
 const previewPlan = fs.readFileSync('tools/live-preview-prepare-migrations.mjs', 'utf8');
 const workflow = fs.readFileSync('.github/workflows/shared-checklist-sync.yml', 'utf8');
 
@@ -51,7 +56,10 @@ for(const asset of assets){
 assert.ok(loader.indexOf('control-v4-service.js') < loader.indexOf('control-v4-shared-drafts.js'), 'Shared module must load after the Supabase service');
 assert.ok(loader.indexOf('control-v4-shared-drafts.js') < loader.indexOf('control-v4-checklists.js'), 'Shared module must load before checklist UI');
 assert.ok(worker.includes('sovremennik-offline-20260804-v34'), 'PWA cache must be bumped for shared checklist assets');
-assert.ok(previewPlan.includes('20260804170000_checklist_shared_drafts_preview.sql'), 'Live preview must apply the shared-draft migration');
+for(const file of migrationFiles){
+  assert.ok(previewPlan.includes(file.split('/').pop()), `Live preview must apply ${file}`);
+  assert.ok(workflow.includes(file), `Shared sync workflow must watch and apply ${file}`);
+}
 assert.ok(workflow.includes('control-v4-shared-drafts-check.mjs'), 'Repository CI must run the shared-draft check');
 assert.ok(workflow.includes('checklist-shared-drafts-db-smoke.sql'), 'Database preview must exercise multi-user draft finalization');
 
