@@ -51,6 +51,26 @@ using (
   )
 );
 
+-- The employee who finalized a collaborative submission must be able to read
+-- every final photo, including files uploaded by another collaborator.
+drop policy if exists "checklist_submission_photos_select_visible" on public.checklist_submission_photos;
+create policy "checklist_submission_photos_select_visible"
+on public.checklist_submission_photos
+for select
+to authenticated
+using (
+  public.is_active_user()
+  and (
+    public.is_admin_or_manager()
+    or created_by = auth.uid()
+    or exists (
+      select 1 from public.checklist_submissions submission
+      where submission.id = submission_id
+        and submission.employee_id = auth.uid()
+    )
+  )
+);
+
 -- Existing upload policy still enforces the uploader's UUID as the first path segment.
 -- This additional read policy lets another permitted device view the shared draft photo.
 drop policy if exists "checklist_shared_photo_storage_select_accessible" on storage.objects;
