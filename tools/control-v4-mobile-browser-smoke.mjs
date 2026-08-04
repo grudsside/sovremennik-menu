@@ -104,10 +104,14 @@ for(const [name,browserType] of [['chromium',chromium],['webkit',webkit]]){
   await waiterCard.locator('.submit-checklist').tap();
   await page.waitForFunction(()=>window.SovremennikControlV4.pendingCount().then(count=>count===1));
   assert.equal(await page.evaluate(()=>window.SovremennikControlV4Storage.getDraft('admin-1','waiter-opening').then(draft=>Boolean(draft?.pendingFinalize))),true,`${name}: offline checklist was not retained as a pending shared draft`);
-  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'',`${name}: offline queued form was not cleared`);
+  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'Ольга',`${name}: pending offline form did not remain visible`);
+  assert.equal(await waiterCard.locator('.employee-name').isDisabled(),true,`${name}: pending offline employee field remained editable`);
+  assert.equal(await waiterCard.locator('.task-checkbox').isDisabled(),true,`${name}: pending offline task remained editable`);
+  assert.equal(await waiterCard.locator('.submit-checklist').isDisabled(),true,`${name}: pending offline submit remained enabled`);
   await context.setOffline(false);
   await page.waitForFunction(()=>window.SovremennikControlV4.pendingCount().then(count=>count===0),null,{timeout:15000});
   assert.equal(await page.evaluate(()=>window.SovremennikControlV4Storage.getDraft('admin-1','waiter-opening').then(Boolean)),false,`${name}: completed offline draft was not removed`);
+  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'',`${name}: synchronized offline form was not cleared`);
   const attempts=await page.evaluate(()=>window.__metrics.submissionInsertAttempts);
   assert.equal(attempts,2,`${name}: reconnect created an unexpected number of submissions`);
   await context.setOffline(true);await context.setOffline(false);await page.waitForTimeout(500);
