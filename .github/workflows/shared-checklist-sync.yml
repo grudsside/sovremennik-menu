@@ -8,7 +8,9 @@ on:
       - 'assets/js/control-v4-*.js'
       - 'assets/js/push.js'
       - 'service-worker.js'
-      - 'supabase/migrations/20260804170000_checklist_shared_drafts_preview.sql'
+      - 'supabase/migrations/20260804170000_checklist_shared_drafts_schema.sql'
+      - 'supabase/migrations/20260804171000_checklist_shared_drafts_photos_finalize.sql'
+      - 'supabase/migrations/20260804172000_checklist_shared_drafts_security.sql'
       - 'tools/control-v4-shared-drafts-check.mjs'
       - 'tools/checklist-shared-drafts-db-smoke.sql'
       - 'tools/live-preview-prepare-migrations.mjs'
@@ -80,5 +82,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
-          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260804170000_checklist_shared_drafts_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260804170000_checklist_shared_drafts_schema.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260804171000_checklist_shared_drafts_photos_finalize.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260804172000_checklist_shared_drafts_security.sql
           psql -h 127.0.0.1 -U postgres -d preview -f tools/checklist-shared-drafts-db-smoke.sql
