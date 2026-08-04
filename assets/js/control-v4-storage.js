@@ -10,7 +10,7 @@
     return;
   }
 
-  const VERSION = '2026-07-30-control-v4-storage-1';
+  const VERSION = '2026-08-04-control-v4-storage-2';
   const DB_NAME = 'sovremennik-control-v4';
   const DB_VERSION = 1;
   const DRAFTS = 'drafts';
@@ -65,6 +65,48 @@
   async function all(store){ return (await request(store, 'readonly', target => target.getAll())) || []; }
 
   function now(){ return new Date().toISOString(); }
+  function unique(values){ return Array.from(new Set((Array.isArray(values) ? values : []).map(String).filter(Boolean))); }
+  function normalizePhoto(photo, index){
+    const remote = Boolean(photo?.remote || photo?.storagePath || photo?.storage_path);
+    const fullBlob = photo?.fullBlob || photo?.blob || null;
+    const thumbnailBlob = photo?.thumbnailBlob || photo?.blob || null;
+    const itemKey = Core.text(photo?.itemKey || photo?.item_key);
+    if(!itemKey || (!remote && !fullBlob)) return null;
+    return {
+      id:Core.text(photo?.id) || Core.uuid(),
+      itemKey,
+      index:Number(photo?.index || photo?.photoIndex || photo?.photo_index || index + 1),
+      name:Core.text(photo?.name) || `photo-${index + 1}.jpg`,
+      type:Core.text(photo?.type || photo?.mimeType || photo?.mime_type || fullBlob?.type) || 'image/jpeg',
+      fullBlob:remote ? null : fullBlob,
+      thumbnailBlob:remote ? null : (thumbnailBlob || fullBlob),
+      storagePath:Core.text(photo?.storagePath || photo?.storage_path),
+      thumbnailPath:Core.text(photo?.thumbnailPath || photo?.thumbnail_path),
+      thumbnailUrl:Core.text(photo?.thumbnailUrl),
+      fullUrl:Core.text(photo?.fullUrl),
+      fileSize:Number(photo?.fileSize || photo?.file_size || fullBlob?.size || 0),
+      thumbnailSize:Number(photo?.thumbnailSize || photo?.thumbnail_size || thumbnailBlob?.size || 0),
+      createdBy:Core.text(photo?.createdBy || photo?.created_by),
+      createdByName:Core.text(photo?.createdByName || photo?.created_by_name),
+      createdAt:photo?.createdAt || photo?.created_at || now(),
+      remote,
+      syncStatus:remote ? 'synced' : 'pending'
+    };
+  }
+  function sharedFields(raw){
+    return {
+      sharedDraftId:Core.text(raw?.sharedDraftId || raw?.shared_draft_id),
+      department:Core.text(raw?.department),
+      workDate:Core.text(raw?.workDate || raw?.work_date),
+      sharedStatus:Core.text(raw?.sharedStatus || raw?.shared_status) || 'draft',
+      serverVersion:Number(raw?.serverVersion || raw?.server_version || 0),
+      serverUpdatedAt:raw?.serverUpdatedAt || raw?.server_updated_at || null,
+      dirtyItemKeys:unique(raw?.dirtyItemKeys || raw?.dirty_item_keys),
+      dirtyEmployeeName:Boolean(raw?.dirtyEmployeeName ?? raw?.dirty_employee_name),
+      pendingFinalize:Boolean(raw?.pendingFinalize ?? raw?.pending_finalize),
+      finalizeEmployeeName:Core.text(raw?.finalizeEmployeeName || raw?.finalize_employee_name)
+    };
+  }
   function normalizeDraft(raw){
     if(!raw) return null;
     const userId = Core.text(raw.userId);
@@ -79,15 +121,8 @@
       checklistTitle:Core.text(raw.checklistTitle),
       employeeName:Core.text(raw.employeeName),
       tasks,
-      photos:Array.isArray(raw.photos) ? raw.photos.map((photo, index) => ({
-        id:Core.text(photo?.id) || Core.uuid(),
-        itemKey:Core.text(photo?.itemKey || photo?.item_key),
-        index:Number(photo?.index || photo?.photoIndex || index + 1),
-        name:Core.text(photo?.name) || `photo-${index + 1}.jpg`,
-        type:Core.text(photo?.type || photo?.blob?.type) || 'image/jpeg',
-        fullBlob:photo?.fullBlob || photo?.blob || null,
-        thumbnailBlob:photo?.thumbnailBlob || photo?.blob || null
-      })).filter(photo => photo.itemKey && photo.fullBlob) : [],
+      photos:Array.isArray(raw.photos) ? raw.photos.map(normalizePhoto).filter(Boolean) : [],
+      ...sharedFields(raw),
       status:['draft','submitting','pending','failed'].includes(raw.status) ? raw.status : 'draft',
       lastError:Core.text(raw.lastError),
       createdAt:raw.createdAt || now(),
@@ -109,15 +144,8 @@
       checklistTitle:Core.text(raw.checklistTitle),
       employeeName:Core.text(raw.employeeName),
       tasks,
-      photos:Array.isArray(raw.photos) ? raw.photos.map((photo, index) => ({
-        id:Core.text(photo?.id) || Core.uuid(),
-        itemKey:Core.text(photo?.itemKey || photo?.item_key),
-        index:Number(photo?.index || photo?.photoIndex || index + 1),
-        name:Core.text(photo?.name) || `photo-${index + 1}.jpg`,
-        type:Core.text(photo?.type || photo?.blob?.type) || 'image/jpeg',
-        fullBlob:photo?.fullBlob || photo?.blob || null,
-        thumbnailBlob:photo?.thumbnailBlob || photo?.blob || null
-      })).filter(photo => photo.itemKey && photo.fullBlob) : [],
+      photos:Array.isArray(raw.photos) ? raw.photos.map(normalizePhoto).filter(Boolean) : [],
+      ...sharedFields(raw),
       summary:raw.summary || summary,
       status:['pending','syncing','failed'].includes(raw.status) ? raw.status : 'pending',
       attemptCount:Number(raw.attemptCount || 0),
@@ -210,7 +238,8 @@
           id:Core.uuid(), itemKey, index:index + 1,
           name:Core.text(file?.name) || `legacy-${index + 1}.jpg`,
           type:Core.text(file?.type || blob.type) || 'image/jpeg',
-          fullBlob:blob, thumbnailBlob:blob
+          fullBlob:blob, thumbnailBlob:blob,
+          remote:false, syncStatus:'pending'
         });
         photoCount += 1;
       });
