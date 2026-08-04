@@ -55,12 +55,13 @@ document.write('<script src="assets/js/attestations-tab-guard.js?v=20260728-guar
  */
 (function loadControlV4Last(){
   const sources = [
-    'assets/js/control-v4-core.js?v=20260730-1',
-    'assets/js/control-v4-storage.js?v=20260730-1',
-    'assets/js/control-v4-service.js?v=20260730-1',
-    'assets/js/control-v4-control.js?v=20260730-1',
-    'assets/js/control-v4-checklists.js?v=20260730-1',
-    'assets/js/control-v4.js?v=20260730-1'
+    'assets/js/control-v4-core.js?v=20260804-1',
+    'assets/js/control-v4-storage.js?v=20260804-1',
+    'assets/js/control-v4-service.js?v=20260804-1',
+    'assets/js/control-v4-shared-drafts.js?v=20260804-1',
+    'assets/js/control-v4-control.js?v=20260804-1',
+    'assets/js/control-v4-checklists.js?v=20260804-1',
+    'assets/js/control-v4.js?v=20260804-1'
   ];
   let loading = false;
   const loadScript = src => new Promise((resolve, reject) => {
