@@ -22,16 +22,18 @@ for(const marker of [
   'finalize_checklist_shared_draft', "status in ('draft','submitting','submitted')",
   'can_access_checklist_shared_department', 'checklist_shared_photo_storage_select_accessible',
   'alter publication supabase_realtime add table public.checklist_shared_drafts',
-  'Only the submission owner may attach photos'
+  'Only the submission owner may attach photos',
+  'submission.employee_id = auth.uid()'
 ]) assert.ok(migration.includes(marker), `Missing shared-draft migration marker: ${marker}`);
 
+assert.ok(!shared.includes('upsert:true'), 'Shared photo retries must not require Storage UPDATE permission');
 assert.ok(migration.includes('unique (checklist_id, department, work_date)'), 'One shared draft per checklist, department and work date is required');
 assert.ok(!migration.includes('grant insert on table public.checklist_shared_drafts to authenticated'), 'Browser clients must not write shared tables directly');
 
 for(const marker of [
   'SovremennikControlV4SharedDrafts', "table:'checklist_shared_draft_items'",
   "table:'checklist_shared_draft_photos'", "event:'sync'", 'syncPendingFinalizations',
-  'pendingFinalize', 'mergeLocal', 'Service.signedUrl'
+  'pendingFinalize', 'mergeLocal', 'Service.signedUrl', 'upsert:false', 'uploadObject'
 ]) assert.ok(shared.includes(marker), `Missing shared runtime marker: ${marker}`);
 
 for(const marker of [
@@ -42,7 +44,8 @@ for(const marker of [
 for(const marker of [
   'Shared.open', 'Shared.sync', 'Shared.finalize', 'Shared.removePhoto',
   'sov:control-v4-shared-remote', 'sov:control-v4-shared-presence',
-  'Синхронизировано на всех устройствах', 'Storage.saveDraft(draft)'
+  'Синхронизировано на всех устройствах', 'Storage.saveDraft(draft)',
+  'pendingDirtyItems', 'pendingDirtyNames'
 ]) assert.ok(checklists.includes(marker), `Checklist UI shared marker missing: ${marker}`);
 
 const assets = [
