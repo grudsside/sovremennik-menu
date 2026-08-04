@@ -14,7 +14,10 @@ on:
       - 'tools/control-v4-shared-drafts-check.mjs'
       - 'tools/checklist-shared-drafts-db-smoke.sql'
       - 'tools/live-preview-prepare-migrations.mjs'
+      - 'tools/production-shared-checklist-release.mjs'
+      - 'tools/production-shared-checklist-workflow-check.mjs'
       - '.github/workflows/shared-checklist-sync.yml'
+      - '.github/workflows/production-shared-checklists-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -45,9 +48,14 @@ jobs:
           node --check assets/js/push.js
           node --check service-worker.js
           node --check tools/control-v4-shared-drafts-check.mjs
+          node --check tools/production-shared-checklist-release.mjs
+          node --check tools/production-shared-checklist-workflow-check.mjs
 
       - name: Check multi-device checklist wiring
         run: node tools/control-v4-shared-drafts-check.mjs
+
+      - name: Check production release safety
+        run: node tools/production-shared-checklist-workflow-check.mjs
 
       - name: Check existing Control v4 regressions
         run: node tools/control-v4-core-check.mjs
