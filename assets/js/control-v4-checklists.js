@@ -15,6 +15,8 @@
   const PROFILE_KEY = 'sovremennikControlV4Profile';
   const drafts = new Map();
   const timers = new Map();
+  const pendingDirtyItems = new Map();
+  const pendingDirtyNames = new Set();
   // Regression compatibility marker: locks=new Set()
   const locks = new Set();
   const urls = new Map();
@@ -252,9 +254,9 @@
         photoCount:count
       });
     });
-    const dirtyItemKeys = new Set(old.dirtyItemKeys || []);
+    const dirtyItemKeys = new Set([...(old.dirtyItemKeys || []), ...(pendingDirtyItems.get(id) || [])]);
     if(changedTarget?.matches?.('.task-checkbox')) dirtyItemKeys.add(changedTarget.dataset.controlV4ItemKey);
-    const nameChanged = Boolean(old.dirtyEmployeeName || changedTarget?.matches?.('.employee-name'));
+    const nameChanged = Boolean(old.dirtyEmployeeName || pendingDirtyNames.has(id) || changedTarget?.matches?.('.employee-name'));
     return {
       ...old,
       key:Core.draftKey(userId(), id),
@@ -296,6 +298,8 @@
       return null;
     }
     draft = await Storage.saveDraft(draft);
+    pendingDirtyItems.delete(draft.checklistId);
+    pendingDirtyNames.delete(draft.checklistId);
     drafts.set(draft.checklistId, draft);
     badge(parent, navigator.onLine ? 'Синхронизация…' : 'Черновик сохранён на устройстве', 'control-v4-draft-status');
 
@@ -318,6 +322,12 @@
   function schedule(parent, delay = 350, changedTarget = null){
     const id = parent?.dataset.checklistId;
     if(!id) return;
+    if(changedTarget?.matches?.('.task-checkbox')){
+      const dirty = pendingDirtyItems.get(id) || new Set();
+      dirty.add(changedTarget.dataset.controlV4ItemKey);
+      pendingDirtyItems.set(id, dirty);
+    }
+    if(changedTarget?.matches?.('.employee-name')) pendingDirtyNames.add(id);
     clearTimeout(timers.get(id));
     timers.set(id, setTimeout(() => {
       timers.delete(id);
@@ -387,6 +397,8 @@
   function clear(parent, id){
     clearTimeout(timers.get(id));
     timers.delete(id);
+    pendingDirtyItems.delete(id);
+    pendingDirtyNames.delete(id);
     parent.dataset.controlV4SuppressSave = '1';
     parent.querySelectorAll('.task-checkbox').forEach(input => { input.checked = false; input.disabled = false; });
     const name = parent.querySelector('.employee-name');
@@ -544,7 +556,7 @@
     const draft = Shared.mergeLocal(remote, local);
     if(draft.sharedStatus === 'submitted'){
       await Storage.deleteDraft(userId(), id).catch(() => {});
-      clear(parent, id);
+      applyDraft(parent, draft);
       status(parent, 'Чек-лист отправлен с другого устройства.', 'success');
       return;
     }
