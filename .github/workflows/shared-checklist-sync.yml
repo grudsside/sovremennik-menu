@@ -1,0 +1,84 @@
+name: Shared checklist sync checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'assets/js/control-v4-*.js'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+      - 'supabase/migrations/20260804170000_checklist_shared_drafts_preview.sql'
+      - 'tools/control-v4-shared-drafts-check.mjs'
+      - 'tools/checklist-shared-drafts-db-smoke.sql'
+      - 'tools/live-preview-prepare-migrations.mjs'
+      - '.github/workflows/shared-checklist-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-checklist-sync-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime:
+    name: Runtime and wiring
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check changed JavaScript syntax
+        run: |
+          node --check assets/js/control-v4-storage.js
+          node --check assets/js/control-v4-shared-drafts.js
+          node --check assets/js/control-v4-checklists.js
+          node --check assets/js/push.js
+          node --check service-worker.js
+          node --check tools/control-v4-shared-drafts-check.mjs
+
+      - name: Check multi-device checklist wiring
+        run: node tools/control-v4-shared-drafts-check.mjs
+
+      - name: Check existing Control v4 regressions
+        run: node tools/control-v4-core-check.mjs
+
+  database:
+    name: Isolated multi-user database flow
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: preview
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply base schema and shared checklist migration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/free-preview-db-smoke.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f supabase/migrations/20260804170000_checklist_shared_drafts_preview.sql
+          psql -h 127.0.0.1 -U postgres -d preview -f tools/checklist-shared-drafts-db-smoke.sql
