@@ -84,9 +84,10 @@ assert.deepEqual(Array.from(grouped[0].records, row => row.id), ['new-b', 'new-a
 for (const marker of [
   'assets/css/control-v4.css?v=20260730-1',
   'assets/js/checklist-photo-core.js?v=20260722-1',
-  'assets/js/control-v4-service.js?v=20260730-1',
-  'assets/js/control-v4-control.js?v=20260730-1',
-  'assets/js/control-v4-checklists.js?v=20260730-1',
+  'assets/js/control-v4-service.js?v=20260804-1',
+  'assets/js/control-v4-shared-drafts.js?v=20260804-1',
+  'assets/js/control-v4-control.js?v=20260804-1',
+  'assets/js/control-v4-checklists.js?v=20260804-1',
 ]) assert.ok(loader.includes(marker), `Missing Control v4 photo loader marker: ${marker}`);
 assert.ok(!loader.includes('assets/js/checklist-photo-reports.js?v='), 'Legacy photo report runtime must stay disconnected');
 
