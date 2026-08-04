@@ -278,6 +278,16 @@
     }));
   }
 
+  async function uploadObject(path, blob, contentType){
+    const result = await db().storage.from(Service.PHOTO_BUCKET).upload(path, blob, {
+      contentType, cacheControl:'3600', upsert:false
+    });
+    const duplicate = Core.isDuplicateError(result.error)
+      || /already exists|resource exists|duplicate/i.test(String(result.error?.message || ''));
+    if(result.error && !duplicate) throw result.error;
+    return result.data?.path || path;
+  }
+
   async function uploadPendingPhoto(draft, photo){
     const client = db();
     const actor = currentUser();
@@ -285,21 +295,15 @@
     const base = `${safePart(actor.id)}/shared/${safePart(draft.sharedDraftId)}/${safePart(photo.itemKey)}/${safePart(photo.id)}`;
     const storagePath = `${base}/full.jpg`;
     const thumbnailPath = `${base}/thumb.jpg`;
-    const full = await client.storage.from(Service.PHOTO_BUCKET).upload(storagePath, photo.fullBlob, {
-      contentType:photo.type || 'image/jpeg', cacheControl:'3600', upsert:true
-    });
-    if(full.error) throw full.error;
+    const fullPath = await uploadObject(storagePath, photo.fullBlob, photo.type || 'image/jpeg');
     const thumbBlob = photo.thumbnailBlob || photo.fullBlob;
-    const thumb = await client.storage.from(Service.PHOTO_BUCKET).upload(thumbnailPath, thumbBlob, {
-      contentType:'image/jpeg', cacheControl:'3600', upsert:true
-    });
-    if(thumb.error) throw thumb.error;
+    const thumbPath = await uploadObject(thumbnailPath, thumbBlob, 'image/jpeg');
     const data = await rpc('attach_checklist_shared_draft_photo', {
       p_draft_id:String(draft.sharedDraftId),
       p_photo_id:String(photo.id),
       p_item_key:String(photo.itemKey),
-      p_storage_path:full.data.path,
-      p_thumbnail_path:thumb.data.path,
+      p_storage_path:fullPath,
+      p_thumbnail_path:thumbPath,
       p_mime_type:photo.type || 'image/jpeg',
       p_file_size:Number(photo.fullBlob?.size || 0),
       p_thumbnail_size:Number(thumbBlob?.size || 0)
