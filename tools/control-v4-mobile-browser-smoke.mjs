@@ -15,6 +15,7 @@ body{margin:0;background:#f4f1e7;font-family:Arial,sans-serif;color:#293024}.top
 <script>
 const submissions=${JSON.stringify(submissions)};
 window.__metrics={submissionInsertAttempts:0,submissionIds:[],finalizeCalls:0};
+window.__sharedDrafts={};
 window.state={menu:{checklists:[
 {id:'barista-opening',title:'Чек-лист открытия бариста',department:'barista',sections:[{title:'Бар',rows:[{task:'Подготовить кофемашину'}]}]},
 {id:'waiter-opening',title:'Чек-лист открытия официанта',department:'waiter',sections:[{title:'Зал',rows:[{task:'Подготовить зал'}]}]}
@@ -36,10 +37,19 @@ if(this.table==='checklist_photo_rules')return {data:[],error:null};
 if(this.table==='coffee_revisions')return {data:this.singleMode?this.payload:this.payload,error:null};
 return {data:this.singleMode?null:[],error:null}}
 }
-const client={auth:{getSession:async()=>({data:{session:state.auth.session},error:null})},from:table=>new Query(table),rpc:async(name,args)=>{if(name==='finalize_checklist_photo_submission'){window.__metrics.finalizeCalls++;const row=submissions.find(item=>item.id===args.p_submission_id)||{};return {data:[{...row,items:args.p_items,completed_count:(args.p_items||[]).filter(item=>item.checked).length,total_count:(args.p_items||[]).length,percent:100,photo_count:0}],error:null}}return {data:[],error:null}},storage:{from:()=>({upload:async path=>({data:{path},error:null}),createSignedUrl:async path=>({data:{signedUrl:'/photo/'+path},error:null})})}};
+function clone(value){return JSON.parse(JSON.stringify(value))}
+function sharedById(id){return Object.values(window.__sharedDrafts).find(row=>String(row.id)===String(id))||null}
+function sharedOpen(args){
+ const key=String(args.p_checklist_id);let row=window.__sharedDrafts[key];
+ if(!row){const now=new Date().toISOString();row={id:'shared-'+key,submissionId:'submission-'+key,checklistId:key,checklistTitle:String(args.p_checklist_title||'Чек-лист'),department:String(args.p_department||''),workDate:String(args.p_work_date||''),employeeName:'',status:'draft',version:1,updatedAt:now,createdAt:now,submittedAt:null,photos:[],items:(args.p_items||[]).map(item=>({itemKey:String(item.itemKey),text:String(item.text||''),sectionTitle:String(item.sectionTitle||''),checkedByUser:false,requiredPhotoCount:Number(item.requiredPhotoCount||0),photoCount:0}))};window.__sharedDrafts[key]=row}
+ return clone(row)
+}
+function sharedPatch(args){const row=sharedById(args.p_draft_id);if(!row)throw new Error('shared draft not found');if(args.p_employee_name!==null&&args.p_employee_name!==undefined)row.employeeName=String(args.p_employee_name||'');for(const change of (args.p_changes||[])){const item=row.items.find(value=>String(value.itemKey)===String(change.itemKey));if(item)item.checkedByUser=Boolean(change.checkedByUser)}row.version++;row.updatedAt=new Date().toISOString();return clone(row)}
+function sharedFinalize(args){const row=sharedById(args.p_draft_id);if(!row)throw new Error('shared draft not found');if(row.status!=='submitted'){row.status='submitted';row.employeeName=String(args.p_employee_name||row.employeeName||'');row.submittedAt=new Date().toISOString();row.updatedAt=row.submittedAt;window.__metrics.submissionInsertAttempts++;if(!window.__metrics.submissionIds.includes(row.submissionId))window.__metrics.submissionIds.push(row.submissionId);submissions.unshift({id:row.submissionId,checklist_id:row.checklistId,checklist_title:row.checklistTitle,employee_id:'admin-1',employee_name:row.employeeName,items:row.items.map(item=>({...item,checked:Boolean(item.checkedByUser)})),completed_count:row.items.filter(item=>item.checkedByUser).length,total_count:row.items.length,percent:100,photo_required_count:0,photo_count:0,created_at:row.submittedAt,deleted_at:null})}return clone(submissions.find(item=>item.id===row.submissionId))}
+const client={auth:{getSession:async()=>({data:{session:state.auth.session},error:null})},from:table=>new Query(table),rpc:async(name,args)=>{try{if(name==='open_checklist_shared_draft')return {data:sharedOpen(args),error:null};if(name==='patch_checklist_shared_draft')return {data:sharedPatch(args),error:null};if(name==='checklist_shared_draft_payload')return {data:clone(sharedById(args.p_draft_id)),error:null};if(name==='finalize_checklist_shared_draft')return {data:sharedFinalize(args),error:null};if(name==='finalize_checklist_photo_submission'){window.__metrics.finalizeCalls++;const row=submissions.find(item=>item.id===args.p_submission_id)||{};return {data:[{...row,items:args.p_items,completed_count:(args.p_items||[]).filter(item=>item.checked).length,total_count:(args.p_items||[]).length,percent:100,photo_count:0}],error:null}}return {data:[],error:null}}catch(error){return {data:null,error:{message:error.message}}}},storage:{from:()=>({upload:async path=>({data:{path},error:null}),createSignedUrl:async path=>({data:{signedUrl:'/photo/'+path},error:null})})}};
 window.sovremennikSupabase=client;window.supabase={createClient:()=>client};
 </script>
-<script src="/assets/js/control-v4-core.js"></script><script src="/assets/js/control-v4-storage.js"></script><script src="/assets/js/control-v4-service.js"></script><script src="/assets/js/control-v4-control.js"></script><script src="/assets/js/control-v4-checklists.js"></script><script src="/assets/js/control-v4.js"></script></body></html>`;
+<script src="/assets/js/control-v4-core.js"></script><script src="/assets/js/control-v4-storage.js"></script><script src="/assets/js/control-v4-service.js"></script><script src="/assets/js/control-v4-control.js"></script><script src="/assets/js/control-v4-shared-drafts.js"></script><script src="/assets/js/control-v4-checklists.js"></script><script src="/assets/js/control-v4.js"></script></body></html>`;
 
 const mime={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
 const server=createServer((request,response)=>{const url=new URL(request.url||'/','http://127.0.0.1');if(url.pathname==='/'||url.pathname==='/index.html'){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(fixture);return}const file=resolve(root,url.pathname.replace(/^\/+/,''));if(!file.startsWith(root+sep)){response.writeHead(403);response.end();return}try{response.writeHead(200,{'content-type':mime[extname(file)]||'application/octet-stream','cache-control':'no-store'});response.end(readFileSync(file))}catch(error){response.writeHead(404);response.end('not found')}});
@@ -52,7 +62,7 @@ for(const [name,browserType] of [['chromium',chromium],['webkit',webkit]]){
   const page=await context.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
   await page.goto(origin,{waitUntil:'load'});
-  await page.waitForFunction(()=>Boolean(window.SovremennikControlV4?.VERSION));
+  try{await page.waitForFunction(()=>Boolean(window.SovremennikControlV4?.VERSION))}catch(error){throw new Error(name+': Control v4 runtime did not start: '+errors.join(' | '),{cause:error})}
   await page.waitForFunction(()=>document.querySelectorAll('[data-control-v4-report-id]').length===2);
 
   const waiterButton=page.locator('[data-control-v4-department="waiter"]');
@@ -77,6 +87,7 @@ for(const [name,browserType] of [['chromium',chromium],['webkit',webkit]]){
   assert.match(await page.locator('#revision-records').innerText(),/30\.07\.2026|30 июля 2026/,`${name}: revisions did not render`);
 
   await page.evaluate(()=>{state.activeTop='checklists';window.renderApp()});
+  await page.waitForFunction(()=>document.querySelectorAll('.doc-card[data-control-v4-restored="1"]').length===2);
   const card=page.locator('.doc-card[data-checklist-id="barista-opening"]');
   await card.locator('.employee-name').fill('Анна');
   await card.locator('.task-checkbox').check();
@@ -92,10 +103,15 @@ for(const [name,browserType] of [['chromium',chromium],['webkit',webkit]]){
   await waiterCard.locator('.task-checkbox').check();
   await waiterCard.locator('.submit-checklist').tap();
   await page.waitForFunction(()=>window.SovremennikControlV4.pendingCount().then(count=>count===1));
-  assert.equal(await page.evaluate(()=>window.SovremennikControlV4Storage.getDraft('admin-1','waiter-opening').then(Boolean)),false,`${name}: queued checklist remained as a draft`);
-  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'',`${name}: offline queued form was not cleared`);
+  assert.equal(await page.evaluate(()=>window.SovremennikControlV4Storage.getDraft('admin-1','waiter-opening').then(draft=>Boolean(draft?.pendingFinalize))),true,`${name}: offline checklist was not retained as a pending shared draft`);
+  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'Ольга',`${name}: pending offline form did not remain visible`);
+  assert.equal(await waiterCard.locator('.employee-name').isDisabled(),true,`${name}: pending offline employee field remained editable`);
+  assert.equal(await waiterCard.locator('.task-checkbox').isDisabled(),true,`${name}: pending offline task remained editable`);
+  assert.equal(await waiterCard.locator('.submit-checklist').isDisabled(),true,`${name}: pending offline submit remained enabled`);
   await context.setOffline(false);
   await page.waitForFunction(()=>window.SovremennikControlV4.pendingCount().then(count=>count===0),null,{timeout:15000});
+  assert.equal(await page.evaluate(()=>window.SovremennikControlV4Storage.getDraft('admin-1','waiter-opening').then(Boolean)),false,`${name}: completed offline draft was not removed`);
+  assert.equal(await waiterCard.locator('.employee-name').inputValue(),'',`${name}: synchronized offline form was not cleared`);
   const attempts=await page.evaluate(()=>window.__metrics.submissionInsertAttempts);
   assert.equal(attempts,2,`${name}: reconnect created an unexpected number of submissions`);
   await context.setOffline(true);await context.setOffline(false);await page.waitForTimeout(500);

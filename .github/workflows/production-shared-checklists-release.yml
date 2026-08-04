@@ -1,0 +1,149 @@
+name: Production shared checklists release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-shared-checklists-release.yml'
+      - 'tools/production-shared-checklist-release.mjs'
+      - 'supabase/migrations/20260804170000_checklist_shared_drafts_schema.sql'
+      - 'supabase/migrations/20260804171000_checklist_shared_drafts_photos_finalize.sql'
+      - 'supabase/migrations/20260804172000_checklist_shared_drafts_security.sql'
+      - 'assets/js/control-v4-storage.js'
+      - 'assets/js/control-v4-shared-drafts.js'
+      - 'assets/js/control-v4-checklists.js'
+      - 'assets/js/push.js'
+      - 'service-worker.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: production-shared-checklists-release
+  cancel-in-progress: false
+
+jobs:
+  deploy-production:
+    name: Apply database and verify production frontend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PRODUCTION_PROJECT_REF: tjibbzfdughhjenumzxo
+      PRODUCTION_SUPABASE_URL: https://tjibbzfdughhjenumzxo.supabase.co
+      PRODUCTION_PAGES_URL: https://grudsside.github.io/sovremennik-menu
+
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate production target and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo 'SUPABASE_ACCESS_TOKEN is missing.' >&2; exit 1; }
+          [[ "$PRODUCTION_PROJECT_REF" == 'tjibbzfdughhjenumzxo' ]] || { echo 'Unexpected production Project Ref.' >&2; exit 1; }
+          [[ "$PRODUCTION_SUPABASE_URL" == "https://${PRODUCTION_PROJECT_REF}.supabase.co" ]] || { echo 'Production URL and Project Ref do not match.' >&2; exit 1; }
+          [[ "$PRODUCTION_PAGES_URL" == 'https://grudsside.github.io/sovremennik-menu' ]] || { echo 'Unexpected production Pages URL.' >&2; exit 1; }
+
+      - name: Apply and verify shared checklist migrations
+        run: node tools/production-shared-checklist-release.mjs
+
+      - name: Verify published GitHub Pages frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          published=false
+          for attempt in {1..60}; do
+            loader="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/push.js?release=${GITHUB_SHA}" || true)"
+            shared="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/control-v4-shared-drafts.js?release=${GITHUB_SHA}" || true)"
+            checklists="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/control-v4-checklists.js?release=${GITHUB_SHA}" || true)"
+            storage="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/control-v4-storage.js?release=${GITHUB_SHA}" || true)"
+            worker="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/service-worker.js?release=${GITHUB_SHA}" || true)"
+            config="$(curl --fail --silent --show-error "${PRODUCTION_PAGES_URL}/assets/js/supabase-config.js?release=${GITHUB_SHA}" || true)"
+
+            if grep -q 'control-v4-shared-drafts.js?v=20260804-1' <<< "$loader" \
+              && grep -q 'SovremennikControlV4SharedDrafts' <<< "$shared" \
+              && grep -q 'syncPendingFinalizations' <<< "$shared" \
+              && grep -q 'sov:control-v4-shared-remote' <<< "$checklists" \
+              && grep -q 'pendingDirtyItems' <<< "$checklists" \
+              && grep -q 'sharedDraftId' <<< "$storage" \
+              && grep -q 'sovremennik-offline-20260804-v34' <<< "$worker" \
+              && grep -q 'tjibbzfdughhjenumzxo' <<< "$config" \
+              && ! grep -q 'enkftanmqlwvjydliwue' <<< "$config"; then
+              published=true
+              break
+            fi
+            sleep 10
+          done
+
+          [[ "$published" == 'true' ]] || {
+            echo 'Production Pages did not publish the shared checklist runtime in time.' >&2
+            exit 1
+          }
+
+          for asset in \
+            assets/js/control-v4-storage.js \
+            assets/js/control-v4-shared-drafts.js \
+            assets/js/control-v4-checklists.js \
+            assets/js/push.js \
+            service-worker.js; do
+            curl --fail --silent --show-error \
+              "${PRODUCTION_PAGES_URL}/${asset}?release=${GITHUB_SHA}" \
+              --output /dev/null
+          done
+
+      - name: Publish release summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Production shared checklist release verified'
+            echo
+            echo '- Shared draft schema, field-level RPCs and one-shot finalization are active.'
+            echo '- RLS, role boundaries, private photo access and Realtime publication passed.'
+            echo '- GitHub Pages serves the multi-device, offline-resume runtime.'
+            echo '- Production configuration does not point to the preview project.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish machine-readable production status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_STATUS" == 'success' ]]; then
+            state='success'
+            description='Shared checklist production release verified'
+          else
+            state='failure'
+            description='Shared checklist production release failed'
+          fi
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --raw-field state="$state" \
+            --raw-field context='production/shared-checklists' \
+            --raw-field description="$description" \
+            --raw-field target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Upload production release report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-shared-checklists-release
+          path: artifacts/production-shared-checklists
+          if-no-files-found: warn
+          retention-days: 30
